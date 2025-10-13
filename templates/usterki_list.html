@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Panel Administracyjny - Zgłoszone Usterki</h1>
+
+    {% if usterki %}
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>ID Sprzętu</th>
+                <th>Nazwa Sprzętu</th>
+                <th>Opis Usterki</th>
+                <th>Status</th>
+                <th>Zgłoszono przez</th>
+                <th>Data Zgłoszenia</th>
+                <th>Magazyn</th>
+                <th>Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for usterka in usterki %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}">
+                        {{ usterka.sprzet_id }}
+                    </a>
+                </td>
+                <td>{{ usterka.nazwa_sprzetu }}</td>
+                <td>{{ usterka.opis | truncate(80, True) }}</td>
+
+                <td>
+                    <span class="badge
+                        {% if usterka.status == 'oczekuje' %} bg-warning text-dark
+                        {% elif usterka.status == 'w trakcie' %} bg-info text-dark
+                        {% elif usterka.status == 'naprawiona' %} bg-success
+                        {% elif usterka.status == 'odrzucona' %} bg-danger
+                        {% else %} bg-secondary
+                        {% endif %}
+                        ">
+                        {{ usterka.status | capitalize }}
+                    </span>
+                </td>
+
+                <td>{{ usterka.zgloszono_przez }}</td>
+                <td>{{ usterka.data_zgloszenia }}</td>
+                <td>{{ usterka.magazyn }}</td>
+                <td>
+                    <a href="{{ url_for('views.usterka_edit', usterka_id=usterka.id) }}" class="btn btn-sm btn-primary">
+                        Zarządzaj
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-success" role="alert">
+        🎉 Gratulacje! Obecnie nie ma żadnych zgłoszonych usterek.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

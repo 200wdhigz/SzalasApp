@@ -1,0 +1,7 @@
+# .gitignore
+# ...
+
+data_files
+photos
+.env
+.idea

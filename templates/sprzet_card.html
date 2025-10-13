@@ -1,0 +1,405 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Wymuszanie proporcji 16:9 dla kontenera karuzeli */
+    #sprzetCarousel .carousel-inner {
+        aspect-ratio: 4 / 3;
+        overflow: hidden;
+    }
+    /* Zapewnienie, że zdjęcia wypełnią kontener 16:9 */
+    #sprzetCarousel .carousel-item img {
+        width: 100%;
+        height: 100%;
+        /* Użycie object-fit: cover gwarantuje, że obraz wypełni 16:9, przycinając pionowe (9:16) */
+        object-fit: cover;
+    }
+
+    #imageModal .modal-dialog {
+        max-width: 95vw; /* Ogranicz maksymalną szerokość do 95% widocznej części ekranu */
+        max-height: 95vh; /* Ogranicz maksymalną wysokość do 95% widocznej części ekranu */
+    }
+
+    #imageModal .modal-body {
+        max-height: 90vh; /* Maksymalna wysokość dla zawartości body modala */
+        overflow-y: auto; /* W razie potrzeby dodaje przewijanie */
+    }
+
+    #imageModal .modal-body img {
+        /* Upewnia się, że obraz nie wyjdzie poza wysokość Modala, zachowując proporcje */
+        max-height: 85vh;
+        width: auto; /* Pozwala na swobodne dostosowanie szerokości, zachowując oryginalne proporcje */
+    }
+</style>
+
+
+<div class="container mt-5">
+    <h2 class="mb-4">Karta Sprzętu: <span class="badge text-bg-primary">{{ sprzet.id | upper }}</span> - {{ sprzet.typ | upper }}</h2>
+
+    <div class="row">
+
+        <div class="col-lg-5">
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0 text-center">Galeria Zdjęć</h5>
+                </div>
+
+                <div id="sprzetCarousel" class="carousel slide" data-bs-ride="carousel">
+                    <div class="carousel-inner">
+                        {% if sprzet.zdjecia_lista_url %}
+                            {% for url in sprzet.zdjecia_lista_url %}
+                                <div class="carousel-item {% if loop.first %}active{% endif %}">
+                                    <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-img-url="{{ url }}">
+                                        <img src="{{ url }}" class="d-block w-100" alt="Zdjęcie {{ loop.index }}">
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="carousel-item active">
+                                <img src="{{ url_for('static', filename='img/placeholder.png') }}" class="d-block w-100" alt="Brak zdjęcia">
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {% if sprzet.zdjecia_lista_url | length > 1 %}
+
+                    <button class="carousel-control-prev" type="button" data-bs-target="#sprzetCarousel" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Poprzednie</span>
+                    </button>
+
+                    <button class="carousel-control-next" type="button" data-bs-target="#sprzetCarousel" data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Następne</span>
+                    </button>
+
+                    {% endif %}
+                </div>
+
+                <div class="card-footer p-2">
+                    <div class="d-flex overflow-auto">
+                        {% for url in sprzet.zdjecia_lista_url %}
+                            <img src="{{ url }}"
+                                 class="img-thumbnail me-1 {% if loop.first %}border-primary{% endif %}"
+                                 style="width: 100px; height: 65px; object-fit: cover; cursor: pointer;"
+                                 alt="Miniatura {{ loop.index }}"
+                                 onclick="document.getElementById('sprzetCarousel').querySelector('.carousel-item.active').classList.remove('active');
+                                          document.getElementById('sprzetCarousel').querySelectorAll('.carousel-item')[{{ loop.index0 }}].classList.add('active');
+                                          this.closest('.card-footer').querySelectorAll('.img-thumbnail').forEach(el => el.classList.remove('border-primary'));
+                                          this.classList.add('border-primary');"
+                            >
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">Zgłoś Nową Usterkę dla {{ sprzet.id | upper }}</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" onsubmit="return submitFormWithRecaptcha(this, 'submit_defect');">
+
+                        <input type="hidden" name="sprzet_id" value="{{ sprzet.id }}">
+
+                        <div class="mb-3">
+                            <label for="opis_usterki" class="form-label">Opis Usterki (obowiązkowo)</label>
+                            <textarea
+                                class="form-control"
+                                id="opis_usterki"
+                                name="opis_usterki"
+                                rows="3"
+                                required
+                                placeholder="Opisz dokładnie, co jest nie tak (np. 'Urwana szlufka przy wejściu', 'Brakuje 3 śledzi', 'Cieknie w rogu')."
+                            ></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="zgloszono_przez" class="form-label">Zgłoszono przez (opcjonalnie)</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="zgloszono_przez"
+                                name="zgloszono_przez"
+                                placeholder="Wpisz swoje imię lub pseudonim."
+                            >
+                        </div>
+
+                        <p class="text-muted small">
+                            <i class="bi bi-shield-lock-fill"></i> Ta operacja jest chroniona przez reCAPTCHA Enterprise.
+                        </p>
+
+                        <button type="submit" class="btn btn-danger">
+                            Zgłoś Usterkę
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+             {% if is_admin %}
+            <div class="card shadow-sm mb-4 border-success">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">Panel Admina: Dodaj Zdjęcie 📸</h4>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('upload_photo') }}" method="POST" enctype="multipart/form-data">
+
+                        <input type="hidden" name="sprzet_id" value="{{ sprzet.id }}">
+
+                        <div class="mb-3">
+                            <label for="photo_file" class="form-label">Wybierz plik(i) do wgrania (Max 5MB)</label>
+                            <input
+                                class="form-control"
+                                type="file"
+                                id="photo_file"
+                                name="photo_file"
+                                accept="image/*"
+                                multiple
+                                required
+                            >
+                            <div class="form-text">
+                                Możesz wybrać kilka plików jednocześnie.
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100">
+                            Wgraj Zdjęcie(a)
+                        </button>
+                    </form>
+                    </div>
+            </div>
+            {% endif %}
+
+        </div>
+        <div class="col-lg-7">
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Dane Techniczne i Historia</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+
+                        <div class="col-md-4">
+                            <h5 class="mt-2 text-primary">Informacje Podstawowe</h5>
+                            <ul class="list-group list-group-flush mb-4">
+                                <li class="list-group-item"><strong>ID Sprzętu:</strong> {{ sprzet.id | upper }}</li>
+                                <li class="list-group-item"><strong>Typ Sprzętu:</strong> {{ sprzet.typ }}</li>
+                                <li class="list-group-item">
+                                    <strong>Stan Ogólny:</strong>
+                                    <span class="badge
+                                        {% if sprzet.stan_ogolny == 'bardzo dobry' %} bg-success
+                                        {% elif sprzet.stan_ogolny == 'dobry' %} bg-primary
+                                        {% elif sprzet.stan_ogolny == 'średni' %} bg-info text-dark
+                                        {% elif sprzet.stan_ogolny == 'DO KONSERWACJI' %} bg-warning text-dark
+                                        {% else %} bg-secondary
+                                        {% endif %}
+                                        ">
+                                        {{ sprzet.stan_ogolny }}
+                                    </span>
+                                </li>
+                                <li class="list-group-item"><strong>Obecna Lokalizacja:</strong> {{ sprzet.lokalizacja }}</li>
+                                <li class="list-group-item"><strong>Przeznaczenie:</strong> {{ sprzet.przeznaczenie }}</li>
+                            </ul>
+                        </div>
+
+                        <div class="col-md-4">
+                            <h5 class="mt-2 text-primary">Szczegóły Techniczne</h5>
+                            <ul class="list-group list-group-flush mb-4">
+                                <li class="list-group-item"><strong>Wodoszczelność:</strong> {{ sprzet.wodoszczelnosc }}</li>
+                                <li class="list-group-item"><strong>Kolor Dachu:</strong> {{ sprzet.kolor_dachu | capitalize }}</li>
+                                <li class="list-group-item"><strong>Kolor Boków:</strong> {{ sprzet.kolor_bokow | capitalize }}</li>
+                                <li class="list-group-item"><strong>Znak Szczególny:</strong> {{ sprzet.znak_szczegolny }}</li>
+                                <li class="list-group-item"><strong>Ilość Zapałek:</strong> {{ sprzet.zapalki }}</li>
+                            </ul>
+                        </div>
+
+                        <div class="col-md-4">
+                            <h5 class="mt-2 text-primary">Historia i Konserwacja</h5>
+                            <ul class="list-group list-group-flush mb-4">
+                                <li class="list-group-item"><strong>Zakup:</strong> {{ sprzet.zakup }}</li>
+                                <li class="list-group-item"><strong>Przejęty:</strong> {{ sprzet.przejecie }}</li>
+                                <li class="list-group-item"><strong>Wymaga Powrotu:</strong> {{ sprzet.czyWraca | default('Nie', true) }}</li>
+                                <li class="list-group-item">
+                                    <strong>Historia/Opis:</strong>
+                                    <small class="text-muted">{{ sprzet.historia | default('Brak opisu.', true) | truncate(50, True) }}</small>
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>Uwagi Konserwacyjne:</strong>
+                                    <small class="text-muted">{{ sprzet.uwagi | default('Brak uwag.', true) | truncate(50, True) }}</small>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    {% if sprzet.historia | length > 50 or sprzet.uwagi | length > 50 %}
+                        <div class="alert alert-light mt-3">
+                            <small><strong>Pełny Opis Historii:</strong> {{ sprzet.historia }}</small><br>
+                            <small><strong>Pełne Uwagi Konserwacyjne:</strong> {{ sprzet.uwagi }}</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h4 class="mb-0">Zgłoszone Usterki ({{ usterki | length }})</h4>
+                </div>
+                <div class="card-body">
+                    {% if usterki %}
+                    <ul class="list-group">
+                        {% for usterka in usterki %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ usterka.opis | truncate(100, True) }}</strong><br>
+                                    <small class="text-muted">
+                                        Zgłoszono przez: {{ usterka.zgloszono_przez }}
+                                        (Data: {{ usterka.data_zgloszenia }})
+                                    </small>
+                                </div>
+
+                                <span class="badge
+                                    {% if usterka.status == 'oczekuje' %} bg-warning text-dark
+                                    {% elif usterka.status == 'w trakcie' %} bg-info text-dark
+                                    {% elif usterka.status == 'naprawiona' %} bg-success
+                                    {% elif usterka.status == 'odrzucona' %} bg-danger
+                                    {% else %} bg-secondary
+                                    {% endif %}
+                                    ">
+                                    {{ usterka.status | capitalize }}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                        <p class="text-success">Brak zgłoszonych usterek dla tego sprzętu. 💪</p>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content bg-transparent border-0">
+            <div class="modal-header border-0 p-0">
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 text-center">
+                <div id="modalCarousel" class="carousel slide" data-bs-interval="false">
+                    <div class="carousel-inner">
+                        {% if sprzet.zdjecia_lista_url %}
+                            {% for url in sprzet.zdjecia_lista_url %}
+                                <div class="carousel-item" data-index="{{ loop.index0 }}">
+                                    <img src="{{ url }}" class="img-fluid" alt="Powiększone zdjęcie {{ loop.index }}">
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="carousel-item active">
+                                <img src="{{ url_for('static', filename='img/placeholder.png') }}" class="img-fluid" alt="Brak zdjęcia">
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {% if sprzet.zdjecia_lista_url | length > 1 %}
+                    <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Poprzednie</span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel" data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Następne</span>
+                    </button>
+                    {% endif %}
+                </div>
+                </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ----------------------------------------------------
+    // JAWNA INICJALIZACJA GŁÓWNEJ KARUZELI (zabezpieczenie)
+    // ----------------------------------------------------
+    var myCarousel = document.querySelector('#sprzetCarousel');
+    if (myCarousel && typeof bootstrap !== 'undefined' && bootstrap.Carousel) {
+         new bootstrap.Carousel(myCarousel, {
+            interval: false,
+            ride: false
+        });
+    }
+
+    // ----------------------------------------------------
+    // INICJALIZACJA I OBSŁUGA KARUZELI W MODALU (Lightbox)
+    // ----------------------------------------------------
+    var imageModal = document.getElementById('imageModal');
+    var modalCarousel = document.getElementById('modalCarousel');
+    var bsModalCarousel = null; // Instancja karuzeli w modalu
+
+    // Jawna inicjalizacja karuzeli w modalu, jeśli istnieje
+    if (modalCarousel && typeof bootstrap !== 'undefined' && bootstrap.Carousel) {
+        bsModalCarousel = new bootstrap.Carousel(modalCarousel, {
+            interval: false,
+            ride: false
+        });
+    }
+
+    // Obsługa zdarzenia otwarcia Modala
+    imageModal.addEventListener('show.bs.modal', function (event) {
+        // Element, który wywołał modal (link <a> z karuzeli głównej)
+        var triggerLink = event.relatedTarget;
+
+        // Z głównej karuzeli pobieramy URL zdjęcia (można by też pobrać index)
+        var imageUrl = triggerLink.getAttribute('data-img-url');
+
+        // Znajdowanie wszystkich slajdów w karuzeli Modala
+        var modalItems = modalCarousel.querySelectorAll('.carousel-item');
+
+        // Iteracja w celu znalezienia slajdu odpowiadającego klikniętemu zdjęciu
+        let clickedIndex = 0;
+        let found = false;
+
+        // Usuwamy klasę 'active' ze wszystkich slajdów w modalu na wszelki wypadek
+        modalItems.forEach(item => item.classList.remove('active'));
+
+        // Szukanie odpowiedniego slajdu do aktywacji
+        for (let i = 0; i < modalItems.length; i++) {
+            let itemImg = modalItems[i].querySelector('img');
+
+            if (itemImg.src === imageUrl && !found) {
+                modalItems[i].classList.add('active'); // Ustawiamy slajd jako aktywny
+                clickedIndex = i;
+                found = true;
+            }
+        }
+
+        // Jeśli instancja karuzeli istnieje, ustawiamy ją na poprawny slajd
+        if (bsModalCarousel) {
+             // Użycie metody 'to' z instancji karuzeli, aby zresetować pozycję
+             // i upewnić się, że nawigacja działa poprawnie.
+             // Używamy setTimeout, aby upewnić się, że modal jest już w pełni wyświetlony
+             setTimeout(() => {
+                 bsModalCarousel.to(clickedIndex);
+             }, 50);
+        }
+    });
+
+    // ----------------------------------------------------
+    // OBSŁUGA MINIATUR GŁÓWNEJ KARUZELI (pozostała bez zmian)
+    // ----------------------------------------------------
+    document.getElementById('sprzetCarousel').addEventListener('slid.bs.carousel', function (e) {
+        const activeIndex = e.to;
+        const thumbnails = this.closest('.card').querySelector('.card-footer').querySelectorAll('.img-thumbnail');
+
+        thumbnails.forEach(thumb => thumb.classList.remove('border-primary'));
+        if (thumbnails[activeIndex]) {
+            thumbnails[activeIndex].classList.add('border-primary');
+        }
+    });
+});
+</script>
+
+{% endblock %}
