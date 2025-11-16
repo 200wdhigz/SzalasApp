@@ -10,13 +10,6 @@ def get_firestore_client():
     return firestore.client()
 
 
-def get_db_connection():
-    """Funkcja łącząca się z bazą danych."""
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row  # Zwraca wiersze jako słowniki
-    return conn
-
-
 def create_app():
     template_folder_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
 
