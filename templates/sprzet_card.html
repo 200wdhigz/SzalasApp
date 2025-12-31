@@ -192,12 +192,19 @@
                     <div class="card-header bg-primary text-white">
                         <h4 class="mb-0 d-flex align-items-center">
                             <span>Dane Techniczne i Historia</span>
-                            <button type="button" id="qrBtn" class="btn btn-outline-light ms-auto"
-                                    data-bs-toggle="modal" data-bs-target="#qrModal"
-                                    title="Generuj QR dla strony sprzętu">
-                                <i class="bi bi-qr-code text-white" aria-hidden="true"></i>
-                                <span class="visually-hidden">QR</span>
-                            </button>
+                            <div class="ms-auto d-flex gap-2">
+                                {% if IS_ADMIN %}
+                                <a href="{{ url_for('views.sprzet_edit', sprzet_id=sprzet.id) }}" class="btn btn-outline-light" title="Edytuj sprzęt">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                {% endif %}
+                                <button type="button" id="qrBtn" class="btn btn-outline-light"
+                                        data-bs-toggle="modal" data-bs-target="#qrModal"
+                                        title="Generuj QR dla strony sprzętu">
+                                    <i class="bi bi-qr-code text-white" aria-hidden="true"></i>
+                                    <span class="visually-hidden">QR</span>
+                                </button>
+                            </div>
                         </h4>
                     </div>
                     <div class="card-body">

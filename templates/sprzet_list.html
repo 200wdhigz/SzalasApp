@@ -2,6 +2,67 @@
 
 {% block content %}
     <h2 class="mb-4">Pełny Katalog Sprzętu</h2>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('views.sprzet_list') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label for="typ" class="form-label">Typ</label>
+                    <select name="typ" id="typ" class="form-select">
+                        <option value="">Wszystkie</option>
+                        {% for t in typy %}
+                        <option value="{{ t }}" {% if selected_filters.typ == t %}selected{% endif %}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="wodoszczelnosc" class="form-label">Wodoszczelność</label>
+                    <select name="wodoszczelnosc" id="wodoszczelnosc" class="form-select">
+                        <option value="">Wszystkie</option>
+                        {% for w in wodoszczelnosci %}
+                        <option value="{{ w }}" {% if selected_filters.wodoszczelnosc == w %}selected{% endif %}>{{ w }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="lokalizacja" class="form-label">Magazyn</label>
+                    <select name="lokalizacja" id="lokalizacja" class="form-select">
+                        <option value="">Wszystkie</option>
+                        {% for l in lokalizacje %}
+                        <option value="{{ l }}" {% if selected_filters.lokalizacja == l %}selected{% endif %}>{{ l }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Filtruj</button>
+                    <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">Resetuj</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <div class="dropdown d-inline-block">
+            <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download"></i> Eksportuj
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='csv', **selected_filters) }}">CSV</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='xlsx', **selected_filters) }}">Excel (.xlsx)</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='docx', **selected_filters) }}">Word (.docx)</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='pdf', **selected_filters) }}">PDF</a></li>
+            </ul>
+        </div>
+        {% if IS_ADMIN %}
+        <a href="{{ url_for('views.sprzet_add') }}" class="btn btn-outline-primary ms-2">
+            <i class="bi bi-plus-circle"></i> Dodaj Sprzęt
+        </a>
+        <a href="{{ url_for('views.sprzet_import') }}" class="btn btn-outline-info ms-2">
+            <i class="bi bi-file-earmark-arrow-up"></i> Importuj
+        </a>
+        {% endif %}
+    </div>
+
     {% if sprzet_list %}
     <div class="table-responsive">
         <table class="table table-striped table-hover">

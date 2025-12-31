@@ -19,7 +19,7 @@ def create_app():
             RECAPTCHA_KEY=os.getenv('RECAPTCHA_SITE_KEY'),
             is_debug=app.debug,
             IS_LOGGED_IN=('user_id' in session),
-            IS_ADMIN=('user_id' in session and session.get('is_admin') == 'admin')
+            IS_ADMIN=('user_id' in session and session.get('is_admin'))
         )
 
     if not _apps:

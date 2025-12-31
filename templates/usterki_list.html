@@ -4,6 +4,58 @@
 <div class="container mt-4">
     <h1 class="mb-4">Panel Administracyjny - Zgłoszone Usterki</h1>
 
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('views.usterki_list') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Status</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">Wszystkie</option>
+                        {% for s in statuses %}
+                        <option value="{{ s }}" {% if selected_filters.status == s %}selected{% endif %}>{{ s | capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="magazyn" class="form-label">Magazyn</label>
+                    <select name="magazyn" id="magazyn" class="form-select">
+                        <option value="">Wszystkie</option>
+                        {% for m in magazyny %}
+                        <option value="{{ m }}" {% if selected_filters.magazyn == m %}selected{% endif %}>{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="sprzet_id" class="form-label">ID Sprzętu</label>
+                    <select name="sprzet_id" id="sprzet_id" class="form-select">
+                        <option value="">Wszystkie</option>
+                        {% for sid in ids_sprzetu %}
+                        <option value="{{ sid }}" {% if selected_filters.sprzet_id == sid %}selected{% endif %}>{{ sid }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Filtruj</button>
+                    <a href="{{ url_for('views.usterki_list') }}" class="btn btn-secondary">Resetuj</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <div class="dropdown d-inline-block">
+            <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download"></i> Eksportuj
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{{ url_for('views.export_usterki', format='csv', **selected_filters) }}">CSV</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('views.export_usterki', format='xlsx', **selected_filters) }}">Excel (.xlsx)</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('views.export_usterki', format='docx', **selected_filters) }}">Word (.docx)</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('views.export_usterki', format='pdf', **selected_filters) }}">PDF</a></li>
+            </ul>
+        </div>
+    </div>
+
     {% if usterki %}
     <table class="table table-striped table-hover">
         <thead class="table-dark">

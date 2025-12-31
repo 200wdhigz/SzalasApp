@@ -15,6 +15,18 @@ def login_required(f):
             return redirect(url_for('auth.login'))
         return f(*args, **kwargs)
     return decorated_function
+def admin_required(f):
+    """Dekorator do sprawdzania, czy użytkownik jest zalogowany i czy jest administratorem."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Musisz się zalogować, aby uzyskać dostęp.', 'danger')
+            return redirect(url_for('auth.login'))
+        if not session.get('is_admin'):
+            flash('Nie masz uprawnień do dostępu do tej strony.', 'danger')
+            return redirect(url_for('views.sprzet_list'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -38,9 +50,10 @@ def login():
             
             # Sprawdzamy, czy użytkownik ma rolę admina i zapisujemy to w sesji
             session['is_admin'] = decoded_token.get('admin', False)
+            print(f"User {decoded_token['email']} is admin: {session['is_admin']}")
 
             flash('Pomyślnie zalogowano!', 'success')
-            return redirect(url_for('views.index'))
+            return redirect(url_for('views.sprzet_list'))
         except requests.exceptions.HTTPError:
             flash('Błąd logowania: Nieprawidłowe dane.', 'danger')
         except Exception as e:
@@ -54,4 +67,4 @@ def logout():
     session.pop('user_id', None)
     session.pop('is_admin', None) # Usuwamy flagę admina przy wylogowaniu
     flash('Wylogowano pomyślnie.', 'info')
-    return redirect(url_for('views.index'))
+    return redirect(url_for('views.sprzet_list'))
