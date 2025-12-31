@@ -10,4 +10,5 @@ app = create_app()
 
 if __name__ == '__main__':
     # Uruchomienie aplikacji w trybie debugowania
-    app.run(debug=True, port=os.getenv('PORT', 5000))
+    app.run(debug=True, port=os.getenv('PORT', 5000), host=os.getenv('HOST', '0.0.0.0'))
+

@@ -1,45 +1,36 @@
-from flask import Flask
-import sqlite3
-from firebase_admin import credentials, initialize_app, firestore
+from flask import Flask, session
+from firebase_admin import credentials, initialize_app, firestore, _apps
 import os
 
 
 def get_firestore_client():
-    """Zwraca klienta Firestore. Zakłada, że aplikacja Firebase jest już zainicjalizowana."""
-    # W Cloud Run/środowisku, gdzie inicjalizacja działa poprawnie, zwróci klienta.
+    """Zwraca klienta Firestore."""
     return firestore.client()
 
 
 def create_app():
-    template_folder_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
-
-    app = Flask(__name__, template_folder=template_folder_path)
+    template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
+    app = Flask("SzalasApp", template_folder=template_dir)
     app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key_change_me')
 
     @app.context_processor
-    def inject_global_vars():
-        """Udostepnia zmienne środowiskowe we wszystkich szablonach Jinja."""
+    def inject_vars():
         return dict(
-            # Przekazujemy klucz reCAPTCHA (wartość z .env)
             RECAPTCHA_KEY=os.getenv('RECAPTCHA_SITE_KEY'),
-            # Jeśli potrzebujesz innych zmiennych globalnych, dodaj je tutaj
-            # np. IS_LOGGED_IN=('user_id' in session)
+            is_debug=app.debug,
+            IS_LOGGED_IN=('user_id' in session),
+            IS_ADMIN=('user_id' in session and session.get('is_admin') == 'admin')
         )
 
-    # Inicjalizacja Firebase Admin SDK (dla weryfikacji tokenów)
-    try:
-        # Próba użycia domyślnych poświadczeń GCP (Cloud Run)
-        cred = credentials.ApplicationDefault()
-        initialize_app(cred, {
-            'projectId': os.getenv('FIREBASE_PROJECT_ID'),
-        })
-    except Exception as e:
-        print(f"Ostrzeżenie: Nie można zainicjalizować Firebase Admin SDK z ApplicationDefault. Błąd: {e}")
+    if not _apps:
+        try:
+            cred = credentials.ApplicationDefault()
+            initialize_app(cred, {'projectId': os.getenv('FIREBASE_PROJECT_ID')})
+        except Exception as e:
+            print(f"Firebase initialization warning: {e}")
 
-    # Importowanie i rejestracja Blueprintów (naszych modułów)
     from .views import views_bp
     from .auth import auth_bp
-
     app.register_blueprint(views_bp)
     app.register_blueprint(auth_bp)
 

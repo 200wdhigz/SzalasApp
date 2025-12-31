@@ -5,129 +5,80 @@ from google.cloud import firestore
 COLLECTION_SPRZET = 'sprzet'
 COLLECTION_USTERKI = 'usterki'
 
+def _get_doc_data(doc):
+    """Pomocnicza funkcja do konwersji dokumentu Firestore na słownik z ID i formatowaniem daty."""
+    if not doc.exists:
+        return None
+    data = doc.to_dict()
+    data['id'] = doc.id
+    if 'data_zgloszenia' in data and hasattr(data['data_zgloszenia'], 'strftime'):
+        data['data_zgloszenia'] = data['data_zgloszenia'].strftime('%Y-%m-%d %H:%M')
+    return data
+
+def get_item(collection: str, item_id: str):
+    """Pobiera pojedynczy element z dowolnej kolekcji."""
+    db = get_firestore_client()
+    doc = db.collection(collection).document(item_id).get()
+    return _get_doc_data(doc)
+
+def get_all_items(collection: str, order_by=None, direction=firestore.Query.DESCENDING):
+    """Pobiera wszystkie elementy z kolekcji z opcjonalnym sortowaniem."""
+    db = get_firestore_client()
+    query = db.collection(collection)
+    if order_by:
+        query = query.order_by(order_by, direction=direction)
+    return [_get_doc_data(doc) for doc in query.stream()]
+
+def get_items_by_filter(collection: str, field: str, operator: str, value: str, order_by=None, direction=firestore.Query.DESCENDING):
+    """Pobiera elementy z kolekcji na podstawie filtra z opcjonalnym sortowaniem."""
+    db = get_firestore_client()
+    query = db.collection(collection).where(
+        filter=firestore.FieldFilter(field, operator, value)
+    )
+    if order_by:
+        query = query.order_by(order_by, direction=direction)
+    return [_get_doc_data(doc) for doc in query.stream()]
 
 def get_sprzet_item(sprzet_id: str):
-    """Pobiera pojedynczy element sprzętu po ID dokumentu Firestore."""
-    db = get_firestore_client()
-
-    # KLUCZOWY PUNKT: Użycie sprzet_id do odniesienia się do DOKUMENTU
-    doc_ref = db.collection(COLLECTION_SPRZET).document(sprzet_id)
-    doc = doc_ref.get()
-
-    if doc.exists:
-        data = doc.to_dict()
-        # Ważne: Zapisz ID dokumentu, aby Flask mógł go użyć w url_for, itp.
-        data['id'] = doc.id
-        return data
-
-    # Jeśli dokument nie istnieje
-    return None
-
-
-def get_all_sprzet():
-    """Pobiera wszystkie elementy sprzętu z kolekcji 'sprzet'."""
-    db = get_firestore_client()
-
-    # 1. Pobranie wszystkich dokumentów
-    sprzet_ref = db.collection(COLLECTION_SPRZET).stream()
-
-    sprzet_list = []
-    for doc in sprzet_ref:
-        # 2. Konwersja na słownik
-        data = doc.to_dict()
-
-        # 3. DODANIE UNIKALNEGO ID DOKUMENTU
-        data['id'] = doc.id
-
-        # 4. Dodanie do listy
-        sprzet_list.append(data)
-
-    return sprzet_list
-
-
-
-# DODAJ funkcje do pobierania usterek, etc.
-def get_usterki_for_sprzet(sprzet_id: str):
-    """Pobiera wszystkie usterki przypisane do danego ID sprzętu."""
-    db = get_firestore_client()
-
-    # KOREKTA: Użycie nowego obiektu firestore.FieldFilter
-    query = db.collection(COLLECTION_USTERKI).where(
-        filter=firestore.FieldFilter('sprzet_id', '==', sprzet_id)  # <-- ZMIANA JEST TUTAJ
-    ).stream()
-
-    usterki_list = []
-    for doc in query:
-        data = doc.to_dict()
-        data['id'] = doc.id
-        usterki_list.append(data)
-
-    return usterki_list
-
-
-def get_all_usterki():
-    """
-    Pobiera wszystkie usterki z kolekcji, sortując je od najnowszych do najstarszych.
-
-    Wymaga, aby pole 'data_zgloszenia' było zdefiniowane (np. jako firestore.SERVER_TIMESTAMP).
-    """
-    db = get_firestore_client()
-
-    # Zapytanie: Pobierz wszystkie dokumenty z kolekcji 'usterki'
-    # i posortuj je malejąco po dacie zgłoszenia (najnowsze na górze).
-    query = db.collection(COLLECTION_USTERKI).order_by('data_zgloszenia', direction=firestore.Query.DESCENDING).stream()
-
-    usterki_list = []
-    for doc in query:
-        # 2. Konwersja na słownik
-        data = doc.to_dict()
-
-        # 3. DODANIE UNIKALNEGO ID DOKUMENTU
-        data['id'] = doc.id
-
-        if 'data_zgloszenia' in data:
-            # Możesz tu użyć .strftime() lub przekazać jako jest i formatować w Jinja2
-            data['data_zgloszenia'] = data['data_zgloszenia'].strftime('%Y-%m-%d %H:%M')
-
-        # 4. Dodanie do listy
-        usterki_list.append(data)
-
-    return usterki_list
-
+    return get_item(COLLECTION_SPRZET, sprzet_id)
 
 def get_usterka_item(usterka_id: str):
-    """Pobiera pojedynczy dokument usterki po ID dokumentu Firestore."""
+    return get_item(COLLECTION_USTERKI, usterka_id)
+
+def get_all_sprzet():
+    return get_all_items(COLLECTION_SPRZET, order_by='__name__', direction=firestore.Query.ASCENDING)
+
+def get_all_usterki():
+    return get_all_items(COLLECTION_USTERKI, order_by='data_zgloszenia')
+
+def get_usterki_for_sprzet(sprzet_id: str):
+    return get_items_by_filter(COLLECTION_USTERKI, 'sprzet_id', '==', sprzet_id, order_by='data_zgloszenia')
+
+def update_item(collection: str, item_id: str, **kwargs):
+    """Aktualizuje dokument w dowolnej kolekcji."""
     db = get_firestore_client()
-    doc_ref = db.collection(COLLECTION_USTERKI).document(usterka_id)
-    doc = doc_ref.get()
-
-    if doc.exists:
-        data = doc.to_dict()
-        data['id'] = doc.id
-        return data
-    return None
-
+    db.collection(collection).document(item_id).update(kwargs)
 
 def update_usterka(usterka_id: str, **kwargs):
-    """Aktualizuje pola w dokumencie usterki (używa kwargs dla elastyczności)."""
+    update_item(COLLECTION_USTERKI, usterka_id, **kwargs)
+
+def update_sprzet(sprzet_id: str, **kwargs):
+    update_item(COLLECTION_SPRZET, sprzet_id, **kwargs)
+
+def add_item(collection: str, data: dict):
+    """Dodaje nowy dokument do kolekcji."""
     db = get_firestore_client()
-    doc_ref = db.collection(COLLECTION_USTERKI).document(usterka_id)
-
-    # kwargs to słownik zawierający {'status': '...', 'uwagi_admina': '...' }
-    doc_ref.update(kwargs)
-
+    if collection == COLLECTION_USTERKI and 'data_zgloszenia' not in data:
+        data['data_zgloszenia'] = firestore.SERVER_TIMESTAMP
+    
+    _, doc_ref = db.collection(collection).add(data)
+    return doc_ref.id
 
 def add_usterka(sprzet_id: str, opis: str, zgloszono_przez: str):
-    """Dodaje nową usterkę do kolekcji usterek."""
-    db = get_firestore_client()
-
-    usterka_data = {
+    data = {
         'sprzet_id': sprzet_id,
         'opis': opis,
         'zgloszono_przez': zgloszono_przez,
-        'data_zgloszenia': firestore.SERVER_TIMESTAMP,  # Timestamp z serwera
-        'status': 'oczekuje',
+        'status': 'oczekuje'
     }
-
-    # Firestore automatycznie generuje ID dla nowej usterki
-    db.collection(COLLECTION_USTERKI).add(usterka_data)
+    return add_item(COLLECTION_USTERKI, data)

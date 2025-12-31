@@ -1447,6 +1447,16 @@ files = [
 ]
 
 [[package]]
+name = "upnpy"
+version = "1.1.8"
+description = "Lightweight UPnP client library for Python."
+optional = false
+python-versions = "*"
+files = [
+    {file = "UPnPy-1.1.8.tar.gz", hash = "sha256:f43acab6271c25d8073d0e8549cd62a349abdd0a8cb9c21d036bea6132eb632e"},
+]
+
+[[package]]
 name = "urllib3"
 version = "2.5.0"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -1483,4 +1493,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "45c9a9551228ee3d51a15223264a40e318d833437f7e7be64c7759ea9cb90e27"
+content-hash = "91ce709102ba21a6adb11043d54e4ad902f56adb3c46bbc7985ec65226be69e8"

@@ -1,117 +1,48 @@
 import os
-from google.cloud import storage
-from google.cloud import firestore
-from dotenv import load_dotenv
 import re
+from dotenv import load_dotenv
+from google.cloud import firestore
+from src.gcs_utils import upload_blob_to_gcs, GCS_BUCKET_NAME
+from src.db_firestore import COLLECTION_SPRZET
 
 load_dotenv()
 
-# --- KONFIGURACJA ---
 PHOTOS_DIR = 'photos'
-COLLECTION_SPRZET = 'sprzet'
-FIREBASE_STORAGE_BUCKET = os.getenv('FIREBASE_STORAGE_BUCKET_NAME')
 
-
-# --- KONFIGURACJA ---
-
-
-def get_gcs_client():
-    """Zwraca instancję klienta Google Cloud Storage."""
-    return storage.Client(project=os.getenv('GCP_PROJECT_ID'))
-
-
-def get_firestore_client():
-    """Zwraca instancję klienta Firestore."""
-    return firestore.Client(project=os.getenv('GCP_PROJECT_ID'))
-
-
-def upload_and_update_firestore():
-    """
-    Skanuje katalog zdjęć, przesyła je do GCS z ujednoliconą nazwą
-    i aktualizuje Firestore o URL do głównego zdjęcia (foto00).
-    """
-    if not os.path.exists(PHOTOS_DIR):
-        print(f"❌ Katalog '{PHOTOS_DIR}' nie istnieje. Przerwanie.")
+def upload_and_update():
+    """Wgrywa zdjęcia i aktualizuje Firestore."""
+    if not os.path.exists(PHOTOS_DIR) or not GCS_BUCKET_NAME:
+        print("❌ Brak katalogu zdjęć lub konfiguracji GCS.")
         return
 
-    if not FIREBASE_STORAGE_BUCKET:
-        print("❌ Brak zmiennej środowiskowej 'FIREBASE_STORAGE_BUCKET_NAME'. Przerwanie.")
-        return
-
-    gcs_client = get_gcs_client()
-    db = get_firestore_client()
-    bucket = gcs_client.bucket(FIREBASE_STORAGE_BUCKET)
-
-    print(f"--- ROZPOCZYNAM PRZESYŁANIE ZDJĘĆ DO BUCKETA: {FIREBASE_STORAGE_BUCKET} ---")
-
-    uploaded_count = 0
+    db = firestore.Client(project=os.getenv('GCP_PROJECT_ID'))
+    count = 0
 
     for sprzet_id in os.listdir(PHOTOS_DIR):
-        sprzet_folder_path = os.path.join(PHOTOS_DIR, sprzet_id)
-
-        # 1. WERYFIKACJA FOLDERU
-        if not os.path.isdir(sprzet_folder_path) or not re.match(r'^[A-Z]{2}\d{2,}$', sprzet_id):
+        path = os.path.join(PHOTOS_DIR, sprzet_id)
+        if not os.path.isdir(path) or not re.match(r'^[A-Z]{2}\d{2,}$', sprzet_id):
             continue
 
-        photos = [f for f in os.listdir(sprzet_folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-
-        if not photos:
-            print(f"⚠️ Pusty folder dla ID: {sprzet_id}")
-            continue
-
-        # Sortowanie, aby numeracja była spójna
-        photos.sort()
-
-        # Zbierz listę URL-i dla wszystkich zdjęć (dla przyszłej galerii)
-        photo_urls = []
-        main_photo_url = None
-
-        # 2. ITERACJA I ZMIANA NAZW
-        for index, original_name in enumerate(photos):
-            local_file_path = os.path.join(sprzet_folder_path, original_name)
-
-            # Nowa nazwa: ID_fotoXX.ext
-            extension = os.path.splitext(original_name)[1].lower()
-            new_name = f"{sprzet_id.upper()}_foto{index:02d}{extension}"  # np. DD01_foto00.jpg
-
-            # Ścieżka docelowa w Storage: sprzet/DD01/DD01_foto00.jpg
-            blob_path = f"sprzet/{sprzet_id.upper()}/{new_name}"
-            blob = bucket.blob(blob_path)
-
+        photos = sorted([f for f in os.listdir(path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        urls = []
+        for i, photo in enumerate(photos):
+            ext = os.path.splitext(photo)[1].lower()
+            blob_path = f"sprzet/{sprzet_id.upper()}/{sprzet_id.upper()}_foto{i:02d}{ext}"
             try:
-                # Wgrywamy plik
-                blob.upload_from_filename(local_file_path)
-
-                # Generowanie URL dostępu publicznego
-                # Wymaga, by reguły Storage były ustawione na zezwolenie na publiczny odczyt!
-                image_url = f"https://firebasestorage.googleapis.com/v0/b/{FIREBASE_STORAGE_BUCKET}/o/{blob_path.replace('/', '%2F')}?alt=media"
-
-                photo_urls.append(image_url)
-
-                # Ustawiamy pierwsze zdjęcie jako główne
-                if index == 0:
-                    main_photo_url = image_url
-
-                print(f"   -> Zapisano jako: {new_name}")
-
+                with open(os.path.join(path, photo), 'rb') as f_obj:
+                    url = upload_blob_to_gcs(blob_path, f_obj, f"image/{ext[1:]}")
+                urls.append(url)
             except Exception as e:
-                print(f"❌ Błąd podczas przesyłania pliku {original_name} dla ID {sprzet_id}: {e}")
+                print(f"❌ Błąd {photo}: {e}")
 
-        # 3. AKTUALIZACJA FIRESTORE (tylko główne zdjęcie i lista wszystkich)
-        if main_photo_url:
-            try:
-                doc_ref = db.collection(COLLECTION_SPRZET).document(sprzet_id.upper())
-                doc_ref.update({
-                    'zdjecie_glowne_url': main_photo_url,
-                    'zdjecia_lista_url': photo_urls  # Dodajemy listę URL-i dla przyszłej galerii
-                })
-                print(f"✅ Zaktualizowano Firestore: {sprzet_id} (Główne zdjęcie: {os.path.basename(main_photo_url)})")
-                uploaded_count += 1
-            except Exception as e:
-                print(f"❌ Błąd aktualizacji Firestore dla ID {sprzet_id}: {e}")
-
-    print(f"\n--- ZAKOŃCZONO. Przesłano/zaktualizowano {uploaded_count} dokumentów. ---")
-
+        if urls:
+            db.collection(COLLECTION_SPRZET).document(sprzet_id.upper()).update({
+                'zdjecie_glowne_url': urls[0],
+                'zdjecia_lista_url': urls
+            })
+            print(f"✅ {sprzet_id} zaktualizowany.")
+            count += 1
+    print(f"--- Zakończono. Zaktualizowano {count} elementów. ---")
 
 if __name__ == '__main__':
-    upload_and_update_firestore()
+    upload_and_update()

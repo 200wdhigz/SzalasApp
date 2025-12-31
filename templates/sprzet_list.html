@@ -21,16 +21,16 @@
                     <td class="fw-bold">{{ item.id }}</td>
                     <td>{{ item.typ }}</td>
                     <td>
-                        {% if item.stan_tekst|lower == 'cieknie' %}
-                            <span class="badge text-bg-danger">{{ item.stan_tekst }}</span>
-                        {% elif item.stan_tekst|lower == 'nie cieknie' %}
-                            <span class="badge text-bg-success">{{ item.stan_tekst }}</span>
+                        {% if item.wodoszczelnosc|lower == 'cieknie' %}
+                            <span class="badge text-bg-danger">{{ item.wodoszczelnosc }}</span>
+                        {% elif item.wodoszczelnosc|lower == 'nie cieknie' %}
+                            <span class="badge text-bg-success">{{ item.wodoszczelnosc }}</span>
                         {% else %}
                             <span class="badge text-bg-secondary">N/A</span>
                         {% endif %}
                     </td>
                     <td>{{ item.stan_ogolny or 'Brak danych' }}</td>
-                    <td>{{ item.miejsce_przechowywania or 'N/A' }}</td>
+                    <td>{{ item.lokalizacja or 'N/A' }}</td>
                     <td>
                         <a href="{{ url_for('views.sprzet_card', sprzet_id=item.id) }}" class="btn btn-info btn-sm">Podgląd / Zgłoś</a>
                     </td>
