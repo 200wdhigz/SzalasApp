@@ -1,145 +1,336 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<style>
-  #usterkaCarousel .carousel-inner { aspect-ratio: 4 / 3; overflow: hidden; }
-  #usterkaCarousel .carousel-item img { width:100%; height:100%; object-fit:cover; }
-  #imageModal .modal-dialog { max-width:95vw; max-height:95vh; }
-  #imageModal .modal-body img { max-height:85vh; width:auto; }
-  .thumb { width:100px; height:65px; object-fit:cover; cursor:pointer; }
-</style>
+    <style>
+        /* Wymuszanie proporcji 4:3 dla kontenera karuzeli */
+        #usterkaCarousel .carousel-inner {
+            aspect-ratio: 4 / 3;
+            overflow: hidden;
+        }
 
-<div class="container mt-4">
-  <div class="card shadow-sm">
-    <div class="card-header bg-warning text-dark">
-      <h4 class="mb-0">Zgłoszona Usterka: <span class="badge bg-light text-dark">{{ usterka.sprzet_id | upper }}</span></h4>
-    </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-5">
-          <div id="usterkaCarousel" class="carousel slide mb-2" data-bs-ride="carousel">
-            <div class="carousel-inner">
-              {% if usterka.zdjecia_lista_url %}
-                {% for url in usterka.zdjecia_lista_url %}
-                  <div class="carousel-item {% if loop.first %}active{% endif %}">
-                    <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-img-url="{{ url }}">
-                      <img src="{{ url }}" class="d-block w-100" alt="Zdjęcie {{ loop.index }}">
-                    </a>
-                  </div>
-                {% endfor %}
-              {% else %}
-                <div class="carousel-item active">
-                  <img src="{{ url_for('static', filename='img/placeholder.png') }}" class="d-block w-100" alt="Brak zdjęcia">
+        /* Zapewnienie, że zdjęcia wypełnią kontener 4:3 */
+        #usterkaCarousel .carousel-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #imageModal .modal-dialog {
+            max-width: 95vw;
+            max-height: 95vh;
+        }
+
+        #imageModal .modal-body {
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        #imageModal .modal-body img {
+            max-height: 85vh;
+            width: auto;
+        }
+    </style>
+
+    <div class="container mt-5">
+        <h2 class="mb-4">Karta Usterki: <span class="badge text-bg-warning">{{ usterka.sprzet_id | upper }}</span>
+            - ID: {{ usterka.id }}</h2>
+
+        <div class="row">
+
+            <div class="col-lg-5">
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary">
+                        <h5 class="mb-0 text-center">Galeria Zdjęć</h5>
+                    </div>
+
+                    <div id="usterkaCarousel" class="carousel slide" data-bs-ride="carousel">
+                        <div class="carousel-inner">
+                            {% if usterka.zdjecia_lista_url %}
+                                {% for url in usterka.zdjecia_lista_url %}
+                                    <div class="carousel-item {% if loop.first %}active{% endif %}">
+                                        <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal"
+                                           data-img-url="{{ url }}">
+                                            <img src="{{ url }}" class="d-block w-100" alt="Zdjęcie {{ loop.index }}">
+                                        </a>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="carousel-item active">
+                                    <style>
+                                        .placeholder-img { width:100%; height:auto; display:block; }
+                                        .placeholder-dark { display:none; }
+                                        .placeholder-light { display:block; }
+
+                                        /* When theme toggler sets data-bs-theme="dark" on <html> */
+                                        html[data-bs-theme="dark"] .placeholder-dark { display:block; }
+                                        html[data-bs-theme="dark"] .placeholder-light { display:none; }
+
+                                        /* Fallback: use user OS preference if no explicit data-bs-theme set */
+                                        @media (prefers-color-scheme: dark) {
+                                            html:not([data-bs-theme]) .placeholder-dark { display:block; }
+                                            html:not([data-bs-theme]) .placeholder-light { display:none; }
+                                        }
+                                    </style>
+
+                                    <img src="{{ url_for('static', filename='assets/img/usterka/placeholder_light.png') }}"
+                                         class="img-fluid placeholder-img placeholder-light"
+                                         alt="Brak zdjęcia (light)">
+
+                                    <img src="{{ url_for('static', filename='assets/img/usterka/placeholder_dark.png') }}"
+                                         class="img-fluid placeholder-img placeholder-dark"
+                                         alt="Brak zdjęcia (dark)">
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if usterka.zdjecia_lista_url | length > 1 %}
+
+                            <button class="carousel-control-prev" type="button" data-bs-target="#usterkaCarousel"
+                                    data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Poprzednie</span>
+                            </button>
+
+                            <button class="carousel-control-next" type="button" data-bs-target="#usterkaCarousel"
+                                    data-bs-slide="next">
+                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Następne</span>
+                            </button>
+
+                        {% endif %}
+                    </div>
+
+                    <div class="card-footer p-2">
+                        <div class="d-flex overflow-auto">
+                            {% for url in usterka.zdjecia_lista_url %}
+                                <img src="{{ url }}"
+                                     class="img-thumbnail me-1 {% if loop.first %}border-primary{% endif %}"
+                                     style="width: 100px; height: 65px; object-fit: cover; cursor: pointer;"
+                                     alt="Miniatura {{ loop.index }}"
+                                     onclick="document.getElementById('usterkaCarousel').querySelector('.carousel-item.active').classList.remove('active');
+                                             document.getElementById('usterkaCarousel').querySelectorAll('.carousel-item')[{{ loop.index0 }}].classList.add('active');
+                                             this.closest('.card-footer').querySelectorAll('.img-thumbnail').forEach(el => el.classList.remove('border-primary'));
+                                             this.classList.add('border-primary');"
+                                >
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
-              {% endif %}
+
             </div>
 
-            {% if usterka.zdjecia_lista_url | length > 1 %}
-              <button class="carousel-control-prev" type="button" data-bs-target="#usterkaCarousel" data-bs-slide="prev">
-                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-                <span class="visually-hidden">Poprzednie</span>
-              </button>
-              <button class="carousel-control-next" type="button" data-bs-target="#usterkaCarousel" data-bs-slide="next">
-                <span class="carousel-control-next-icon" aria-hidden="true"></span>
-                <span class="visually-hidden">Następne</span>
-              </button>
-            {% endif %}
-          </div>
+            <div class="col-lg-7">
 
-          <div class="d-flex overflow-auto">
-            {% for url in usterka.zdjecia_lista_url %}
-              <img src="{{ url }}" class="img-thumbnail me-1 thumb {% if loop.first %}border-primary{% endif %}" alt="Miniatura {{ loop.index }}"
-                   onclick="document.querySelectorAll('#usterkaCarousel .carousel-item').forEach(i=>i.classList.remove('active')); document.querySelectorAll('#usterkaCarousel .carousel-item')[{{ loop.index0 }}].classList.add('active'); this.closest('.d-flex').querySelectorAll('.img-thumbnail').forEach(t=>t.classList.remove('border-primary')); this.classList.add('border-primary');">
-            {% endfor %}
-          </div>
-        </div>
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0 d-flex align-items-center">
+                            <span>Szczegóły Zgłoszenia</span>
+                            <div class="ms-auto d-flex gap-2">
+                                {% if IS_ADMIN %}
+                                <a href="{{ url_for('views.usterka_edit', usterka_id=usterka.id) }}" class="btn btn-outline-dark" title="Edytuj usterkę">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
 
-        <div class="col-md-7">
-          <h5 class="text-primary">Szczegóły Zgłoszenia</h5>
-          <ul class="list-group list-group-flush mb-3">
-            <li class="list-group-item"><strong>Opis:</strong> {{ usterka.opis }}</li>
-            <li class="list-group-item"><strong>Zgłoszono przez:</strong> {{ usterka.zgloszono_przez | default('Anonim') }}</li>
-            <li class="list-group-item"><strong>Data zgłoszenia:</strong> {{ usterka.data_zgloszenia }}</li>
-            <li class="list-group-item">
-              <strong>Status:</strong>
-              <span class="badge
-                {% if usterka.status == 'oczekuje' %} bg-warning text-dark
-                {% elif usterka.status == 'w trakcie' %} bg-info text-dark
-                {% elif usterka.status == 'naprawiona' %} bg-success
-                {% elif usterka.status == 'odrzucona' %} bg-danger
-                {% else %} bg-secondary
-                {% endif %}">{{ usterka.status | capitalize }}</span>
-            </li>
-            <li class="list-group-item"><strong>Powiązany sprzęt:</strong> {{ usterka.sprzet_id | upper }}</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+                            <div class="col-md-6">
+                                <h5 class="mt-2 text-warning">Informacje Podstawowe</h5>
+                                <ul class="list-group list-group-flush mb-4">
+                                    <li class="list-group-item"><strong>ID Usterki:</strong> {{ usterka.id }}</li>
+                                    <li class="list-group-item"><strong>Powiązany Sprzęt:</strong>
+                                        <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}" class="text-decoration-none">
+                                            {{ usterka.sprzet_id | upper }}
+                                        </a>
+                                    </li>
+                                    <li class="list-group-item">
+                                        <strong>Status:</strong>
+                                        <span class="badge
+                                        {% if usterka.status == 'oczekuje' %} bg-warning text-dark
+                                        {% elif usterka.status == 'w trakcie' %} bg-info text-dark
+                                        {% elif usterka.status == 'naprawiona' %} bg-success
+                                        {% elif usterka.status == 'odrzucona' %} bg-danger
+                                        {% else %} bg-secondary
+                                        {% endif %}
+                                        ">
+                                        {{ usterka.status | capitalize }}
+                                    </span>
+                                    </li>
+                                    <li class="list-group-item"><strong>Data Zgłoszenia:</strong> {{ usterka.data_zgloszenia }}</li>
+                                    <li class="list-group-item"><strong>Zgłoszono przez:</strong> {{ usterka.zgloszono_przez | default('Anonim', true) }}</li>
+                                </ul>
+                            </div>
 
-<!-- Modal lightbox -->
-<div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered">
-    <div class="modal-content bg-transparent border-0">
-      <div class="modal-header border-0 p-0">
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body p-0 text-center">
-        <div id="modalCarousel" class="carousel slide" data-bs-interval="false">
-          <div class="carousel-inner">
-            {% if usterka.zdjecia_lista_url %}
-              {% for url in usterka.zdjecia_lista_url %}
-                <div class="carousel-item {% if loop.first %}active{% endif %}">
-                  <img src="{{ url }}" class="img-fluid" alt="Powiększone {{ loop.index }}">
+                            <div class="col-md-6">
+                                <h5 class="mt-2 text-warning">Opis Problemu</h5>
+                                <div class="card border-warning">
+                                    <div class="card-body">
+                                        <p class="mb-0">{{ usterka.opis }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-              {% endfor %}
-            {% else %}
-              <div class="carousel-item active">
-                <img src="{{ url_for('static', filename='img/placeholder.png') }}" class="img-fluid" alt="Brak zdjęcia">
-              </div>
-            {% endif %}
-          </div>
 
-          {% if usterka.zdjecia_lista_url | length > 1 %}
-            <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel" data-bs-slide="prev">
-              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Poprzednie</span>
-            </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel" data-bs-slide="next">
-              <span class="carousel-control-next-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Następne</span>
-            </button>
-          {% endif %}
+            </div>
         </div>
-      </div>
     </div>
-  </div>
-</div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function(){
-  var modal = document.getElementById('imageModal');
-  var modalCarousel = document.getElementById('modalCarousel');
+    <!-- Modal lightbox -->
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content bg-transparent border-0">
+                <div class="modal-header border-0 p-0">
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0 text-center">
+                    <div id="modalCarousel" class="carousel slide" data-bs-interval="false">
+                        <div class="carousel-inner">
+                            {% if usterka.zdjecia_lista_url %}
+                                {% for url in usterka.zdjecia_lista_url %}
+                                    <div class="carousel-item" data-index="{{ loop.index0 }}">
+                                        <img src="{{ url }}" class="img-fluid"
+                                             alt="Powiększone zdjęcie {{ loop.index }}">
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="carousel-item active">
+                                    <style>
+                                        .placeholder-img { width:100%; height:auto; display:block; }
+                                        .placeholder-dark { display:none; }
+                                        .placeholder-light { display:block; }
 
-  if (modal) {
-    modal.addEventListener('show.bs.modal', function(e){
-      var trigger = e.relatedTarget;
-      var url = trigger ? trigger.getAttribute('data-img-url') : null;
-      if (!modalCarousel) return;
-      var items = modalCarousel.querySelectorAll('.carousel-item');
-      items.forEach(i=>i.classList.remove('active'));
-      if (url) {
-        for (let i=0;i<items.length;i++){
-          if (items[i].querySelector('img').src === url) { items[i].classList.add('active'); break; }
-        }
-      }
-      // init carousel instance if bootstrap available
-      if (typeof bootstrap !== 'undefined' && bootstrap.Carousel) {
-        new bootstrap.Carousel(modalCarousel, { interval:false, ride:false });
-      }
-    });
-  }
-});
-</script>
+                                        /* When theme toggler sets data-bs-theme="dark" on <html> */
+                                        html[data-bs-theme="dark"] .placeholder-dark { display:block; }
+                                        html[data-bs-theme="dark"] .placeholder-light { display:none; }
+
+                                        /* Fallback: use user OS preference if no explicit data-bs-theme set */
+                                        @media (prefers-color-scheme: dark) {
+                                            html:not([data-bs-theme]) .placeholder-dark { display:block; }
+                                            html:not([data-bs-theme]) .placeholder-light { display:none; }
+                                        }
+                                    </style>
+
+                                    <img src="{{ url_for('static', filename='assets/img/usterka/placeholder_light.png') }}"
+                                         class="img-fluid placeholder-img placeholder-light"
+                                         alt="Brak zdjęcia (light)">
+
+                                    <img src="{{ url_for('static', filename='assets/img/usterka/placeholder_dark.png') }}"
+                                         class="img-fluid placeholder-img placeholder-dark"
+                                         alt="Brak zdjęcia (dark)">
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if usterka.zdjecia_lista_url | length > 1 %}
+                            <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel"
+                                    data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Poprzednie</span>
+                            </button>
+                            <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel"
+                                    data-bs-slide="next">
+                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Następne</span>
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // ----------------------------------------------------
+            // JAWNA INICJALIZACJA GŁÓWNEJ KARUZELI (zabezpieczenie)
+            // ----------------------------------------------------
+            var myCarousel = document.querySelector('#usterkaCarousel');
+            if (myCarousel && typeof bootstrap !== 'undefined' && bootstrap.Carousel) {
+                new bootstrap.Carousel(myCarousel, {
+                    interval: false,
+                    ride: false
+                });
+            }
+
+            // ----------------------------------------------------
+            // INICJALIZACJA I OBSŁUGA KARUZELI W MODALU (Lightbox)
+            // ----------------------------------------------------
+            var imageModal = document.getElementById('imageModal');
+            var modalCarousel = document.getElementById('modalCarousel');
+            var bsModalCarousel = null; // Instancja karuzeli w modalu
+
+            // Jawna inicjalizacja karuzeli w modalu, jeśli istnieje
+            if (modalCarousel && typeof bootstrap !== 'undefined' && bootstrap.Carousel) {
+                bsModalCarousel = new bootstrap.Carousel(modalCarousel, {
+                    interval: false,
+                    ride: false
+                });
+            }
+
+            // Obsługa zdarzenia otwarcia Modala
+            if (imageModal) {
+                imageModal.addEventListener('show.bs.modal', function (event) {
+                    // Element, który wywołał modal (link <a> z karuzeli głównej)
+                    var triggerLink = event.relatedTarget;
+
+                    // Z głównej karuzeli pobieramy URL zdjęcia
+                    var imageUrl = triggerLink.getAttribute('data-img-url');
+
+                    // Znajdowanie wszystkich slajdów w karuzeli Modala
+                    var modalItems = modalCarousel.querySelectorAll('.carousel-item');
+
+                    // Iteracja w celu znalezienia slajdu odpowiadającego klikniętemu zdjęciu
+                    let clickedIndex = 0;
+                    let found = false;
+
+                    // Usuwamy klasę 'active' ze wszystkich slajdów w modalu na wszelki wypadek
+                    modalItems.forEach(item => item.classList.remove('active'));
+
+                    // Szukanie odpowiedniego slajdu do aktywacji
+                    for (let i = 0; i < modalItems.length; i++) {
+                        let itemImg = modalItems[i].querySelector('img');
+
+                        if (itemImg.src === imageUrl && !found) {
+                            modalItems[i].classList.add('active'); // Ustawiamy slajd jako aktywny
+                            clickedIndex = i;
+                            found = true;
+                        }
+                    }
+
+                    // Jeśli instancja karuzeli istnieje, ustawiamy ją na poprawny slajd
+                    if (bsModalCarousel) {
+                        // Użycie metody 'to' z instancji karuzeli, aby zresetować pozycję
+                        // i upewnić się, że nawigacja działa poprawnie.
+                        setTimeout(() => {
+                            bsModalCarousel.to(clickedIndex);
+                        }, 50);
+                    }
+                });
+            }
+
+            // ----------------------------------------------------
+            // OBSŁUGA MINIATUR GŁÓWNEJ KARUZELI
+            // ----------------------------------------------------
+            var usterkaCarousel = document.getElementById('usterkaCarousel');
+            if (usterkaCarousel) {
+                usterkaCarousel.addEventListener('slid.bs.carousel', function (e) {
+                    const activeIndex = e.to;
+                    const thumbnails = this.closest('.card').querySelector('.card-footer').querySelectorAll('.img-thumbnail');
+
+                    thumbnails.forEach(thumb => thumb.classList.remove('border-primary'));
+                    if (thumbnails[activeIndex]) {
+                        thumbnails[activeIndex].classList.add('border-primary');
+                    }
+                });
+            }
+        });
+    </script>
+
 {% endblock %}

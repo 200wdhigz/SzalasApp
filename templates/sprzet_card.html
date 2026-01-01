@@ -63,7 +63,7 @@
             <div class="col-lg-5">
 
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-light">
+                    <div class="card-header bg-secondary">
                         <h5 class="mb-0 text-center">Galeria Zdjęć</h5>
                     </div>
 
@@ -80,8 +80,29 @@
                                 {% endfor %}
                             {% else %}
                                 <div class="carousel-item active">
-                                    <img src="{{ url_for('static', filename='img/placeholder.png') }}"
-                                         class="d-block w-100" alt="Brak zdjęcia">
+                                    <style>
+                                        .placeholder-img { width:100%; height:auto; display:block; }
+                                        .placeholder-dark { display:none; }
+                                        .placeholder-light { display:block; }
+
+                                        /* When theme toggler sets data-bs-theme="dark" on <html> */
+                                        html[data-bs-theme="dark"] .placeholder-dark { display:block; }
+                                        html[data-bs-theme="dark"] .placeholder-light { display:none; }
+
+                                        /* Fallback: use user OS preference if no explicit data-bs-theme set */
+                                        @media (prefers-color-scheme: dark) {
+                                            html:not([data-bs-theme]) .placeholder-dark { display:block; }
+                                            html:not([data-bs-theme]) .placeholder-light { display:none; }
+                                        }
+                                    </style>
+
+                                    <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_light.png') }}"
+                                         class="img-fluid placeholder-img placeholder-light"
+                                         alt="Brak zdjęcia (light)">
+
+                                    <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_dark.png') }}"
+                                         class="img-fluid placeholder-img placeholder-dark"
+                                         alt="Brak zdjęcia (dark)">
                                 </div>
                             {% endif %}
                         </div>
@@ -281,7 +302,7 @@
                 </div>
 
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-secondary text-white">
+                    <div class="card-header bg-info text-white">
                         <h4 class="mb-0">Zgłoszone Usterki ({{ usterki | length }})</h4>
                     </div>
                     <div class="card-body">
@@ -344,8 +365,29 @@
                                 {% endfor %}
                             {% else %}
                                 <div class="carousel-item active">
-                                    <img src="{{ url_for('static', filename='img/placeholder.png') }}" class="img-fluid"
-                                         alt="Brak zdjęcia">
+                                    <style>
+                                        .placeholder-img { width:100%; height:auto; display:block; }
+                                        .placeholder-dark { display:none; }
+                                        .placeholder-light { display:block; }
+
+                                        /* When theme toggler sets data-bs-theme="dark" on <html> */
+                                        html[data-bs-theme="dark"] .placeholder-dark { display:block; }
+                                        html[data-bs-theme="dark"] .placeholder-light { display:none; }
+
+                                        /* Fallback: use user OS preference if no explicit data-bs-theme set */
+                                        @media (prefers-color-scheme: dark) {
+                                            html:not([data-bs-theme]) .placeholder-dark { display:block; }
+                                            html:not([data-bs-theme]) .placeholder-light { display:none; }
+                                        }
+                                    </style>
+
+                                    <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_light.png') }}"
+                                         class="img-fluid placeholder-img placeholder-light"
+                                         alt="Brak zdjęcia (light)">
+
+                                    <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_dark.png') }}"
+                                         class="img-fluid placeholder-img placeholder-dark"
+                                         alt="Brak zdjęcia (dark)">
                                 </div>
                             {% endif %}
                         </div>
@@ -381,7 +423,9 @@
                 </div>
                 <div class="modal-footer">
                     <a id="qrOpenLink" class="btn btn-primary" target="_blank" rel="noopener">Otwórz stronę</a>
-                    <a id="qrOpenPng" class="btn btn-secondary" target="_blank" rel="noopener">Otwórz jako PNG</a>
+                    <a id="qrDownloadBtn" class="btn btn-success" download="QR_{{ sprzet.id }}.png">
+                        <i class="bi bi-download"></i> Pobierz QR
+                    </a>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
                 </div>
             </div>
@@ -567,18 +611,18 @@
                     target += (target.indexOf('?') === -1 ? '?' : '&') + 'dev';
                 }
 
-                // QR generator service
-                var qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=500x500&qzone=2&data=' + encodeURIComponent(target);
+                // Lokalnie generowany QR kod
+                var qrSrc = '{{ url_for("views.generate_qr_code", sprzet_id=sprzet.id) }}';
 
                 var img = document.getElementById('qrImage');
                 var openLink = document.getElementById('qrOpenLink');
-                var openPng = document.getElementById('qrOpenPng');
+                var downloadBtn = document.getElementById('qrDownloadBtn');
                 var targetText = document.getElementById('qrTargetText');
 
                 img.src = qrSrc;
                 img.alt = 'QR for ' + target;
                 openLink.href = target;
-                openPng.href = qrSrc;
+                downloadBtn.href = qrSrc;
                 targetText.textContent = target;
             });
         });

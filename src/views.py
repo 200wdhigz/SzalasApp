@@ -1,13 +1,15 @@
 # python
 # file: src/views.py
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 import os
 import uuid
 import json
 import pandas as pd
 from werkzeug.utils import secure_filename
 from google.cloud import firestore
+import qrcode
+from io import BytesIO
 
 from . import get_firestore_client
 from .auth import login_required
@@ -58,7 +60,8 @@ def process_uploads(files, folder, id_prefix=None):
 #               WIDOKI BAZOWE (Logowanie/Wylogowanie)
 # =======================================================================
 
-@views_bp.route('/')
+@views_bp.route('/sprzety')
+@login_required
 def sprzet_list():
     # Pobieranie parametrów filtrowania
     typ = request.args.get('typ')
@@ -246,6 +249,51 @@ def sprzet_card(sprzet_id):
                            usterki=get_usterki_for_sprzet(sprzet_id))
 
 
+@views_bp.route('/sprzet/<sprzet_id>/qrcode')
+def generate_qr_code(sprzet_id):
+    """Generuje kod QR dla danego sprzętu i zwraca go jako obraz PNG."""
+    # Sprawdź czy sprzęt istnieje
+    sprzet_item = get_sprzet_item(sprzet_id)
+    if not sprzet_item:
+        flash(f'Sprzęt "{sprzet_id}" nie został znaleziony.', 'danger')
+        return redirect(url_for('views.sprzet_list'))
+
+    # Generuj URL do strony sprzętu
+    base_url = request.host_url.rstrip('/')
+    target_url = f'https://200wdhigz.github.io/sprzet/{sprzet_id}'
+
+    # Sprawdź czy jest tryb debug
+    is_debug = os.getenv('FLASK_ENV') == 'development' or os.getenv('DEBUG') == 'True'
+    if is_debug:
+        target_url += '?dev'
+
+    # Generuj kod QR
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(target_url)
+    qr.make(fit=True)
+
+    # Twórz obraz
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    # Zapisz do BytesIO
+    img_io = BytesIO()
+    img.save(img_io, 'PNG')
+    img_io.seek(0)
+
+    # Zwróć plik do pobrania
+    return send_file(
+        img_io,
+        mimetype='image/png',
+        as_attachment=True,
+        download_name=f'QR_{sprzet_id}.png'
+    )
+
+
 
 # =======================================================================
 #                       WIDOKI USTERK
@@ -292,9 +340,20 @@ def usterki_list():
                            ids_sprzetu=ids_sprzetu,
                            selected_filters=request.args)
 
-@views_bp.route('/usterka/<usterka_id>', methods=['GET', 'POST'])
-@login_required
+@views_bp.route('/usterka/<usterka_id>')
 def usterka_card(usterka_id):
+    """Widok karty usterki (publiczny dostęp do szczegółów)."""
+    usterka = get_usterka_item(usterka_id)
+    if not usterka:
+        flash('Nie znaleziono usterki.', 'danger')
+        return redirect(url_for('views.usterki_list'))
+
+    usterka['zdjecia_lista_url'] = usterka.get('zdjecia', [])
+    return render_template('usterka_card.html', usterka=usterka)
+
+@views_bp.route('/usterka/edit/<usterka_id>', methods=['GET', 'POST'])
+@login_required
+def usterka_edit(usterka_id):
     """Widok edycji usterki (admin)."""
     usterka = get_usterka_item(usterka_id)
     if not usterka:
@@ -315,10 +374,10 @@ def usterka_card(usterka_id):
             
             update_usterka(usterka_id, **data)
             flash(f'Usterka {usterka_id} zaktualizowana.', 'success')
-            return redirect(url_for('views.usterki_list'))
+            return redirect(url_for('views.usterka_card', usterka_id=usterka_id))
 
     usterka['zdjecia_lista_url'] = usterka.get('zdjecia', [])
-    return render_template('usterka_card.html', usterka=usterka)
+    return render_template('usterka_edit.html', usterka=usterka)
 
 
 # =======================================================================
