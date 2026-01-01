@@ -7,7 +7,7 @@ load_dotenv()
 app = create_app()
 
 DEBUG = os.getenv("DEBUG", False)
-PORT = os.getenv('PORT', 80)
+PORT = int(os.getenv('PORT', 80))
 HOST = os.getenv('HOST', '0.0.0.0')
 
 
