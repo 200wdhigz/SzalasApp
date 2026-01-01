@@ -108,9 +108,9 @@ MICROSOFT_ALLOWED_DOMAINS=zhp.net.pl,zhp.pl
 ### Complete .env File Example
 
 ```bash
-# Firebase Configuration
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_API_KEY=your-firebase-api-key
+# Google Configuration
+GOOGLE_PROJECT_ID=your-project-id
+GOOGLE_API_KEY=your-firebase-api-key
 SECRET_KEY=generate-a-strong-random-key-here
 
 # Google OAuth Configuration
@@ -241,7 +241,7 @@ HOST=0.0.0.0
 - [ ] Update OAuth redirect URIs in Google Console
 - [ ] Update OAuth redirect URIs in Azure Portal
 - [ ] Generate strong SECRET_KEY (use `python -c "import secrets; print(secrets.token_hex(32))"`)
-- [ ] Ensure FIREBASE_PROJECT_ID points to production project
+- [ ] Ensure GOOGLE_PROJECT_ID points to production project
 - [ ] Test all OAuth flows in production
 - [ ] Monitor logs for any errors
 - [ ] Set up SSL/TLS (HTTPS required for OAuth)

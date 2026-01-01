@@ -4,6 +4,7 @@ import os
 import requests
 from firebase_admin import auth
 
+from . import GOOGLE_API_KEY
 from .db_users import get_user_by_uid, create_user
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/')
@@ -35,8 +36,7 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        api_key = os.getenv('FIREBASE_API_KEY')
-        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={GOOGLE_API_KEY}"
 
         try:
             response = requests.post(auth_url, json={
@@ -45,7 +45,6 @@ def login():
                 'returnSecureToken': True
             })
             response.raise_for_status()
-            print(response.json())
             id_token = response.json()['idToken']
             decoded_token = auth.verify_id_token(id_token)
             uid = decoded_token['uid']
@@ -67,7 +66,7 @@ def login():
             
             session['user_id'] = uid
             session['is_admin'] = is_admin
-            print(f"User {decoded_token['email']} is admin: {session['is_admin']}")
+
 
             flash('Pomyślnie zalogowano!', 'success')
             return redirect(url_for('views.sprzet_list'))

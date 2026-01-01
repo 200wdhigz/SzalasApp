@@ -6,9 +6,13 @@ load_dotenv()
 
 app = create_app()
 
+DEBUG = os.getenv("DEBUG", False)
+PORT = int(os.getenv('PORT', 80))
+HOST = os.getenv('HOST', '0.0.0.0')
+
 
 
 if __name__ == '__main__':
     # Uruchomienie aplikacji w trybie debugowania
-    app.run(debug=True, port=os.getenv('PORT', 5000), host=os.getenv('HOST', '0.0.0.0'))
+    app.run(debug=DEBUG, port=PORT, host=HOST)
 

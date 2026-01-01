@@ -92,13 +92,13 @@ bucket/
 Wszystkie skrypty wymagają pliku `.env` w głównym folderze projektu:
 
 ```bash
-# Firebase Configuration
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_API_KEY=your-api-key
+# Google Configuration
+GOOGLE_PROJECT_ID=your-project-id
+GOOGLE_API_KEY=your-api-key
 SECRET_KEY=your-secret-key
 
 # Google Cloud Storage
-GCS_BUCKET_NAME=your-bucket-name
+GOOGLE_CLOUD_STORAGE_BUCKET_NAME=your-bucket-name
 ```
 
 ---
@@ -153,7 +153,7 @@ Szczegółowa dokumentacja dostępna w:
 ## 🐛 Troubleshooting
 
 ### Błąd: "Firebase credentials not found"
-**Rozwiązanie:** Sprawdź plik `.env` i upewnij się, że `FIREBASE_PROJECT_ID` jest ustawione.
+**Rozwiązanie:** Sprawdź plik `.env` i upewnij się, że `GOOGLE_PROJECT_ID` jest ustawione.
 
 ### Błąd: "Permission denied"
 **Rozwiązanie:** Sprawdź uprawnienia Firebase Admin SDK i Google Cloud Storage.

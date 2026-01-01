@@ -17,6 +17,6 @@ def toggle_admin(uid, status=True):
 if __name__ == '__main__':
     if not firebase_admin._apps:
         cred = credentials.ApplicationDefault()
-        firebase_admin.initialize_app(cred, {'projectId': os.getenv('FIREBASE_PROJECT_ID')})
+        firebase_admin.initialize_app(cred, {'projectId': os.getenv('GOOGLE_PROJECT_ID')})
     
     toggle_admin(TARGET_UID)

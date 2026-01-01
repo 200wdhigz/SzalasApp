@@ -3,6 +3,10 @@ from firebase_admin import credentials, initialize_app, firestore, _apps
 import os
 import secrets
 
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+GOOGLE_PROJECT_ID = os.getenv('GOOGLE_PROJECT_ID')
+GOOGLE_CLOUD_STORAGE_BUCKET_NAME = os.getenv('GOOGLE_CLOUD_STORAGE_BUCKET_NAME')
+
 
 def generate_csrf_token():
     """Generuje token CSRF dla sesji."""
@@ -34,7 +38,7 @@ def create_app():
     if not _apps:
         try:
             cred = credentials.ApplicationDefault()
-            initialize_app(cred, {'projectId': os.getenv('FIREBASE_PROJECT_ID')})
+            initialize_app(cred, {'projectId': GOOGLE_PROJECT_ID})
         except Exception as e:
             print(f"Firebase initialization warning: {e}")
 

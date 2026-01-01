@@ -2,7 +2,7 @@ import os
 import re
 from dotenv import load_dotenv
 from google.cloud import firestore
-from src.gcs_utils import upload_blob_to_gcs, GCS_BUCKET_NAME
+from src.gcs_utils import upload_blob_to_gcs, GOOGLE_CLOUD_STORAGE_BUCKET_NAME
 from src.db_firestore import COLLECTION_SPRZET
 
 load_dotenv()
@@ -11,7 +11,7 @@ PHOTOS_DIR = 'photos'
 
 def upload_and_update():
     """Wgrywa zdjęcia i aktualizuje Firestore."""
-    if not os.path.exists(PHOTOS_DIR) or not GCS_BUCKET_NAME:
+    if not os.path.exists(PHOTOS_DIR) or not GOOGLE_CLOUD_STORAGE_BUCKET_NAME:
         print("❌ Brak katalogu zdjęć lub konfiguracji GCS.")
         return
 
