@@ -1,11 +1,19 @@
 # .gitignore
-# ...
 
-data_files
-photos
+# Data and uploads
+data_files/
+photos/
+
+# Environment
 .env
-.idea
-!/.env
+!/.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
 # Python
 __pycache__/
@@ -28,3 +36,41 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Poetry
+poetry.lock  # Uncomment if you don't want to track lock file
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Firebase
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Export folder (generated)
+wiki_export/

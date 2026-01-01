@@ -62,9 +62,11 @@
 
 #### Password Reset
 - Generate strong random passwords (16 characters with special characters)
+- **NEW: Email notification** - Password automatically sent to user's email
 - Secure display (session-based, one-time view)
-- Password shown only to admin on next page load
-- Admin must securely communicate password to user
+- Password shown to admin on next page load with email status
+- Admin can verify if email was sent successfully
+- Fallback: If email fails, admin must securely communicate password to user
 
 #### User Editing
 - Modify user role (admin/regular)
@@ -72,14 +74,53 @@
 - View OAuth connection status
 - Cannot modify email (managed by Firebase)
 
-### 4. Enhanced Login Page
+### 4. Self-Service Account Management (NEW)
+
+**Location:** `/account` 
+
+**Features for all users:**
+
+#### Change Password
+- Users can change their own password without admin intervention
+- Requires current password for security
+- New password must be at least 6 characters
+- Password confirmation required
+- Works even if OAuth accounts are linked
+- Allows users with OAuth to set a password for password-based login
+
+#### Change Email
+- Users can change their own email address
+- Requires current password for confirmation
+- Validates that new email is not already in use
+- Updates both Firebase Auth and Firestore
+- Immediate effect - new email required for next login
+
+**Security Features:**
+- All changes require current password verification
+- CSRF protection on all forms
+- Real-time validation
+- Clear error messages
+- Success confirmation
+
+### 5. Enhanced Login Page
 
 **New Elements:**
 - OAuth login buttons prominently displayed
 - Google button with recognizable branding
 - Microsoft button clearly labeled for ZHP domains
+- **NEW: Smart error messages** - Detects OAuth-linked accounts and suggests correct login method
 - Maintains backward compatibility with password login
 - Clean separation between password and OAuth methods
+
+**Improved Error Handling:**
+- If user tries to login with password but has OAuth linked:
+  - System detects this situation
+  - Shows helpful message: "To konto ma powiązane logowanie przez Google/Microsoft"
+  - Directs user to use the correct OAuth button
+- Clear distinction between:
+  - Invalid credentials
+  - OAuth-only accounts
+  - Disabled accounts
 
 ### 5. Navigation Updates
 
@@ -186,7 +227,16 @@ MICROSOFT_ALLOWED_DOMAINS=zhp.net.pl,zhp.pl
 # Application
 BASE_URL=http://localhost:5000
 SECRET_KEY=...
+
+# Email Configuration (NEW - for password reset notifications)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@example.com
+SMTP_PASSWORD=your-app-password
+FROM_EMAIL=noreply@yourapp.com  # Optional, defaults to SMTP_USER
 ```
+
+**Note:** For Gmail, you'll need to use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password.
 
 ### Dependencies Added
 
@@ -220,13 +270,47 @@ SECRET_KEY=...
 5. Account is linked
 6. User can now log in via OAuth
 
-### Workflow 4: Password Reset (Admin)
+### Workflow 4: Password Reset by Admin (NEW - with email)
 1. Admin navigates to user list
 2. Clicks password reset icon for user
 3. New password is generated
-4. Password displayed securely on next page
-5. Admin communicates password to user
-6. User logs in with new password
+4. System attempts to send email to user
+5. Password displayed to admin with email status indicator:
+   - ✅ Green: Email sent successfully
+   - ⚠️ Yellow: Email failed, manual communication needed
+6. Admin can copy password if email failed
+7. User receives email with new password (if successful)
+8. User logs in with new password
+
+### Workflow 5: Self-Service Password Change (NEW)
+1. User logs in (via password or OAuth)
+2. Goes to "Moje Konto"
+3. Scrolls to "Zmiana hasła" section
+4. Enters current password
+5. Enters new password (min. 6 characters)
+6. Confirms new password
+7. Submits form
+8. Password is updated
+9. User can now login with new password
+
+### Workflow 6: Self-Service Email Change (NEW)
+1. User logs in
+2. Goes to "Moje Konto"
+3. Scrolls to "Zmiana adresu email" section
+4. Enters new email address
+5. Confirms with current password
+6. Submits form
+7. Email is updated in Firebase and Firestore
+8. User must use new email for next login
+
+### Workflow 7: Login with OAuth-linked Account (NEW - improved)
+1. User tries to login with password
+2. If account has OAuth linked (Google/Microsoft):
+   - System detects OAuth linkage
+   - Shows friendly error: "To konto ma powiązane logowanie przez [providers]"
+   - Suggests using OAuth button
+3. User clicks appropriate OAuth button
+4. Successfully logs in via OAuth
 
 ## User Interface
 
@@ -278,9 +362,28 @@ Due to OAuth requiring real credentials from Google and Microsoft, automated tes
 
 1. **OAuth requires setup** - OAuth providers must be configured before use
 2. **Admin must create users** - No self-registration (by design for security)
-3. **Password reset manual** - Admin must communicate password to user
+3. **Email configuration required for notifications** - Password reset emails require SMTP setup
 4. **Domain hardcoded** - Microsoft domains configurable but limited to email domains
-5. **No email notifications** - Password resets shown in browser only
+5. **No email verification** - Email changes take effect immediately without verification
+
+## Recent Improvements (NEW)
+
+### Self-Service Features
+- ✅ Users can now change their own password
+- ✅ Users can now change their own email
+- ✅ No admin intervention needed for account updates
+- ✅ Password verification required for security
+
+### Password Reset Enhancement
+- ✅ Automatic email notification on password reset
+- ✅ Email status indicator for admin
+- ✅ Fallback display if email fails
+- ✅ Professional HTML email template
+
+### Login Experience
+- ✅ Smart error detection for OAuth-linked accounts
+- ✅ Helpful messages directing users to correct login method
+- ✅ Better error messaging overall
 
 ## Future Enhancements (Not Implemented)
 

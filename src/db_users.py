@@ -99,3 +99,52 @@ def set_user_active_status(uid: str, active: bool):
 def set_user_admin_status(uid: str, is_admin: bool):
     """Ustawia status administratora użytkownika."""
     update_user(uid, is_admin=is_admin)
+
+def update_user_email(uid: str, new_email: str):
+    """Aktualizuje email użytkownika w Firestore."""
+    update_user(uid, email=new_email)
+
+def delete_user(uid: str):
+    """Usuwa użytkownika z Firestore."""
+    db = get_firestore_client()
+    db.collection(COLLECTION_USERS).document(uid).delete()
+
+def sync_users_from_firebase_auth():
+    """
+    Synchronizuje użytkowników z Firebase Auth do Firestore.
+    Usuwa użytkowników z Firestore, którzy nie istnieją w Firebase Auth.
+    Dodaje użytkowników z Firebase Auth, którzy nie istnieją w Firestore.
+    """
+    from firebase_admin import auth as firebase_auth
+
+    # Pobierz wszystkich użytkowników z Firebase Auth
+    firebase_users = {}
+    page = firebase_auth.list_users()
+    while page:
+        for user in page.users:
+            firebase_users[user.uid] = user
+        page = page.get_next_page()
+
+    # Pobierz wszystkich użytkowników z Firestore
+    firestore_users = get_all_users()
+
+    deleted_count = 0
+    added_count = 0
+
+    # Usuń użytkowników z Firestore, którzy nie istnieją w Firebase Auth
+    for fs_user in firestore_users:
+        if fs_user['id'] not in firebase_users:
+            delete_user(fs_user['id'])
+            deleted_count += 1
+
+    # Dodaj użytkowników z Firebase Auth, którzy nie istnieją w Firestore
+    for uid, fb_user in firebase_users.items():
+        if not get_user_by_uid(uid):
+            # Sprawdź custom claims dla is_admin
+            user_record = firebase_auth.get_user(uid)
+            is_admin = user_record.custom_claims.get('admin', False) if user_record.custom_claims else False
+            create_user(uid, fb_user.email, is_admin=is_admin, active=not fb_user.disabled)
+            added_count += 1
+
+    return deleted_count, added_count
+

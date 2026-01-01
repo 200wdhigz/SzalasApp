@@ -6,20 +6,42 @@
         <div class="card shadow-lg mt-4">
             <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
                 <h4 class="mb-0"><i class="bi bi-people"></i> Zarządzanie Użytkownikami</h4>
-                <a href="{{ url_for('admin.user_new') }}" class="btn btn-light">
-                    <i class="bi bi-plus-circle"></i> Nowy Użytkownik
-                </a>
+                <div class="btn-group">
+                    <form method="POST" action="{{ url_for('admin.users_sync') }}" style="display: inline;" class="me-2">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-warning" title="Synchronizuj z Firebase Auth">
+                            <i class="bi bi-arrow-repeat"></i> Synchronizuj
+                        </button>
+                    </form>
+                    <a href="{{ url_for('admin.user_new') }}" class="btn btn-light">
+                        <i class="bi bi-plus-circle"></i> Nowy Użytkownik
+                    </a>
+                </div>
             </div>
             <div class="card-body">
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Wskazówka:</strong> Jeśli usunąłeś użytkownika w Firebase Console, kliknij przycisk
+                    <strong>"Synchronizuj"</strong> aby zaktualizować listę. Możesz też usuwać użytkowników bezpośrednio
+                    z tej listy za pomocą przycisku <i class="bi bi-trash text-danger"></i>.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+
                 {% if session.get('reset_password') %}
                 <div class="alert alert-warning alert-dismissible fade show" role="alert">
                     <h5 class="alert-heading"><i class="bi bi-key"></i> Hasło zostało zresetowane</h5>
                     <p><strong>Email:</strong> {{ session.get('reset_password_email') }}</p>
-                    <p><strong>Nowe hasło:</strong> <code class="fs-5">{{ session.pop('reset_password') }}</code></p>
-                    <p class="mb-0"><small>Zapisz to hasło i przekaż je użytkownikowi. Ta wiadomość zostanie wyświetlona tylko raz.</small></p>
+                    <p><strong>Nowe hasło:</strong> <code class="fs-5 bg-light p-2 rounded">{{ session.pop('reset_password') }}</code></p>
+                    {% if session.get('reset_password_email_sent') %}
+                    <p class="text-success"><i class="bi bi-check-circle-fill"></i> Hasło zostało wysłane na adres email użytkownika.</p>
+                    {% else %}
+                    <p class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Nie udało się wysłać emaila. Przekaż hasło użytkownikowi ręcznie.</p>
+                    {% endif %}
+                    <p class="mb-0"><small><strong>UWAGA:</strong> Zapisz to hasło i przekaż je użytkownikowi. Ta wiadomość zostanie wyświetlona tylko raz.</small></p>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
                 {% set _ = session.pop('reset_password_email', None) %}
+                {% set _ = session.pop('reset_password_email_sent', None) %}
                 {% endif %}
                 
                 {% if users %}
@@ -92,8 +114,15 @@
                                         
                                         <form method="POST" action="{{ url_for('admin.user_reset_password', user_id=user.id) }}" style="display: inline;">
                                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Resetuj hasło" onclick="return confirm('Czy na pewno chcesz zresetować hasło tego użytkownika?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-info" title="Resetuj hasło" onclick="return confirm('Czy na pewno chcesz zresetować hasło tego użytkownika?');">
                                                 <i class="bi bi-key"></i>
+                                            </button>
+                                        </form>
+
+                                        <form method="POST" action="{{ url_for('admin.user_delete', user_id=user.id) }}" style="display: inline;">
+                                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Usuń całkowicie" onclick="return confirm('UWAGA: To trwale usunie użytkownika z Firebase Auth i Firestore.\n\nEmail: {{ user.firebase_email }}\n\nCzy na pewno chcesz kontynuować?');">
+                                                <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
                                     </div>

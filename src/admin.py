@@ -5,11 +5,13 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from firebase_admin import auth as firebase_auth
 import secrets
 import string
+import os
 
 from .auth import admin_required
 from .db_users import (
     get_all_users, get_user_by_uid, update_user,
-    set_user_active_status, set_user_admin_status, create_user
+    set_user_active_status, set_user_admin_status, create_user,
+    delete_user, sync_users_from_firebase_auth
 )
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -187,11 +189,142 @@ def user_reset_password(user_id):
         firebase_auth.update_user(user_id, password=new_password)
         
         user = get_user_by_uid(user_id)
-        # Store password in session temporarily for display on next page
+        user_email = user.get("email", "")
+
+        # Wyślij email z nowym hasłem
+        try:
+            send_password_reset_email(user_email, new_password)
+            email_sent = True
+        except Exception as email_error:
+            print(f'Error sending email: {email_error}')
+            email_sent = False
+
+        # Store password in session temporarily for display
         session['reset_password'] = new_password
-        session['reset_password_email'] = user.get("email", "")
-        flash(f'Hasło użytkownika {user.get("email", "")} zostało zresetowane. Nowe hasło zostanie wyświetlone na następnej stronie.', 'success')
+        session['reset_password_email'] = user_email
+        session['reset_password_email_sent'] = email_sent
+
+        if email_sent:
+            flash(f'Hasło użytkownika {user_email} zostało zresetowane. Nowe hasło zostało wysłane na email i zostanie wyświetlone na następnej stronie.', 'success')
+        else:
+            flash(f'Hasło użytkownika {user_email} zostało zresetowane, ale nie udało się wysłać emaila. Nowe hasło zostanie wyświetlone na następnej stronie.', 'warning')
     except Exception as e:
         flash(f'Wystąpił błąd podczas resetowania hasła: {str(e)}', 'danger')
     
     return redirect(url_for('admin.users_list'))
+
+
+def send_password_reset_email(email, new_password):
+    """Wysyła email z nowym hasłem do użytkownika."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    smtp_port = int(os.getenv('SMTP_PORT', '587'))
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_password = os.getenv('SMTP_PASSWORD')
+    from_email = os.getenv('FROM_EMAIL', smtp_user)
+
+    if not smtp_user or not smtp_password:
+        raise Exception('SMTP credentials not configured')
+
+    # Twórz wiadomość
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = 'Twoje hasło zostało zresetowane - Panel Kwatermistrza'
+    msg['From'] = from_email
+    msg['To'] = email
+
+    # Tekst wiadomości
+    text = f"""
+Witaj,
+
+Twoje hasło do Panelu Kwatermistrza zostało zresetowane przez administratora.
+
+Twoje nowe hasło: {new_password}
+
+Zalecamy zmianę tego hasła po zalogowaniu w ustawieniach konta.
+
+Aby się zalogować, odwiedź: {os.getenv('BASE_URL', 'http://localhost:5000')}/login
+
+Pozdrawiamy,
+Panel Kwatermistrza
+"""
+
+    html = f"""
+<html>
+<head></head>
+<body>
+    <h2>Twoje hasło zostało zresetowane</h2>
+    <p>Witaj,</p>
+    <p>Twoje hasło do <strong>Panelu Kwatermistrza</strong> zostało zresetowane przez administratora.</p>
+    <div style="background-color: #f0f0f0; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff;">
+        <strong>Twoje nowe hasło:</strong><br>
+        <code style="font-size: 16px; color: #d63384;">{new_password}</code>
+    </div>
+    <p><strong>Zalecamy zmianę tego hasła po zalogowaniu w ustawieniach konta.</strong></p>
+    <p>Aby się zalogować, kliknij tutaj: <a href="{os.getenv('BASE_URL', 'http://localhost:5000')}/login">Zaloguj się</a></p>
+    <hr>
+    <p style="color: #666; font-size: 12px;">Pozdrawiamy,<br>Panel Kwatermistrza</p>
+</body>
+</html>
+"""
+
+    part1 = MIMEText(text, 'plain')
+    part2 = MIMEText(html, 'html')
+
+    msg.attach(part1)
+    msg.attach(part2)
+
+    # Wyślij email
+    with smtplib.SMTP(smtp_host, smtp_port) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
+
+
+@admin_bp.route('/users/sync', methods=['POST'])
+@admin_required
+def users_sync():
+    """Synchronizuje użytkowników z Firebase Auth."""
+    if not validate_csrf_token():
+        return redirect(url_for('admin.users_list'))
+
+    try:
+        deleted_count, added_count = sync_users_from_firebase_auth()
+
+        if deleted_count > 0 or added_count > 0:
+            flash(f'Synchronizacja zakończona: usunięto {deleted_count}, dodano {added_count} użytkowników.', 'success')
+        else:
+            flash('Lista użytkowników jest już zsynchronizowana.', 'info')
+    except Exception as e:
+        flash(f'Wystąpił błąd podczas synchronizacji: {str(e)}', 'danger')
+
+    return redirect(url_for('admin.users_list'))
+
+
+@admin_bp.route('/users/<user_id>/delete', methods=['POST'])
+@admin_required
+def user_delete(user_id):
+    """Usuwa użytkownika całkowicie (z Firebase Auth i Firestore)."""
+    if not validate_csrf_token():
+        return redirect(url_for('admin.users_list'))
+
+    try:
+        user = get_user_by_uid(user_id)
+        user_email = user.get('email', 'Unknown') if user else 'Unknown'
+
+        # Usuń z Firebase Auth
+        firebase_auth.delete_user(user_id)
+
+        # Usuń z Firestore
+        delete_user(user_id)
+
+        flash(f'Użytkownik {user_email} został całkowicie usunięty.', 'success')
+    except Exception as e:
+        flash(f'Wystąpił błąd podczas usuwania użytkownika: {str(e)}', 'danger')
+
+    return redirect(url_for('admin.users_list'))
+
+
+

@@ -4,6 +4,7 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template
 import os
 import secrets
+import requests
 from authlib.integrations.requests_client import OAuth2Session
 from firebase_admin import auth as firebase_auth
 
@@ -350,3 +351,103 @@ def unlink_microsoft():
     unlink_microsoft_account(user_id)
     flash('Konto Microsoft zostało rozłączone.', 'success')
     return redirect(url_for('oauth.account'))
+
+
+@oauth_bp.route('/account/change-email', methods=['POST'])
+@login_required
+def change_email():
+    """Zmienia email użytkownika."""
+    if not validate_csrf_token():
+        return redirect(url_for('oauth.account'))
+
+    user_id = session.get('user_id')
+    new_email = request.form.get('new_email', '').strip()
+    password = request.form.get('password', '').strip()
+
+    if not new_email:
+        flash('Nowy email jest wymagany.', 'danger')
+        return redirect(url_for('oauth.account'))
+
+    try:
+        # Najpierw zweryfikuj hasło użytkownika
+        user = get_user_by_uid(user_id)
+        api_key = os.getenv('FIREBASE_API_KEY')
+        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+
+        response = requests.post(auth_url, json={
+            'email': user.get('email'),
+            'password': password,
+            'returnSecureToken': True
+        })
+
+        if response.status_code != 200:
+            flash('Nieprawidłowe hasło. Nie można zmienić emaila.', 'danger')
+            return redirect(url_for('oauth.account'))
+
+        # Zaktualizuj email w Firebase Auth
+        firebase_auth.update_user(user_id, email=new_email)
+
+        # Zaktualizuj email w Firestore
+        from .db_users import update_user_email
+        update_user_email(user_id, new_email)
+
+        flash(f'Email został pomyślnie zmieniony na {new_email}.', 'success')
+
+    except firebase_auth.EmailAlreadyExistsError:
+        flash('Ten adres email jest już używany przez inne konto.', 'danger')
+    except Exception as e:
+        flash(f'Wystąpił błąd podczas zmiany emaila: {str(e)}', 'danger')
+
+    return redirect(url_for('oauth.account'))
+
+
+@oauth_bp.route('/account/change-password', methods=['POST'])
+@login_required
+def change_password():
+    """Zmienia hasło użytkownika."""
+    if not validate_csrf_token():
+        return redirect(url_for('oauth.account'))
+
+    user_id = session.get('user_id')
+    current_password = request.form.get('current_password', '').strip()
+    new_password = request.form.get('new_password', '').strip()
+    confirm_password = request.form.get('confirm_password', '').strip()
+
+    if not current_password or not new_password or not confirm_password:
+        flash('Wszystkie pola są wymagane.', 'danger')
+        return redirect(url_for('oauth.account'))
+
+    if new_password != confirm_password:
+        flash('Nowe hasła nie pasują do siebie.', 'danger')
+        return redirect(url_for('oauth.account'))
+
+    if len(new_password) < 6:
+        flash('Nowe hasło musi mieć co najmniej 6 znaków.', 'danger')
+        return redirect(url_for('oauth.account'))
+
+    try:
+        # Najpierw zweryfikuj aktualne hasło
+        user = get_user_by_uid(user_id)
+        api_key = os.getenv('FIREBASE_API_KEY')
+        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+
+        response = requests.post(auth_url, json={
+            'email': user.get('email'),
+            'password': current_password,
+            'returnSecureToken': True
+        })
+
+        if response.status_code != 200:
+            flash('Nieprawidłowe obecne hasło.', 'danger')
+            return redirect(url_for('oauth.account'))
+
+        # Zaktualizuj hasło w Firebase Auth
+        firebase_auth.update_user(user_id, password=new_password)
+
+        flash('Hasło zostało pomyślnie zmienione.', 'success')
+
+    except Exception as e:
+        flash(f'Wystąpił błąd podczas zmiany hasła: {str(e)}', 'danger')
+
+    return redirect(url_for('oauth.account'))
+

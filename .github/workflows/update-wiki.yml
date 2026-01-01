@@ -1,0 +1,74 @@
+name: Update Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'prepare_wiki.py'
+  workflow_dispatch:  # Pozwala na ręczne uruchomienie
+
+jobs:
+  update-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Prepare wiki files
+        run: |
+          python prepare_wiki.py
+          echo "✅ Wiki files prepared"
+
+      - name: Checkout wiki repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy files to wiki
+        run: |
+          # Usuń stare pliki (oprócz .git)
+          find wiki -maxdepth 1 -type f -name "*.md" -delete
+          
+          # Skopiuj nowe pliki
+          cp wiki_export/*.md wiki/
+          
+          echo "✅ Files copied to wiki"
+
+      - name: Commit and push changes
+        run: |
+          cd wiki
+          
+          # Konfiguracja git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Dodaj zmiany
+          git add .
+          
+          # Commit tylko jeśli są zmiany
+          if git diff --staged --quiet; then
+            echo "ℹ️ No changes to commit"
+          else
+            git commit -m "Auto-update documentation from main repo
+            
+            Updated by GitHub Actions
+            Commit: ${{ github.sha }}
+            Branch: ${{ github.ref }}
+            Author: ${{ github.actor }}"
+            
+            git push
+            echo "✅ Wiki updated successfully"
+          fi
+

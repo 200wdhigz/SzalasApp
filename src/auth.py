@@ -71,8 +71,22 @@ def login():
 
             flash('Pomyślnie zalogowano!', 'success')
             return redirect(url_for('views.sprzet_list'))
-        except requests.exceptions.HTTPError:
-            flash('Błąd logowania: Nieprawidłowe dane.', 'danger')
+        except requests.exceptions.HTTPError as e:
+            # Check if user exists and has OAuth accounts linked
+            from .db_users import get_user_by_email
+            user = get_user_by_email(email)
+
+            if user and (user.get('google_id') or user.get('microsoft_id')):
+                oauth_methods = []
+                if user.get('google_id'):
+                    oauth_methods.append('Google')
+                if user.get('microsoft_id'):
+                    oauth_methods.append('Microsoft')
+
+                flash(f'To konto ma powiązane logowanie przez {" i ".join(oauth_methods)}. '
+                      f'Użyj odpowiedniego przycisku poniżej aby się zalogować.', 'warning')
+            else:
+                flash('Błąd logowania: Nieprawidłowy email lub hasło.', 'danger')
         except Exception as e:
             flash(f'Wystąpił błąd serwera: {e}', 'danger')
         return redirect(url_for('auth.login'))

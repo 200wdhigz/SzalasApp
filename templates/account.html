@@ -92,6 +92,64 @@
                     <strong>Wskazówka:</strong> Powiąż swoje konto z Google lub Microsoft, aby móc logować się za pomocą tych dostawców.
                 </div>
 
+                <hr>
+
+                <div class="mb-4">
+                    <h5 class="text-muted">Zmiana hasła</h5>
+                    {% if user.google_id or user.microsoft_id %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Masz powiązane konto OAuth. Możesz ustawić hasło, aby móc logować się również hasłem.
+                    </div>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('oauth.change_password') }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Obecne hasło</label>
+                            <input type="password" class="form-control" id="current_password" name="current_password" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">Nowe hasło (min. 6 znaków)</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="6">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Potwierdź nowe hasło</label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="6">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-shield-lock"></i> Zmień hasło
+                        </button>
+                    </form>
+                </div>
+
+                <hr>
+
+                <div class="mb-4">
+                    <h5 class="text-muted">Zmiana adresu email</h5>
+                    <form method="POST" action="{{ url_for('oauth.change_email') }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+                        <div class="mb-3">
+                            <label for="new_email" class="form-label">Nowy adres email</label>
+                            <input type="email" class="form-control" id="new_email" name="new_email" required placeholder="nowy@email.pl">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Potwierdź hasłem</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <small class="form-text text-muted">Potrzebujemy Twojego hasła aby potwierdzić zmianę emaila.</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-envelope"></i> Zmień email
+                        </button>
+                    </form>
+                </div>
+
                 <div class="text-center mt-4">
                     <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">
                         <i class="bi bi-arrow-left"></i> Powrót

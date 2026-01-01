@@ -2,6 +2,143 @@
 
 System do zarządzania sprzętem szczepu z funkcją zgłaszania usterek i logowania przez OAuth.
 
+## Struktura Projektu
+
+```
+SzalasApp/
+├── app.py                  # Główny plik aplikacji Flask
+├── Dockerfile              # Konfiguracja Docker
+├── .env.example            # Template zmiennych środowiskowych
+├── .gitignore              # Git ignore rules
+├── README.md               # Ten plik
+│
+├── pyproject.toml          # Poetry - definicja projektu
+├── poetry.lock             # Poetry - zamrożone wersje
+├── poetry.toml             # Poetry - konfiguracja
+├── requirements.txt        # pip - eksport zależności
+│
+├── src/                    # Kod źródłowy aplikacji
+│   ├── __init__.py
+│   ├── auth.py             # Uwierzytelnianie (Firebase, OAuth)
+│   ├── oauth.py            # OAuth (Google, Microsoft)
+│   ├── admin.py            # Panel administratora
+│   ├── views.py            # Widoki główne (sprzęt, usterki)
+│   ├── db_firestore.py     # Operacje Firestore (sprzęt, usterki)
+│   ├── db_users.py         # Operacje Firestore (użytkownicy)
+│   ├── gcs_utils.py        # Google Cloud Storage
+│   ├── exports.py          # Eksport danych (CSV, XLSX, DOCX, PDF)
+│   └── recaptcha.py        # reCAPTCHA Enterprise
+│
+├── templates/              # Szablony Jinja2
+│   ├── base.html
+│   ├── login.html
+│   ├── account.html
+│   ├── sprzet_list.html
+│   ├── sprzet_card.html
+│   ├── sprzet_edit.html
+│   ├── sprzet_import.html
+│   ├── usterki_list.html
+│   ├── usterka_card.html
+│   ├── usterka_edit.html
+│   └── admin/              # Szablony administratora
+│       ├── users_list.html
+│       ├── user_new.html
+│       └── user_edit.html
+│
+├── static/                 # Pliki statyczne
+│   └── assets/
+│       ├── css/
+│       ├── js/
+│       └── img/
+│
+├── scripts/                # Skrypty pomocnicze
+│   ├── README.md           # Dokumentacja skryptów
+│   ├── import_data.py      # Import danych sprzętu
+│   ├── set_admin_claim.py  # Nadawanie uprawnień admina
+│   └── upload_photos.py    # Upload zdjęć do GCS
+│
+└── docs/                   # Dokumentacja projektu
+    ├── README.md           # Index dokumentacji
+    ├── 00_INDEX.md         # Kompletny przewodnik
+    ├── 01_QUICK_START.md   # Szybki start
+    ├── 02_ARCHITECTURE.md  # Architektura systemu
+    ├── 03_OAUTH_SETUP.md   # Konfiguracja OAuth
+    ├── 04-23_*.md          # Pozostała dokumentacja numerowana
+    ├── 24_DEPENDENCIES.md  # Zarządzanie zależnościami
+    ├── 25_FEATURE_SUMMARY.md # Podsumowanie funkcji
+    └── ... inne pliki
+```
+
+---
+
+## Dokumentacja
+
+### 📚 Pełna Dokumentacja
+
+Kompletna dokumentacja projektu znajduje się w folderze `docs/`:
+
+**START TUTAJ:** [docs/README.md](docs/README.md) lub [docs/00_INDEX.md](docs/00_INDEX.md)
+
+**GitHub Wiki:** [https://github.com/200wdhigz/SzalasApp/wiki](https://github.com/200wdhigz/SzalasApp/wiki)
+- Dokumentacja jest automatycznie synchronizowana z `docs/`
+- Zobacz [GITHUB_WIKI_GUIDE.md](GITHUB_WIKI_GUIDE.md) dla szczegółów
+
+### 🚀 Szybkie Linki
+
+**Dla Użytkowników:**
+- [Szybki Start](docs/01_QUICK_START.md) - Pierwsze kroki
+- [Zarządzanie Kontem](docs/04_ACCOUNT_MANAGEMENT.md) - Twoje konto
+- [FAQ](docs/19_FAQ.md) - Odpowiedzi na pytania
+
+**Dla Administratorów:**
+- [OAuth Setup](docs/03_OAUTH_SETUP.md) - Konfiguracja Google/Microsoft
+- [Synchronizacja Użytkowników](docs/05_USER_SYNC.md) - Sync z Firebase
+- [Panel Administratora](docs/09_ADMIN_PANEL.md) - Wszystkie funkcje
+
+**Funkcje Systemu:**
+- [Zarządzanie Sprzętem](docs/06_EQUIPMENT_MANAGEMENT.md) - Kompletny przewodnik
+- [System Usterek](docs/07_MALFUNCTION_SYSTEM.md) - Zgłaszanie i śledzenie
+- [Historia Zmian](docs/18_CHANGELOG.md) - Changelog
+
+**Dla Deweloperów:**
+- [Architektura](docs/02_ARCHITECTURE.md) - Struktura systemu
+- [Feature Summary](docs/25_FEATURE_SUMMARY.md) - Podsumowanie funkcji
+- [Dependencies](docs/24_DEPENDENCIES.md) - Zarządzanie zależnościami
+
+---
+
+## Skrypty Pomocnicze
+
+Folder `scripts/` zawiera narzędzia pomocnicze:
+
+- **`import_data.py`** - Import sprzętu z CSV/XLSX do Firestore
+- **`set_admin_claim.py`** - Nadawanie uprawnień administratora
+- **`upload_photos.py`** - Upload zdjęć do Google Cloud Storage
+
+**Dokumentacja:** [scripts/README.md](scripts/README.md)
+
+**Użycie:**
+```bash
+python scripts/nazwa_skryptu.py
+```
+
+---
+
+## Instalacja
+- [Synchronizacja Użytkowników](docs/05_USER_SYNC.md) - Sync z Firebase
+- [Panel Administratora](docs/09_ADMIN_PANEL.md) - Wszystkie funkcje
+
+**Funkcje Systemu:**
+- [Zarządzanie Sprzętem](docs/06_EQUIPMENT_MANAGEMENT.md) - Kompletny przewodnik
+- [System Usterek](docs/07_MALFUNCTION_SYSTEM.md) - Zgłaszanie i śledzenie
+- [Historia Zmian](docs/18_CHANGELOG.md) - Changelog
+
+**Dla Deweloperów:**
+- [Architektura](docs/02_ARCHITECTURE.md) - Struktura systemu
+- [FEATURE_SUMMARY.md](FEATURE_SUMMARY.md) - Podsumowanie funkcji
+
+---
+
 ## Funkcje
 
 - 📦 Katalog sprzętu z galeriami zdjęć
@@ -9,6 +146,9 @@ System do zarządzania sprzętem szczepu z funkcją zgłaszania usterek i logowa
 - 🔐 Uwierzytelnianie przez Firebase, Google OAuth i Microsoft OAuth (ZHP)
 - 👥 Panel zarządzania użytkownikami dla administratorów
 - 🔗 Linkowanie kont OAuth z istniejącymi kontami
+- 🔑 **NOWE:** Samodzielna zmiana hasła i emaila przez użytkowników
+- 📧 **NOWE:** Automatyczne wysyłanie haseł emailem przy resecie (przez admina)
+- 💡 **NOWE:** Inteligentne komunikaty błędów przy logowaniu
 - 📊 Eksport danych do CSV, XLSX, DOCX i PDF
 
 ## Konfiguracja OAuth
@@ -62,6 +202,49 @@ System do zarządzania sprzętem szczepu z funkcją zgłaszania usterek i logowa
 
 3. Ustaw `BASE_URL` na właściwą wartość dla Twojego środowiska
 
+### 4. Konfiguracja Email (opcjonalna, dla powiadomień o resecie hasła)
+
+Jeśli chcesz, aby system automatycznie wysyłał emaile z nowymi hasłami:
+
+#### Opcja 1: Gmail
+
+1. Włącz uwierzytelnianie dwuskładnikowe na koncie Gmail
+2. Wygeneruj hasło aplikacji:
+   - Przejdź do: https://myaccount.google.com/apppasswords
+   - Wybierz "Poczta" i swoje urządzenie
+   - Skopiuj wygenerowane hasło (16 znaków)
+3. Uzupełnij w `.env`:
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=twoj-email@gmail.com
+   SMTP_PASSWORD=wygenerowane-haslo-aplikacji
+   FROM_EMAIL=twoj-email@gmail.com
+   ```
+
+#### Opcja 2: Microsoft 365
+
+```
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=twoj-email@twojadomena.com
+SMTP_PASSWORD=twoje-haslo
+FROM_EMAIL=twoj-email@twojadomena.com
+```
+
+#### Opcja 3: Inny dostawca SMTP
+
+Skonsultuj dokumentację swojego dostawcy email i uzupełnij:
+```
+SMTP_HOST=mail.twojadomena.com
+SMTP_PORT=587  # lub 465 dla SSL
+SMTP_USER=twoj-email@twojadomena.com
+SMTP_PASSWORD=twoje-haslo
+FROM_EMAIL=noreply@twojadomena.com
+```
+
+**Uwaga:** Jeśli SMTP nie jest skonfigurowany, reset hasła przez admina nadal będzie działał - hasło zostanie wyświetlone administratorowi w przeglądarce do ręcznego przekazania użytkownikowi.
+
 ## Instalacja
 
 ### Przy użyciu Poetry
@@ -105,19 +288,85 @@ Użytkownicy mogą powiązać swoje konto z dostawcami OAuth:
 4. Autoryzuj aplikację u dostawcy
 5. Konto zostanie powiązane
 
+### Samodzielne zarządzanie kontem (NOWE)
+
+Każdy użytkownik może samodzielnie zarządzać swoim kontem bez pomocy administratora:
+
+#### Zmiana hasła
+
+1. Przejdź do **Moje Konto**
+2. Znajdź sekcję **Zmiana hasła**
+3. Wprowadź aktualne hasło
+4. Wprowadź nowe hasło (min. 6 znaków)
+5. Potwierdź nowe hasło
+6. Kliknij **Zmień hasło**
+
+**Uwaga:** Użytkownicy z połączonymi kontami OAuth (Google/Microsoft) również mogą ustawić hasło, aby móc logować się zarówno przez OAuth, jak i hasłem.
+
+#### Zmiana adresu email
+
+1. Przejdź do **Moje Konto**
+2. Znajdź sekcję **Zmiana adresu email**
+3. Wprowadź nowy adres email
+4. Potwierdź zmianę swoim aktualnym hasłem
+5. Kliknij **Zmień email**
+
+**Bezpieczeństwo:** Wszystkie zmiany wymagają potwierdzenia aktualnym hasłem użytkownika.
+
 ### Logowanie przez OAuth
 
 Po powiązaniu konta, użytkownicy mogą:
 - Logować się bezpośrednio przez Google lub Microsoft na stronie logowania
 - Konta Microsoft są ograniczone do domen: `zhp.net.pl` i `zhp.pl`
 
+#### Inteligentne komunikaty błędów (NOWE)
+
+System automatycznie wykrywa sytuacje, gdy użytkownik próbuje zalogować się hasłem, ale ma powiązane konto OAuth:
+
+**Przykład:**
+- Użytkownik ma połączone konto Google
+- Próbuje zalogować się emailem i hasłem
+- System pokazuje: *"To konto ma powiązane logowanie przez Google. Użyj odpowiedniego przycisku poniżej aby się zalogować."*
+
+**Korzyści:**
+- Zmniejszenie frustracji użytkowników
+- Jasne wskazówki dotyczące prawidłowej metody logowania
+- Mniej zgłoszeń do wsparcia technicznego
+
 ### Zarządzanie użytkownikami (Admin)
 
 Administratorzy mogą:
 - **Włączać/wyłączać** konta użytkowników
-- **Resetować hasła** (generowane automatycznie)
+- **Resetować hasła** (generowane automatycznie i wysyłane emailem)
 - **Przyznawać uprawnienia** administratora
 - **Edytować** dane użytkowników
+- **Usuwać użytkowników** całkowicie (z Firebase Auth i Firestore)
+- **Synchronizować listę** z Firebase Auth
+
+#### Synchronizacja użytkowników (NOWE)
+
+Jeśli usuniesz użytkownika bezpośrednio w [Firebase Console](https://console.firebase.google.com/), lista w aplikacji nie zaktualizuje się automatycznie. Użyj przycisku **"Synchronizuj"** w panelu zarządzania użytkownikami, aby:
+
+- Usunąć z Firestore użytkowników, którzy nie istnieją już w Firebase Auth
+- Dodać do Firestore użytkowników, którzy istnieją w Firebase Auth, ale nie w Firestore
+
+**Alternatywnie:** Możesz usuwać użytkowników bezpośrednio z panelu aplikacji za pomocą przycisku <i class="bi bi-trash"></i> (kosz). To usunie użytkownika zarówno z Firebase Auth, jak i Firestore jednocześnie.
+
+#### Reset hasła przez administratora (NOWE - z powiadomieniem email)
+
+Kiedy administrator resetuje hasło użytkownika:
+1. System generuje silne, losowe hasło (16 znaków)
+2. Hasło jest automatycznie wysyłane na email użytkownika (jeśli SMTP jest skonfigurowany)
+3. Hasło jest wyświetlane administratorowi z informacją o statusie wysyłki:
+   - ✅ **Zielony**: Email wysłany pomyślnie
+   - ⚠️ **Żółty**: Email nie został wysłany, wymagana ręczna komunikacja
+4. Administrator może skopiować hasło, jeśli email się nie powiódł
+
+**Format emaila:**
+- Profesjonalny szablon HTML
+- Wyraźnie wyświetlone hasło
+- Link do logowania
+- Zalecenie zmiany hasła po pierwszym logowaniu
 
 ## Struktura projektu
 
@@ -153,6 +402,10 @@ SzalasApp/
 - Hasła są zarządzane przez Firebase Authentication
 - Konta Microsoft są ograniczone do domen ZHP
 - Wyłączone konta nie mogą się logować
+- **Samodzielne zmiany hasła/emaila wymagają weryfikacji aktualnym hasłem**
+- **CSRF protection na wszystkich formularzach**
+- **Email z hasłem wysyłany tylko na zarejestrowany adres użytkownika**
+- **Hasła resetowane przez admina są wyświetlane jednorazowo**
 
 ## Licencja
 
