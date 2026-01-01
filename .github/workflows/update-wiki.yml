@@ -1,39 +1,30 @@
-name: Update Wiki
+name: update-wiki
 
 on:
   pull_request:
     branches:
       - master
-    paths:
-      - docs/**
-      - prepare_wiki.py
   push:
     branches:
       - master
-    paths:
-      - docs/**
-      - prepare_wiki.py
   workflow_dispatch:
 
 jobs:
   update-wiki:
+    name: update-wiki
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Prepare wiki files
-        run: |
-          python prepare_wiki.py
-          echo "✅ Wiki files prepared"
+        run: python prepare_wiki.py
 
       - name: Checkout wiki repository
         if: github.event_name == 'push'
@@ -48,7 +39,6 @@ jobs:
         run: |
           find wiki -maxdepth 1 -type f -name "*.md" -delete
           cp wiki_export/*.md wiki/
-          echo "✅ Files copied to wiki"
 
       - name: Commit and push changes
         if: github.event_name == 'push'
@@ -58,14 +48,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           if git diff --staged --quiet; then
-            echo "ℹ️ No changes to commit"
-          else
-            git commit -m "Auto-update documentation from master repo
-
-            Updated by GitHub Actions
-            Commit: ${{ github.sha }}
-            Branch: ${{ github.ref }}
-            Author: ${{ github.actor }}"
-            git push
-            echo "✅ Wiki updated successfully"
+            echo "No changes"
+            exit 0
           fi
+          git commit -m "Auto-update wiki from repo (${GITHUB_SHA})"
+          git push
