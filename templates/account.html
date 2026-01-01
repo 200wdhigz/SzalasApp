@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-lg mt-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-person-circle"></i> Moje Konto</h4>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h5 class="text-muted">Informacje o koncie</h5>
+                    <p class="mb-1"><strong>Email:</strong> {{ user.email }}</p>
+                    <p class="mb-1"><strong>Rola:</strong> 
+                        {% if user.is_admin %}
+                            <span class="badge bg-danger">Administrator</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Użytkownik</span>
+                        {% endif %}
+                    </p>
+                    <p class="mb-1"><strong>Status:</strong> 
+                        {% if user.active %}
+                            <span class="badge bg-success">Aktywne</span>
+                        {% else %}
+                            <span class="badge bg-warning">Nieaktywne</span>
+                        {% endif %}
+                    </p>
+                </div>
+
+                <hr>
+
+                <div class="mb-4">
+                    <h5 class="text-muted">Powiązane konta</h5>
+                    
+                    <!-- Google Account -->
+                    <div class="d-flex align-items-center justify-content-between mb-3 p-3 border rounded">
+                        <div>
+                            <i class="bi bi-google text-danger fs-4 me-2"></i>
+                            <strong>Google</strong>
+                            {% if user.google_id %}
+                                <span class="badge bg-success ms-2">Połączone</span>
+                            {% else %}
+                                <span class="badge bg-secondary ms-2">Niepołączone</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if user.google_id %}
+                                <form method="POST" action="{{ url_for('oauth.unlink_google') }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Czy na pewno chcesz rozłączyć konto Google?');">
+                                        <i class="bi bi-x-circle"></i> Rozłącz
+                                    </button>
+                                </form>
+                            {% else %}
+                                <a href="{{ url_for('oauth.google_login') }}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-plus-circle"></i> Połącz
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Microsoft Account -->
+                    <div class="d-flex align-items-center justify-content-between mb-3 p-3 border rounded">
+                        <div>
+                            <i class="bi bi-microsoft text-primary fs-4 me-2"></i>
+                            <strong>Microsoft (ZHP)</strong>
+                            {% if user.microsoft_id %}
+                                <span class="badge bg-success ms-2">Połączone</span>
+                            {% else %}
+                                <span class="badge bg-secondary ms-2">Niepołączone</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if user.microsoft_id %}
+                                <form method="POST" action="{{ url_for('oauth.unlink_microsoft') }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Czy na pewno chcesz rozłączyć konto Microsoft?');">
+                                        <i class="bi bi-x-circle"></i> Rozłącz
+                                    </button>
+                                </form>
+                            {% else %}
+                                <a href="{{ url_for('oauth.microsoft_login') }}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-plus-circle"></i> Połącz
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Wskazówka:</strong> Powiąż swoje konto z Google lub Microsoft, aby móc logować się za pomocą tych dostawców.
+                </div>
+
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Powrót
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

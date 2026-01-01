@@ -31,7 +31,11 @@ def create_app():
 
     from .views import views_bp
     from .auth import auth_bp
+    from .oauth import oauth_bp
+    from .admin import admin_bp
     app.register_blueprint(views_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(oauth_bp)
+    app.register_blueprint(admin_bp)
 
     return app
