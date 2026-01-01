@@ -4,9 +4,9 @@ from google.cloud import storage
 from google.auth.exceptions import DefaultCredentialsError
 from dotenv import load_dotenv
 
-from src import GOOGLE_PROJECT_ID, GOOGLE_CLOUD_STORAGE_BUCKET_NAME
-
 load_dotenv()
+
+from src import GOOGLE_PROJECT_ID, GOOGLE_CLOUD_STORAGE_BUCKET_NAME
 
 def get_storage_client():
     """Zwraca klienta Google Cloud Storage."""
