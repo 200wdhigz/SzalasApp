@@ -1,11 +1,6 @@
-# python
-# file: src/db_users.py
-
 from . import get_firestore_client
 from google.cloud import firestore
-from datetime import datetime
 
-# NAZWY KOLEKCJI
 COLLECTION_USERS = 'users'
 
 def _get_doc_data(doc):

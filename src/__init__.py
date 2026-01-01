@@ -23,7 +23,7 @@ def get_firestore_client():
 def create_app():
     template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
     app = Flask("SzalasApp", template_folder=template_dir)
-    app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key_change_me')
+    app.secret_key = os.getenv('SECRET_KEY')
 
     @app.context_processor
     def inject_vars():

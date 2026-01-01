@@ -1,4 +1,3 @@
-# python
 import os
 from google.cloud import storage
 from google.auth.exceptions import DefaultCredentialsError

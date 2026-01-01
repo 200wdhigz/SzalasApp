@@ -1,6 +1,3 @@
-# python
-# file: src/oauth.py
-
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template
 import os
 import secrets

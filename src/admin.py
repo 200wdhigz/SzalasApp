@@ -1,6 +1,3 @@
-# python
-# file: src/admin.py
-
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from firebase_admin import auth as firebase_auth
 import secrets

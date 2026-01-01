@@ -1,7 +1,6 @@
 from . import get_firestore_client
 from google.cloud import firestore
 
-# NAZWY KOLEKCJI
 COLLECTION_SPRZET = 'sprzet'
 COLLECTION_USTERKI = 'usterki'
 

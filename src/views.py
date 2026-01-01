@@ -1,6 +1,3 @@
-# python
-# file: src/views.py
-
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 import os
 import uuid

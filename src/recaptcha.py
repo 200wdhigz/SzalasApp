@@ -3,7 +3,7 @@ import os
 
 def verify_recaptcha(token: str, action: str) -> bool:
     """Weryfikuje token reCAPTCHA Enterprise."""
-    project_id = os.getenv('GCP_PROJECT_ID')
+    project_id = os.getenv('GOOGLE_PROJECT_ID')
     site_key = os.getenv('RECAPTCHA_SITE_KEY')
 
     if not project_id or not site_key:
