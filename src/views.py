@@ -129,7 +129,7 @@ def sprzet_import():
                     df = pd.read_excel(f).fillna('')
                 else:
                     flash('Nieobsługiwany format pliku.', 'danger')
-                    return redirect(request.url)
+                    return redirect(url_for('views.sprzet_import'))
                 
                 mapping = {
                     'Typ': 'typ', 'ID': 'id', 'Zakup': 'zakup', 'Przejęty': 'przejecie',
