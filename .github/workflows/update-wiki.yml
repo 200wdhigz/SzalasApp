@@ -1,13 +1,19 @@
 name: Update Wiki
 
 on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - docs/**
+      - prepare_wiki.py
   push:
     branches:
-      - main
+      - master
     paths:
-      - 'docs/**'
-      - 'prepare_wiki.py'
-  workflow_dispatch:  # Pozwala na ręczne uruchomienie
+      - docs/**
+      - prepare_wiki.py
+  workflow_dispatch:
 
 jobs:
   update-wiki:
@@ -22,7 +28,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: 3.12
 
       - name: Prepare wiki files
         run: |
@@ -30,6 +36,7 @@ jobs:
           echo "✅ Wiki files prepared"
 
       - name: Checkout wiki repository
+        if: github.event_name == 'push'
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}.wiki
@@ -37,38 +44,28 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Copy files to wiki
+        if: github.event_name == 'push'
         run: |
-          # Usuń stare pliki (oprócz .git)
           find wiki -maxdepth 1 -type f -name "*.md" -delete
-          
-          # Skopiuj nowe pliki
           cp wiki_export/*.md wiki/
-          
           echo "✅ Files copied to wiki"
 
       - name: Commit and push changes
+        if: github.event_name == 'push'
         run: |
           cd wiki
-          
-          # Konfiguracja git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Dodaj zmiany
           git add .
-          
-          # Commit tylko jeśli są zmiany
           if git diff --staged --quiet; then
             echo "ℹ️ No changes to commit"
           else
             git commit -m "Auto-update documentation from main repo
-            
+
             Updated by GitHub Actions
             Commit: ${{ github.sha }}
             Branch: ${{ github.ref }}
             Author: ${{ github.actor }}"
-            
             git push
             echo "✅ Wiki updated successfully"
           fi
-
