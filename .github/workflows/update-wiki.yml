@@ -28,7 +28,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.12
+          python-version: "3.12"
 
       - name: Prepare wiki files
         run: |
@@ -60,7 +60,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "ℹ️ No changes to commit"
           else
-            git commit -m "Auto-update documentation from main repo
+            git commit -m "Auto-update documentation from master repo
 
             Updated by GitHub Actions
             Commit: ${{ github.sha }}
