@@ -96,9 +96,9 @@ nano .env  # lub vim, code, notepad++
 
 **Wypełnij:**
 ```bash
-# Firebase
-FIREBASE_PROJECT_ID=twoj-project-id
-FIREBASE_API_KEY=twoj-api-key
+# Google
+GOOGLE_PROJECT_ID=twoj-project-id
+GOOGLE_API_KEY=twoj-api-key
 SECRET_KEY=wygeneruj-losowy-32-znakowy-klucz
 
 # OAuth (opcjonalnie)

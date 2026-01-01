@@ -8,6 +8,7 @@ import requests
 from authlib.integrations.requests_client import OAuth2Session
 from firebase_admin import auth as firebase_auth
 
+from . import GOOGLE_API_KEY
 from .db_users import (
     get_user_by_google_id, get_user_by_microsoft_id, get_user_by_uid,
     create_user, link_google_account, link_microsoft_account,
@@ -371,8 +372,7 @@ def change_email():
     try:
         # Najpierw zweryfikuj hasło użytkownika
         user = get_user_by_uid(user_id)
-        api_key = os.getenv('FIREBASE_API_KEY')
-        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={GOOGLE_API_KEY}"
 
         response = requests.post(auth_url, json={
             'email': user.get('email'),
@@ -428,8 +428,7 @@ def change_password():
     try:
         # Najpierw zweryfikuj aktualne hasło
         user = get_user_by_uid(user_id)
-        api_key = os.getenv('FIREBASE_API_KEY')
-        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={GOOGLE_API_KEY}"
 
         response = requests.post(auth_url, json={
             'email': user.get('email'),
