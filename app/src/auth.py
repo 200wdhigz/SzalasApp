@@ -95,6 +95,7 @@ def login():
 @auth_bp.route('/logout')
 def logout():
     session.pop('user_id', None)
-    session.pop('is_admin', None) # Usuwamy flagę admina przy wylogowaniu
+    session.pop('is_admin', None) 
+    session.pop('user_name', None)
     flash('Wylogowano pomyślnie.', 'info')
     return redirect(url_for('views.sprzet_list'))
