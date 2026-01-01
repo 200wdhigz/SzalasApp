@@ -207,12 +207,12 @@ def sprzet_edit(sprzet_id):
 
     if request.method == 'POST':
         data = {k: v for k, v in request.form.items() if k != 'id'}
-        
+
         # Obsługa nowych zdjęć
         urls, err = process_uploads(request.files.getlist('nowe_zdjecia'), 'sprzet', sprzet_id)
         if err:
             flash(err, 'warning')
-        
+
         # Obsługa usuwania zdjęć - porównujemy blob_name zamiast pełnych URL
         from .gcs_utils import extract_blob_name
         zdjecia_do_usuniecia = request.form.getlist('usun_zdjecia')
@@ -225,9 +225,9 @@ def sprzet_edit(sprzet_id):
         ]
         if urls:
             nowa_lista_zdjec.extend(urls)
-        
+
         data['zdjecia'] = nowa_lista_zdjec
-        
+
         set_item(COLLECTION_SPRZET, sprzet_id, data)
         add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, data)
         flash(f'Sprzęt {sprzet_id} został zaktualizowany.', 'success')
@@ -406,7 +406,7 @@ def usterka_card(usterka_id):
     # Jeśli usterka została zgłoszona starą metodą, może być konieczne listowanie z GCS
     # (choć usterki zawsze miały URL-e w dokumencie, warto mieć fallback)
     photos = refresh_urls(usterka.get('zdjecia') or [])
-    
+
     # Jeśli lista zdjęć jest pusta, spróbujmy poszukać ich w GCS (fallback)
     if not photos:
         from .gcs_utils import list_files
@@ -429,7 +429,7 @@ def usterka_edit(usterka_id):
         urls, err = process_uploads(request.files.getlist('nowe_zdjecia'), 'usterki', usterka_id)
         if err:
             flash(err, 'warning')
-        
+
         # Obsługa usuwania zdjęć - porównujemy blob_name zamiast pełnych URL
         from .gcs_utils import extract_blob_name
         zdjecia_do_usuniecia = request.form.getlist('usun_zdjecia')
@@ -442,7 +442,7 @@ def usterka_edit(usterka_id):
         ]
         if urls:
             nowa_lista_zdjec.extend(urls)
-        
+
         status = request.form.get('status')
         data = {
             'uwagi_admina': request.form.get('uwagi_admina'),
@@ -451,7 +451,7 @@ def usterka_edit(usterka_id):
         }
         if status in ['oczekuje', 'w trakcie', 'naprawiona', 'odrzucona']:
             data['status'] = status
-        
+
         update_usterka(usterka_id, **data)
         add_log(session.get('user_id'), 'edit', 'usterka', usterka_id, data)
         flash(f'Usterka {usterka_id} zaktualizowana.', 'success')
