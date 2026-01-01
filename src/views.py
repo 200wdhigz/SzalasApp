@@ -146,7 +146,7 @@ def sprzet_import():
                 # Standaryzacja ID
                 if 'id' not in df.columns:
                     flash('Brak kolumny ID w pliku.', 'danger')
-                    return redirect(request.url)
+                    return redirect(url_for('views.sprzet_import'))
 
                 all_sprzet = {s['id']: s for s in get_all_sprzet()}
                 
