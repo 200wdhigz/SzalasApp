@@ -21,6 +21,19 @@
 
                         <button type="submit" class="btn btn-success w-100">Zaloguj</button>
                     </form>
+                    
+                    <div class="mt-3">
+                        <hr>
+                        <p class="text-center text-muted mb-2">Lub zaloguj się przez:</p>
+                        
+                        <a href="{{ url_for('oauth.google_login') }}" class="btn btn-outline-danger w-100 mb-2">
+                            <i class="bi bi-google"></i> Zaloguj przez Google
+                        </a>
+                        
+                        <a href="{{ url_for('oauth.microsoft_login') }}" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-microsoft"></i> Zaloguj przez Microsoft (ZHP)
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

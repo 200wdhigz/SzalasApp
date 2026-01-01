@@ -32,9 +32,21 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('views.usterki_list') }}">Lista Usterek</a>
                 </li>
+                {% if IS_ADMIN %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin.users_list') }}">
+                        <i class="bi bi-people"></i> Zarządzanie Użytkownikami
+                    </a>
+                </li>
+                {% endif %}
             </ul>
             <ul class="navbar-nav">
                 {% if IS_ADMIN %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('oauth.account') }}">
+                            <i class="bi bi-person-circle"></i> Moje Konto
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <span class="nav-link text-white-50">Zalogowany (ADMIN)</span>
                     </li>
@@ -42,6 +54,11 @@
                         <a class="btn btn-danger" href="{{ url_for('auth.logout') }}">Wyloguj</a>
                     </li>
                 {% elif IS_LOGGED_IN %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('oauth.account') }}">
+                            <i class="bi bi-person-circle"></i> Moje Konto
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <span class="nav-link text-white-50">Zalogowany</span>
                     </li>

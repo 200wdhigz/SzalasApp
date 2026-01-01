@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-lg mt-4">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-people"></i> Zarządzanie Użytkownikami</h4>
+                <a href="{{ url_for('admin.user_new') }}" class="btn btn-light">
+                    <i class="bi bi-plus-circle"></i> Nowy Użytkownik
+                </a>
+            </div>
+            <div class="card-body">
+                {% if session.get('reset_password') %}
+                <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    <h5 class="alert-heading"><i class="bi bi-key"></i> Hasło zostało zresetowane</h5>
+                    <p><strong>Email:</strong> {{ session.get('reset_password_email') }}</p>
+                    <p><strong>Nowe hasło:</strong> <code class="fs-5">{{ session.pop('reset_password') }}</code></p>
+                    <p class="mb-0"><small>Zapisz to hasło i przekaż je użytkownikowi. Ta wiadomość zostanie wyświetlona tylko raz.</small></p>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% set _ = session.pop('reset_password_email', None) %}
+                {% endif %}
+                
+                {% if users %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Rola</th>
+                                <th>Status</th>
+                                <th>Powiązania</th>
+                                <th>Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>
+                                    <strong>{{ user.firebase_email }}</strong>
+                                    {% if user.firebase_display_name %}
+                                    <br><small class="text-muted">{{ user.firebase_display_name }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.is_admin %}
+                                        <span class="badge bg-danger">Administrator</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Użytkownik</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.active and not user.firebase_disabled %}
+                                        <span class="badge bg-success">Aktywny</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Nieaktywny</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.google_id %}
+                                        <i class="bi bi-google text-danger" title="Powiązane z Google"></i>
+                                    {% endif %}
+                                    {% if user.microsoft_id %}
+                                        <i class="bi bi-microsoft text-primary" title="Powiązane z Microsoft"></i>
+                                    {% endif %}
+                                    {% if not user.google_id and not user.microsoft_id %}
+                                        <span class="text-muted">Brak</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('admin.user_edit', user_id=user.id) }}" class="btn btn-sm btn-outline-primary" title="Edytuj">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        
+                                        {% if user.active and not user.firebase_disabled %}
+                                            <form method="POST" action="{{ url_for('admin.user_disable', user_id=user.id) }}" style="display: inline;">
+                                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-warning" title="Wyłącz" onclick="return confirm('Czy na pewno chcesz wyłączyć to konto?');">
+                                                    <i class="bi bi-pause-circle"></i>
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <form method="POST" action="{{ url_for('admin.user_enable', user_id=user.id) }}" style="display: inline;">
+                                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Włącz" onclick="return confirm('Czy na pewno chcesz włączyć to konto?');">
+                                                    <i class="bi bi-play-circle"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        
+                                        <form method="POST" action="{{ url_for('admin.user_reset_password', user_id=user.id) }}" style="display: inline;">
+                                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Resetuj hasło" onclick="return confirm('Czy na pewno chcesz zresetować hasło tego użytkownika?');">
+                                                <i class="bi bi-key"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Brak użytkowników w systemie.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
