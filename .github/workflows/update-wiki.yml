@@ -1,9 +1,6 @@
 name: update-wiki
 
 on:
-  pull_request:
-    branches:
-      - master
   push:
     branches:
       - master
