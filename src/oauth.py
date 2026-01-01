@@ -16,6 +16,15 @@ from .auth import login_required
 
 oauth_bp = Blueprint('oauth', __name__, url_prefix='/auth')
 
+
+def validate_csrf_token():
+    """Waliduje token CSRF z formularza."""
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF. Odśwież stronę i spróbuj ponownie.', 'danger')
+        return False
+    return True
+
 # OAuth Configuration
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
@@ -31,7 +40,8 @@ MICROSOFT_AUTHORIZATION_ENDPOINT = f"https://login.microsoftonline.com/{MICROSOF
 MICROSOFT_TOKEN_ENDPOINT = f"https://login.microsoftonline.com/{MICROSOFT_TENANT_ID}/oauth2/v2.0/token"
 MICROSOFT_USERINFO_ENDPOINT = "https://graph.microsoft.com/v1.0/me"
 
-ALLOWED_MICROSOFT_DOMAINS = ['zhp.net.pl', 'zhp.pl']
+# Parse allowed Microsoft domains from environment variable
+ALLOWED_MICROSOFT_DOMAINS = os.getenv('MICROSOFT_ALLOWED_DOMAINS', 'zhp.net.pl,zhp.pl').split(',')
 
 
 def get_redirect_uri(provider):
@@ -154,7 +164,9 @@ def google_callback():
             return redirect(url_for('auth.login'))
     
     except Exception as e:
-        flash(f'Wystąpił błąd podczas logowania przez Google: {str(e)}', 'danger')
+        # Log the error internally but don't expose details to user
+        print(f'Google OAuth error: {str(e)}')
+        flash('Wystąpił błąd podczas logowania przez Google.', 'danger')
         return redirect(url_for('auth.login'))
 
 
@@ -278,7 +290,9 @@ def microsoft_callback():
             return redirect(url_for('auth.login'))
     
     except Exception as e:
-        flash(f'Wystąpił błąd podczas logowania przez Microsoft: {str(e)}', 'danger')
+        # Log the error internally but don't expose details to user
+        print(f'Microsoft OAuth error: {str(e)}')
+        flash('Wystąpił błąd podczas logowania przez Microsoft.', 'danger')
         return redirect(url_for('auth.login'))
 
 
@@ -304,6 +318,9 @@ def account():
 @login_required
 def unlink_google():
     """Rozłącza konto Google od konta użytkownika."""
+    if not validate_csrf_token():
+        return redirect(url_for('oauth.account'))
+    
     user_id = session.get('user_id')
     user = get_user_by_uid(user_id)
     
@@ -320,6 +337,9 @@ def unlink_google():
 @login_required
 def unlink_microsoft():
     """Rozłącza konto Microsoft od konta użytkownika."""
+    if not validate_csrf_token():
+        return redirect(url_for('oauth.account'))
+    
     user_id = session.get('user_id')
     user = get_user_by_uid(user_id)
     

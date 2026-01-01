@@ -46,6 +46,7 @@
                         <div>
                             {% if user.google_id %}
                                 <form method="POST" action="{{ url_for('oauth.unlink_google') }}" style="display: inline;">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Czy na pewno chcesz rozłączyć konto Google?');">
                                         <i class="bi bi-x-circle"></i> Rozłącz
                                     </button>
@@ -72,6 +73,7 @@
                         <div>
                             {% if user.microsoft_id %}
                                 <form method="POST" action="{{ url_for('oauth.unlink_microsoft') }}" style="display: inline;">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Czy na pewno chcesz rozłączyć konto Microsoft?');">
                                         <i class="bi bi-x-circle"></i> Rozłącz
                                     </button>

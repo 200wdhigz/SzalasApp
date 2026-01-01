@@ -15,6 +15,15 @@ from .db_users import (
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
+def validate_csrf_token():
+    """Waliduje token CSRF z formularza."""
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF. Odśwież stronę i spróbuj ponownie.', 'danger')
+        return False
+    return True
+
+
 # =======================================================================
 #                       USER MANAGEMENT
 # =======================================================================
@@ -124,6 +133,9 @@ def user_edit(user_id):
 @admin_required
 def user_disable(user_id):
     """Wyłącza konto użytkownika."""
+    if not validate_csrf_token():
+        return redirect(url_for('admin.users_list'))
+    
     try:
         # Wyłącz w Firebase Auth
         firebase_auth.update_user(user_id, disabled=True)
@@ -142,6 +154,9 @@ def user_disable(user_id):
 @admin_required
 def user_enable(user_id):
     """Włącza konto użytkownika."""
+    if not validate_csrf_token():
+        return redirect(url_for('admin.users_list'))
+    
     try:
         # Włącz w Firebase Auth
         firebase_auth.update_user(user_id, disabled=False)
@@ -160,15 +175,22 @@ def user_enable(user_id):
 @admin_required
 def user_reset_password(user_id):
     """Resetuje hasło użytkownika."""
+    if not validate_csrf_token():
+        return redirect(url_for('admin.users_list'))
+    
     try:
-        # Generuj nowe losowe hasło
-        new_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+        # Generuj nowe losowe hasło z większą złożonością
+        alphabet = string.ascii_letters + string.digits + '!@#$%^&*'
+        new_password = ''.join(secrets.choice(alphabet) for _ in range(16))
         
         # Zaktualizuj hasło w Firebase Auth
         firebase_auth.update_user(user_id, password=new_password)
         
         user = get_user_by_uid(user_id)
-        flash(f'Hasło użytkownika {user.get("email", "")} zostało zresetowane. Nowe hasło: <strong>{new_password}</strong> (zapisz je i przekaż użytkownikowi)', 'success')
+        # Store password in session temporarily for display on next page
+        session['reset_password'] = new_password
+        session['reset_password_email'] = user.get("email", "")
+        flash(f'Hasło użytkownika {user.get("email", "")} zostało zresetowane. Nowe hasło zostanie wyświetlone na następnej stronie.', 'success')
     except Exception as e:
         flash(f'Wystąpił błąd podczas resetowania hasła: {str(e)}', 'danger')
     
