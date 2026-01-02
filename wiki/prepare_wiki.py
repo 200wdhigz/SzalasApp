@@ -109,7 +109,7 @@ def fix_special_characters(content: str) -> str:
     return content
 
 
-def create_sidebar(source_dir: Path) -> None:
+def create_sidebar(wiki_dir: Path) -> None:
     """Tworzy pasek boczny _Sidebar.md."""
     sidebar_content = """## 📚 SzalasApp Wiki
 
@@ -163,7 +163,7 @@ def create_sidebar(source_dir: Path) -> None:
 **v1.2.0** | [GitHub]({REPO_URL})
 """
 
-    sidebar_path = source_dir / 'assets' / '_Sidebar.md'
+    sidebar_path = wiki_dir / '_Sidebar.md'
     with open(sidebar_path, 'w', encoding='utf-8') as f:
         f.write(sidebar_content.replace('{REPO_URL}', REPO_URL))
 
@@ -176,7 +176,7 @@ def create_footer(wiki_dir: Path) -> None:
 **SzalasApp v1.2.0** | System Zarządzania Sprzętem | [GitHub]({REPO_URL}) | [Zgłoś problem]({REPO_URL}/issues) | [Wiki Home](Home)
 """
 
-    footer_path = wiki_dir / 'assets' / '_Footer.md'
+    footer_path = wiki_dir / '_Footer.md'
     with open(footer_path, 'w', encoding='utf-8') as f:
         f.write(footer_content)
 
@@ -242,8 +242,8 @@ def prepare_wiki_files() -> Tuple[int, int]:
     print("-" * 60)
 
     # Utwórz specjalne pliki Wiki
-    create_sidebar(SOURCE_DIR)
-    create_footer(SOURCE_DIR)
+    create_sidebar(WIKI_DIR)
+    create_footer(WIKI_DIR)
 
     print()
     print("=" * 60)

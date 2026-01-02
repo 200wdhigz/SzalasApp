@@ -36,19 +36,19 @@ jobs:
 
       - name: Copy files to wiki
         run: |
-          find wiki -maxdepth 1 -type f -name "*.md" -delete
-          cp wiki_export/*.md wiki/
+          find ../wiki-repo -maxdepth 1 -type f -name "*.md" -delete
+          cp export/*.md ../wiki-repo/
         working-directory: wiki
 
       - name: Commit and push changes
         run: |
-          cd wiki
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           if git diff --staged --quiet; then
-            echo "No changes"
+            echo "No changes to commit"
             exit 0
           fi
           git commit -m "Auto-update wiki from repo (${GITHUB_SHA})"
           git push
+        working-directory: wiki-repo
