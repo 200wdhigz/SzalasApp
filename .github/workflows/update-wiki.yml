@@ -11,6 +11,9 @@ jobs:
     name: update-wiki
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,23 +25,21 @@ jobs:
 
       - name: Prepare wiki files
         run: python prepare_wiki.py
+        working-directory: wiki
 
       - name: Checkout wiki repository
-        if: github.event_name == 'push'
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}.wiki
           path: wiki
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.WIKI_PAT }}
 
       - name: Copy files to wiki
-        if: github.event_name == 'push'
         run: |
           find wiki -maxdepth 1 -type f -name "*.md" -delete
           cp wiki_export/*.md wiki/
 
       - name: Commit and push changes
-        if: github.event_name == 'push'
         run: |
           cd wiki
           git config user.name "github-actions[bot]"

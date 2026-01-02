@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="card shadow-lg mt-4 mb-5">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-person-circle"></i> Moje Konto</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 border-end">
+                        <h5 class="text-muted">Informacje o koncie</h5>
+                        {% if user.first_name or user.last_name %}
+                        <p class="mb-1"><strong>Imię i nazwisko:</strong> {{ user.first_name or '' }} {{ user.last_name or '' }}</p>
+                        {% endif %}
+                        <p class="mb-1"><strong>Email:</strong> {{ user.email }}</p>
+                        <p class="mb-1"><strong>Rola:</strong> 
+                            {% if user.is_admin %}
+                                <span class="badge bg-danger">Administrator</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Użytkownik</span>
+                            {% endif %}
+                        </p>
+                        <p class="mb-3"><strong>Status:</strong> 
+                            {% if user.active %}
+                                <span class="badge bg-success">Aktywne</span>
+                            {% else %}
+                                <span class="badge bg-warning">Nieaktywne</span>
+                            {% endif %}
+                        </p>
+
+                        <hr>
+
+                        <h5 class="text-muted">Imię i nazwisko</h5>
+                        <form method="POST" action="{{ url_for('oauth.update_name') }}" class="mb-4">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="first_name" class="form-label">Imię</label>
+                                    <input type="text" class="form-control" id="first_name" name="first_name" value="{{ user.first_name or '' }}" placeholder="Twoje imię">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="last_name" class="form-label">Nazwisko</label>
+                                    <input type="text" class="form-control" id="last_name" name="last_name" value="{{ user.last_name or '' }}" placeholder="Twoje nazwisko">
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="bi bi-person-check"></i> Zaktualizuj dane
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5 class="text-muted">Historia zmian</h5>
+                        <div class="list-group list-group-flush overflow-auto" style="max-height: 400px;">
+                            {% for log in logs %}
+                            <div class="list-group-item px-0">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">
+                                        {% if log.action == 'add' %}
+                                            <span class="badge bg-success">Dodano</span>
+                                        {% elif log.action == 'edit' %}
+                                            <span class="badge bg-info">Edytowano</span>
+                                        {% elif log.action == 'delete' %}
+                                            <span class="badge bg-danger">Usunięto</span>
+                                        {% elif log.action == 'import' %}
+                                            <span class="badge bg-primary">Import</span>
+                                        {% endif %}
+                                        {{ log.target_type | capitalize }}: {{ log.target_id }}
+                                    </h6>
+                                    <small>{{ log.timestamp }}</small>
+                                </div>
+                                <p class="mb-1 small">
+                                    {% if log.target_type == 'sprzet' %}
+                                        <a href="{{ url_for('views.sprzet_card', sprzet_id=log.target_id) }}">Zobacz sprzęt</a>
+                                    {% elif log.target_type == 'usterka' %}
+                                        <a href="{{ url_for('views.usterka_card', usterka_id=log.target_id) }}">Zobacz usterkę</a>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            {% else %}
+                            <p class="text-muted small">Brak zarejestrowanych akcji.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="mb-4 mt-4">
+                    <h5 class="text-muted">Powiązane konta</h5>
+                    
+                    <!-- Google Account -->
+                    <div class="d-flex align-items-center justify-content-between mb-3 p-3 border rounded">
+                        <div>
+                            <i class="bi bi-google text-danger fs-4 me-2"></i>
+                            <strong>Google</strong>
+                            {% if user.google_id %}
+                                <span class="badge bg-success ms-2">Połączone</span>
+                            {% else %}
+                                <span class="badge bg-secondary ms-2">Niepołączone</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if user.google_id %}
+                                <form method="POST" action="{{ url_for('oauth.unlink_google') }}" style="display: inline;">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Czy na pewno chcesz rozłączyć konto Google?');">
+                                        <i class="bi bi-x-circle"></i> Rozłącz
+                                    </button>
+                                </form>
+                            {% else %}
+                                <a href="{{ url_for('oauth.google_login') }}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-plus-circle"></i> Połącz
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Microsoft Account -->
+                    <div class="d-flex align-items-center justify-content-between mb-3 p-3 border rounded">
+                        <div>
+                            <i class="bi bi-microsoft text-primary fs-4 me-2"></i>
+                            <strong>Microsoft (ZHP)</strong>
+                            {% if user.microsoft_id %}
+                                <span class="badge bg-success ms-2">Połączone</span>
+                            {% else %}
+                                <span class="badge bg-secondary ms-2">Niepołączone</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if user.microsoft_id %}
+                                <form method="POST" action="{{ url_for('oauth.unlink_microsoft') }}" style="display: inline;">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Czy na pewno chcesz rozłączyć konto Microsoft?');">
+                                        <i class="bi bi-x-circle"></i> Rozłącz
+                                    </button>
+                                </form>
+                            {% else %}
+                                <a href="{{ url_for('oauth.microsoft_login') }}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-plus-circle"></i> Połącz
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Wskazówka:</strong> Powiąż swoje konto z Google lub Microsoft, aby móc logować się za pomocą tych dostawców.
+                </div>
+
+                <hr>
+
+                <div class="mb-4">
+                    <h5 class="text-muted">Zmiana hasła</h5>
+                    {% if user.google_id or user.microsoft_id %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Masz powiązane konto OAuth. Możesz ustawić hasło, aby móc logować się również hasłem.
+                    </div>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('oauth.change_password') }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Obecne hasło</label>
+                            <input type="password" class="form-control" id="current_password" name="current_password" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">Nowe hasło (min. 6 znaków)</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="6">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Potwierdź nowe hasło</label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="6">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-shield-lock"></i> Zmień hasło
+                        </button>
+                    </form>
+                </div>
+
+                <hr>
+
+                <div class="mb-4">
+                    <h5 class="text-muted">Zmiana adresu email</h5>
+                    <form method="POST" action="{{ url_for('oauth.change_email') }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+                        <div class="mb-3">
+                            <label for="new_email" class="form-label">Nowy adres email</label>
+                            <input type="email" class="form-control" id="new_email" name="new_email" required placeholder="nowy@email.pl">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Potwierdź hasłem</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <small class="form-text text-muted">Potrzebujemy Twojego hasła aby potwierdzić zmianę emaila.</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-envelope"></i> Zmień email
+                        </button>
+                    </form>
+                </div>
+
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Powrót
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
