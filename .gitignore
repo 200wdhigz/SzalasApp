@@ -82,7 +82,5 @@ wiki/export/
 
 # Ale zachowaj ważne pliki dokumentacji
 !README.md
-!DEPLOYMENT.md
-!DEPLOYMENT_QUICKSTART.md
-!DEPLOYMENT_CHEATSHEET.md
 !wiki/docs/*.md
+!wiki/docs/assets/*.md

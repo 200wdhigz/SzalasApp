@@ -44,6 +44,8 @@ FILE_MAPPING = {
     '23_CONTRIBUTING.md': 'Contributing.md',
     '24_DEPENDENCIES.md': 'Dependencies-Guide.md',
     '25_FEATURE_SUMMARY.md': 'Feature-Summary.md',
+    '26_DEPLOYMENT_PRODUCTION.md': 'Deployment-Production.md',
+    'NPM_INDEX.md': 'NPM-Deployment-Index.md',
 }
 
 
@@ -54,6 +56,7 @@ def convert_links_to_wiki(content: str, file_mapping: Dict[str, str]) -> str:
     Przykład:
     [tekst](docs/01_QUICK_START.md) → [tekst](Quick-Start)
     [tekst](01_QUICK_START.md#sekcja) → [tekst](Quick-Start#sekcja)
+    [tekst](../../FILE.md) → [tekst](https://github.com/.../blob/main/FILE.md)
     """
     # Utwórz mapę: nazwa pliku → nazwa wiki (bez .md)
     link_map = {}
@@ -77,10 +80,17 @@ def convert_links_to_wiki(content: str, file_mapping: Dict[str, str]) -> str:
         # Usuń docs/ prefix jeśli istnieje
         clean_path = path.replace('docs/', '').replace('../docs/', '').replace('./', '')
 
-        # Sprawdź czy jest w mapie
+        # Sprawdź czy jest w mapie (plik wiki)
         if clean_path in link_map:
             wiki_name = link_map[clean_path]
             return f"[{text}]({wiki_name}{anchor})"
+
+        # Jeśli link zaczyna się od ../../ (plik w repo głównym, nie w wiki)
+        if path.startswith('../../'):
+            # Usuń ../../ i zamień na pełny link GitHub
+            repo_path = path.replace('../../', '')
+            github_link = f"{REPO_URL}/blob/main/{repo_path}"
+            return f"[{text}]({github_link}{anchor})"
 
         # Jeśli nie znaleziono, zostaw bez zmian (może być to link do pliku zewnętrznego)
         return full_match
@@ -99,7 +109,7 @@ def fix_special_characters(content: str) -> str:
     return content
 
 
-def create_sidebar(wiki_dir: Path) -> None:
+def create_sidebar(source_dir: Path) -> None:
     """Tworzy pasek boczny _Sidebar.md."""
     sidebar_content = """## 📚 SzalasApp Wiki
 
@@ -127,6 +137,8 @@ def create_sidebar(wiki_dir: Path) -> None:
 ### 🚀 Deployment
 * [Instalacja](Installation)
 * [Docker](Docker-Deployment)
+* [Deployment Produkcyjny](Deployment-Production)
+* [NPM Deployment](NPM-Deployment-Index) ⭐
 * [Monitoring](Monitoring-and-Logs)
 
 ### 🔌 Integracje
@@ -148,10 +160,10 @@ def create_sidebar(wiki_dir: Path) -> None:
 
 ---
 
-**v1.1.1** | [GitHub]({REPO_URL})
+**v1.2.0** | [GitHub]({REPO_URL})
 """
 
-    sidebar_path = wiki_dir / '_Sidebar.md'
+    sidebar_path = source_dir / 'assets' / '_Sidebar.md'
     with open(sidebar_path, 'w', encoding='utf-8') as f:
         f.write(sidebar_content.replace('{REPO_URL}', REPO_URL))
 
@@ -161,10 +173,10 @@ def create_sidebar(wiki_dir: Path) -> None:
 def create_footer(wiki_dir: Path) -> None:
     """Tworzy stopkę _Footer.md."""
     footer_content = f"""---
-**SzalasApp v1.1.1** | System Zarządzania Sprzętem | [GitHub]({REPO_URL}) | [Zgłoś problem]({REPO_URL}/issues) | [Wiki Home](Home)
+**SzalasApp v1.2.0** | System Zarządzania Sprzętem | [GitHub]({REPO_URL}) | [Zgłoś problem]({REPO_URL}/issues) | [Wiki Home](Home)
 """
 
-    footer_path = wiki_dir / '_Footer.md'
+    footer_path = wiki_dir / 'assets' / '_Footer.md'
     with open(footer_path, 'w', encoding='utf-8') as f:
         f.write(footer_content)
 
@@ -230,8 +242,8 @@ def prepare_wiki_files() -> Tuple[int, int]:
     print("-" * 60)
 
     # Utwórz specjalne pliki Wiki
-    create_sidebar(WIKI_DIR)
-    create_footer(WIKI_DIR)
+    create_sidebar(SOURCE_DIR)
+    create_footer(SOURCE_DIR)
 
     print()
     print("=" * 60)
