@@ -23,11 +23,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Change directory
-        run: cd wiki
-
       - name: Prepare wiki files
         run: python prepare_wiki.py
+        working-directory: wiki
 
       - name: Checkout wiki repository
         uses: actions/checkout@v4
@@ -40,6 +38,7 @@ jobs:
         run: |
           find wiki -maxdepth 1 -type f -name "*.md" -delete
           cp wiki_export/*.md wiki/
+        working-directory: wiki
 
       - name: Commit and push changes
         run: |
