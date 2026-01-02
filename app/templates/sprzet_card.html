@@ -1,0 +1,762 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <style>
+        /* Wymuszanie proporcji 16:9 dla kontenera karuzeli */
+        #sprzetCarousel .carousel-inner {
+            aspect-ratio: 4 / 3;
+            overflow: hidden;
+        }
+
+        /* Zapewnienie, że zdjęcia wypełnią kontener 16:9 */
+        #sprzetCarousel .carousel-item img {
+            width: 100%;
+            height: 100%;
+            /* Użycie object-fit: cover gwarantuje, że obraz wypełni 16:9, przycinając pionowe (9:16) */
+            object-fit: cover;
+        }
+
+        #imageModal .modal-dialog {
+            max-width: 95vw; /* Ogranicz maksymalną szerokość do 95% widocznej części ekranu */
+            max-height: 95vh; /* Ogranicz maksymalną wysokość do 95% widocznej części ekranu */
+        }
+
+        #imageModal .modal-body {
+            max-height: 90vh; /* Maksymalna wysokość dla zawartości body modala */
+            overflow-y: auto; /* W razie potrzeby dodaje przewijanie */
+        }
+
+        #imageModal .modal-body img {
+            /* Upewnia się, że obraz nie wyjdzie poza wysokość Modala, zachowując proporcje */
+            max-height: 85vh;
+            width: auto; /* Pozwala na swobodne dostosowanie szerokości, zachowując oryginalne proporcje */
+        }
+
+        #qrBtn.btn-outline-light {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.6);
+            background-color: transparent;
+        }
+
+        #qrBtn.btn-outline-light:hover,
+        #qrBtn.btn-outline-light:focus,
+        #qrBtn.btn-outline-light:active {
+            background-color: rgba(255, 255, 255, 0.12); /* subtle lightening, icon stays visible */
+            color: #fff !important;
+            border-color: rgba(255, 255, 255, 0.85);
+            box-shadow: none;
+        }
+
+        /* Ensure the icon follows the button text color */
+        #qrBtn.btn-outline-light i.bi {
+            color: inherit !important;
+        }
+    </style>
+
+
+    <div class="container mt-5">
+        <h2 class="mb-4">Karta Sprzętu: <span class="badge text-bg-primary">{{ sprzet.id | upper }}</span>
+            - {{ sprzet.typ | upper }}</h2>
+
+        <div class="row">
+
+            <div class="col-lg-5">
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary">
+                        <h5 class="mb-0 text-center">Galeria Zdjęć</h5>
+                    </div>
+
+                    <div id="sprzetCarousel" class="carousel slide" data-bs-ride="carousel">
+                        <div class="carousel-inner">
+                            {% if sprzet.zdjecia_lista_url %}
+                                {% for url in sprzet.zdjecia_lista_url %}
+                                    <div class="carousel-item {% if loop.first %}active{% endif %}">
+                                        <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal"
+                                           data-img-url="{{ url }}">
+                                            <img src="{{ url }}" class="d-block w-100" alt="Zdjęcie {{ loop.index }}">
+                                        </a>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="carousel-item active">
+                                    <style>
+                                        .placeholder-img {
+                                            width: 100%;
+                                            height: auto;
+                                            display: block;
+                                        }
+
+                                        .placeholder-dark {
+                                            display: none;
+                                        }
+
+                                        .placeholder-light {
+                                            display: block;
+                                        }
+
+                                        /* When theme toggler sets data-bs-theme="dark" on <html> */
+                                        html[data-bs-theme="dark"] .placeholder-dark {
+                                            display: block;
+                                        }
+
+                                        html[data-bs-theme="dark"] .placeholder-light {
+                                            display: none;
+                                        }
+
+                                        /* Fallback: use user OS preference if no explicit data-bs-theme set */
+                                        @media (prefers-color-scheme: dark) {
+                                            html:not([data-bs-theme]) .placeholder-dark {
+                                                display: block;
+                                            }
+
+                                            html:not([data-bs-theme]) .placeholder-light {
+                                                display: none;
+                                            }
+                                        }
+                                    </style>
+
+                                    <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_light.png') }}"
+                                         class="img-fluid placeholder-img placeholder-light"
+                                         alt="Brak zdjęcia (light)">
+
+                                    <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_dark.png') }}"
+                                         class="img-fluid placeholder-img placeholder-dark"
+                                         alt="Brak zdjęcia (dark)">
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if sprzet.zdjecia_lista_url | length > 1 %}
+
+                            <button class="carousel-control-prev" type="button" data-bs-target="#sprzetCarousel"
+                                    data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Poprzednie</span>
+                            </button>
+
+                            <button class="carousel-control-next" type="button" data-bs-target="#sprzetCarousel"
+                                    data-bs-slide="next">
+                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Następne</span>
+                            </button>
+
+                        {% endif %}
+                    </div>
+
+                    <div class="card-footer p-2">
+                        <div class="d-flex overflow-auto">
+                            {% for url in sprzet.zdjecia_lista_url %}
+                                <img src="{{ url }}"
+                                     class="img-thumbnail me-1 {% if loop.first %}border-primary{% endif %}"
+                                     style="width: 100px; height: 65px; object-fit: cover; cursor: pointer;"
+                                     alt="Miniatura {{ loop.index }}"
+                                     onclick="document.getElementById('sprzetCarousel').querySelector('.carousel-item.active').classList.remove('active');
+                                             document.getElementById('sprzetCarousel').querySelectorAll('.carousel-item')[{{ loop.index0 }}].classList.add('active');
+                                             this.closest('.card-footer').querySelectorAll('.img-thumbnail').forEach(el => el.classList.remove('border-primary'));
+                                             this.classList.add('border-primary');"
+                                >
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if IS_LOGGED_IN %}
+                    <div class="card shadow-sm mb-4 d-none d-lg-block">
+                        <div class="card-header bg-danger text-white">
+                            <h4 class="mb-0">Zgłoś Nową Usterkę dla {{ sprzet.id | upper }}</h4>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" enctype="multipart/form-data"
+                                  onsubmit="return submitFormWithRecaptcha(this, 'submit_defect');">
+
+                                <input type="hidden" name="sprzet_id" value="{{ sprzet.id }}">
+
+                                <div class="mb-3">
+                                    <label for="opis_usterki" class="form-label">Opis Usterki (obowiązkowo)</label>
+                                    <textarea
+                                            class="form-control"
+                                            id="opis_usterki"
+                                            name="opis_usterki"
+                                            rows="3"
+                                            required
+                                            placeholder="Opisz dokładnie, co jest nie tak (np. 'Urwana szlufka przy wejściu', 'Brakuje 3 śledzi', 'Cieknie w rogu')."
+                                    ></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="zgloszono_przez" class="form-label">Zgłoszono przez
+                                        (opcjonalnie)</label>
+                                    <input
+                                            type="text"
+                                            class="form-control"
+                                            id="zgloszono_przez"
+                                            name="zgloszono_przez"
+                                            placeholder="Wpisz swoje imię lub pseudonim."
+                                    >
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="zdjecia_usterki" class="form-label">Zdjęcia (opcjonalnie, max 5 plików,
+                                        każdy ≤ 5MB)</label>
+                                    <input
+                                            class="form-control"
+                                            type="file"
+                                            id="zdjecia_usterki"
+                                            name="zdjecia_usterki"
+                                            accept="image/*"
+                                            multiple
+                                    >
+                                    <div class="form-text">Możesz wybrać kilka zdjęć jednocześnie. Tylko pliki obrazów
+                                        są
+                                        akceptowane.
+                                    </div>
+                                    <div id="zdjeciaPreview" class="mt-2 d-flex flex-row flex-wrap gap-2"></div>
+                                    <small id="zdjeciaError" class="text-danger d-none"></small>
+                                </div>
+
+                                <p class="text-muted small">
+                                    <i class="bi bi-shield-lock-fill"></i> Ta operacja jest chroniona przez reCAPTCHA
+                                    Enterprise.
+                                </p>
+
+                                <button type="submit" class="btn btn-danger">
+                                    Zgłoś Usterkę
+                                </button>
+                            </form>
+
+                        </div>
+                    </div>
+                {% endif %}
+
+
+            </div>
+            <div class="col-lg-7">
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0 d-flex align-items-center">
+                            <span>Dane Techniczne i Historia</span>
+                            <div class="ms-auto d-flex gap-2">
+                                {% if IS_LOGGED_IN %}
+                                    <a href="{{ url_for('views.sprzet_edit', sprzet_id=sprzet.id) }}"
+                                       class="btn btn-outline-light" title="Edytuj sprzęt">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+                                {% endif %}
+                                <button type="button" id="qrBtn" class="btn btn-outline-light"
+                                        data-bs-toggle="modal" data-bs-target="#qrModal"
+                                        title="Generuj QR dla strony sprzętu">
+                                    <i class="bi bi-qr-code text-white" aria-hidden="true"></i>
+                                    <span class="visually-hidden">QR</span>
+                                </button>
+                            </div>
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+
+                            <div class="col-md-4">
+                                <h5 class="mt-2 text-primary">Informacje Podstawowe</h5>
+                                <ul class="list-group list-group-flush mb-4">
+                                    <li class="list-group-item"><strong>ID Sprzętu:</strong> {{ sprzet.id | upper }}
+                                    </li>
+                                    <li class="list-group-item"><strong>Typ Sprzętu:</strong> {{ sprzet.typ }}</li>
+                                    <li class="list-group-item">
+                                        <strong>Stan Ogólny:</strong>
+                                        <span class="badge
+                                        {% if sprzet.stan_ogolny == 'bardzo dobry' %} bg-success
+                                        {% elif sprzet.stan_ogolny == 'dobry' %} bg-primary
+                                        {% elif sprzet.stan_ogolny == 'średni' %} bg-info text-dark
+                                        {% elif sprzet.stan_ogolny == 'DO KONSERWACJI' %} bg-warning text-dark
+                                        {% else %} bg-secondary
+                                        {% endif %}
+                                        ">
+                                        {{ sprzet.stan_ogolny }}
+                                    </span>
+                                    </li>
+                                    <li class="list-group-item"><strong>Obecna
+                                        Lokalizacja:</strong> {{ sprzet.lokalizacja }}</li>
+                                    <li class="list-group-item">
+                                        <strong>Przeznaczenie:</strong> {{ sprzet.przeznaczenie }}</li>
+                                </ul>
+                            </div>
+
+                            <div class="col-md-4">
+                                <h5 class="mt-2 text-primary">Szczegóły Techniczne</h5>
+                                <ul class="list-group list-group-flush mb-4">
+                                    <li class="list-group-item">
+                                        <strong>Wodoszczelność:</strong> {{ sprzet.wodoszczelnosc }}</li>
+                                    <li class="list-group-item"><strong>Kolor
+                                        Dachu:</strong> {{ sprzet.kolor_dachu | capitalize }}</li>
+                                    <li class="list-group-item"><strong>Kolor
+                                        Boków:</strong> {{ sprzet.kolor_bokow | capitalize }}</li>
+                                    <li class="list-group-item"><strong>Znak
+                                        Szczególny:</strong> {{ sprzet.znak_szczegolny }}</li>
+                                    <li class="list-group-item"><strong>Ilość Zapałek:</strong> {{ sprzet.zapalki }}
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="col-md-4">
+                                <h5 class="mt-2 text-primary">Historia i Konserwacja</h5>
+                                <ul class="list-group list-group-flush mb-4">
+                                    <li class="list-group-item"><strong>Zakup:</strong> {{ sprzet.zakup }}</li>
+                                    <li class="list-group-item"><strong>Przejęty:</strong> {{ sprzet.przejecie }}</li>
+                                    <li class="list-group-item"><strong>Wymaga
+                                        Powrotu:</strong> {{ sprzet.czyWraca | default('Nie', true) }}</li>
+                                    <li class="list-group-item">
+                                        <strong>Historia/Opis:</strong>
+                                        <small class="text-muted">{{ sprzet.historia | default('Brak opisu.', true) | truncate(50, True) }}</small>
+                                    </li>
+                                    <li class="list-group-item">
+                                        <strong>Uwagi Konserwacyjne:</strong>
+                                        <small class="text-muted">{{ sprzet.uwagi | default('Brak uwag.', true) | truncate(50, True) }}</small>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {% if sprzet.historia | length > 50 or sprzet.uwagi | length > 50 %}
+                            <div class="alert alert-light mt-3">
+                                <small><strong>Pełny Opis Historii:</strong> {{ sprzet.historia }}</small><br>
+                                <small><strong>Pełne Uwagi Konserwacyjne:</strong> {{ sprzet.uwagi }}</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if IS_LOGGED_IN %}
+                    <!-- Formularz zgłaszania usterki - widoczny tylko na małych ekranach (mobile) -->
+                    <div class="card shadow-sm mb-4 d-lg-none">
+                        <div class="card-header bg-danger text-white">
+                            <h4 class="mb-0">Zgłoś Nową Usterkę dla {{ sprzet.id | upper }}</h4>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" enctype="multipart/form-data"
+                                  onsubmit="return submitFormWithRecaptcha(this, 'submit_defect');">
+
+                                <input type="hidden" name="sprzet_id" value="{{ sprzet.id }}">
+
+                                <div class="mb-3">
+                                    <label for="opis_usterki_mobile" class="form-label">Opis Usterki
+                                        (obowiązkowo)</label>
+                                    <textarea
+                                            class="form-control"
+                                            id="opis_usterki_mobile"
+                                            name="opis_usterki"
+                                            rows="3"
+                                            required
+                                            placeholder="Opisz dokładnie, co jest nie tak (np. 'Urwana szlufka przy wejściu', 'Brakuje 3 śledzi', 'Cieknie w rogu')."
+                                    ></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="zgloszono_przez_mobile" class="form-label">Zgłoszono przez
+                                        (opcjonalnie)</label>
+                                    <input
+                                            type="text"
+                                            class="form-control"
+                                            id="zgloszono_przez_mobile"
+                                            name="zgloszono_przez"
+                                            placeholder="Wpisz swoje imię lub pseudonim."
+                                    >
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="zdjecia_usterki_mobile" class="form-label">Zdjęcia (opcjonalnie, max 5
+                                        plików,
+                                        każdy ≤ 5MB)</label>
+                                    <input
+                                            class="form-control"
+                                            type="file"
+                                            id="zdjecia_usterki_mobile"
+                                            name="zdjecia_usterki"
+                                            accept="image/*"
+                                            multiple
+                                    >
+                                    <div class="form-text">Możesz wybrać kilka zdjęć jednocześnie. Tylko pliki obrazów
+                                        są
+                                        akceptowane.
+                                    </div>
+                                    <div id="zdjeciaPreviewMobile" class="mt-2 d-flex flex-row flex-wrap gap-2"></div>
+                                    <small id="zdjeciaErrorMobile" class="text-danger d-none"></small>
+                                </div>
+
+                                <p class="text-muted small">
+                                    <i class="bi bi-shield-lock-fill"></i> Ta operacja jest chroniona przez reCAPTCHA
+                                    Enterprise.
+                                </p>
+
+                                <button type="submit" class="btn btn-danger">
+                                    Zgłoś Usterkę
+                                </button>
+                            </form>
+
+                        </div>
+                    </div>
+                {% endif %}
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h4 class="mb-0">Zgłoszone Usterki ({{ usterki | length }})</h4>
+                    </div>
+                    <div class="card-body">
+                        {% if usterki %}
+                            <ul class="list-group">
+                                {% for usterka in usterki %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <a href="{{ url_for('views.usterka_card', usterka_id=usterka.id) }}"
+                                               class="text-decoration-none text-reset">
+                                                <strong>
+                                                    {{ usterka.opis | truncate(100, True) }}
+                                                </strong>
+                                            </a>
+                                            <br>
+                                            <small class="text-muted">
+                                                Zgłoszono przez: {{ usterka.zgloszono_przez }}
+                                                (Data: {{ usterka.data_zgloszenia }})
+                                            </small>
+                                        </div>
+
+                                        <span class="badge
+                                    {% if usterka.status == 'oczekuje' %} bg-warning text-dark
+                                    {% elif usterka.status == 'w trakcie' %} bg-info text-dark
+                                    {% elif usterka.status == 'naprawiona' %} bg-success
+                                    {% elif usterka.status == 'odrzucona' %} bg-danger
+                                    {% else %} bg-secondary
+                                    {% endif %}
+                                    ">
+                                    {{ usterka.status | capitalize }}
+                                </span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-success">Brak zgłoszonych usterek dla tego sprzętu. 💪</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content bg-transparent border-0">
+                <div class="modal-header border-0 p-0">
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0 text-center">
+                    <div id="modalCarousel" class="carousel slide" data-bs-interval="false">
+                        <div class="carousel-inner">
+                            {% if sprzet.zdjecia_lista_url %}
+                                {% for url in sprzet.zdjecia_lista_url %}
+                                    <div class="carousel-item" data-index="{{ loop.index0 }}">
+                                        <img src="{{ url }}" class="img-fluid"
+                                             alt="Powiększone zdjęcie {{ loop.index }}">
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="carousel-item active">
+                                    <style>
+                                        .placeholder-img {
+                                            width: 100%;
+                                            height: auto;
+                                            display: block;
+                                        }
+
+                                        .placeholder-dark {
+                                            display: none;
+                                        }
+
+                                        .placeholder-light {
+                                            display: block;
+                                        }
+
+                                        /* When theme toggler sets data-bs-theme="dark" on <html> */
+                                        html[data-bs-theme="dark"] .placeholder-dark {
+                                            display: block;
+                                        }
+
+                                        html[data-bs-theme="dark"] .placeholder-light {
+                                            display: none;
+                                        }
+
+                                        /* Fallback: use user OS preference if no explicit data-bs-theme set */
+                                        @media (prefers-color-scheme: dark) {
+                                            html:not([data-bs-theme]) .placeholder-dark {
+                                                display: block;
+                                            }
+
+                                            html:not([data-bs-theme]) .placeholder-light {
+                                                display: none;
+                                            }
+                                        }
+                                    </style>
+
+                                    <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_light.png') }}"
+                                         class="img-fluid placeholder-img placeholder-light"
+                                         alt="Brak zdjęcia (light)">
+
+                                    <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_dark.png') }}"
+                                         class="img-fluid placeholder-img placeholder-dark"
+                                         alt="Brak zdjęcia (dark)">
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if sprzet.zdjecia_lista_url | length > 1 %}
+                            <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel"
+                                    data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Poprzednie</span>
+                            </button>
+                            <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel"
+                                    data-bs-slide="next">
+                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Następne</span>
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">QR: {{ sprzet.id | upper }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="qrImage" src="" alt="QR code for {{ sprzet.id }}" class="img-fluid mb-2"/>
+                    <p class="small" id="qrTargetText"></p>
+                </div>
+                <div class="modal-footer">
+                    <a id="qrOpenLink" class="btn btn-primary" target="_blank" rel="noopener">Otwórz stronę</a>
+                    <a id="qrDownloadBtn" class="btn btn-success" download="QR_{{ sprzet.id }}.png">
+                        <i class="bi bi-download"></i> Pobierz QR
+                    </a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // ----------------------------------------------------
+            // FORMULARZ ZGLOSZENIA USTERKI - DESKTOP I MOBILE
+            // ----------------------------------------------------
+
+            const MAX_FILES = 5;
+            const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+            // Funkcja do obsługi walidacji i podglądu plików
+            function setupFileInput(inputId, previewId, errorId) {
+                const input = document.getElementById(inputId);
+                const preview = document.getElementById(previewId);
+                const errorEl = document.getElementById(errorId);
+
+                if (!input || !preview || !errorEl) return;
+
+                function resetPreview() {
+                    preview.innerHTML = '';
+                    errorEl.classList.add('d-none');
+                    errorEl.textContent = '';
+                }
+
+                input.addEventListener('change', function () {
+                    resetPreview();
+                    const files = Array.from(input.files || []);
+                    if (files.length === 0) return;
+
+                    if (files.length > MAX_FILES) {
+                        errorEl.textContent = `Wybrano zbyt wiele plików (max ${MAX_FILES}).`;
+                        errorEl.classList.remove('d-none');
+                        input.value = '';
+                        return;
+                    }
+
+                    for (const file of files) {
+                        if (!file.type.startsWith('image/')) {
+                            errorEl.textContent = 'Tylko pliki obrazów są akceptowane.';
+                            errorEl.classList.remove('d-none');
+                            input.value = '';
+                            resetPreview();
+                            return;
+                        }
+                        if (file.size > MAX_SIZE) {
+                            errorEl.textContent = `Plik ${file.name} jest za duży (max 5MB).`;
+                            errorEl.classList.remove('d-none');
+                            input.value = '';
+                            resetPreview();
+                            return;
+                        }
+
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                            const img = document.createElement('img');
+                            img.src = e.target.result;
+                            img.style.width = '100px';
+                            img.style.height = '65px';
+                            img.style.objectFit = 'cover';
+                            img.className = 'border rounded';
+                            preview.appendChild(img);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+
+            // Konfiguracja dla wersji desktop
+            setupFileInput('zdjecia_usterki', 'zdjeciaPreview', 'zdjeciaError');
+
+            // Konfiguracja dla wersji mobile
+            setupFileInput('zdjecia_usterki_mobile', 'zdjeciaPreviewMobile', 'zdjeciaErrorMobile');
+
+            // dodatkowa walidacja przed wysłaniem (na wypadek, gdyby JS był zmodyfikowany)
+            window.submitFormWithRecaptcha = window.submitFormWithRecaptcha || function (form, tokenAction) {
+                // Sprawdź który formularz jest aktywny (desktop lub mobile)
+                const formInputs = form.querySelectorAll('input[type="file"]');
+
+                for (const input of formInputs) {
+                    const files = input.files || [];
+                    if (files.length > MAX_FILES) {
+                        alert(`Max ${MAX_FILES} zdjęć.`);
+                        return false;
+                    }
+                    for (const f of files) {
+                        if (!f.type.startsWith('image/')) {
+                            alert('Tylko pliki obrazów są akceptowane.');
+                            return false;
+                        }
+                        if (f.size > MAX_SIZE) {
+                            alert('Każdy plik nie może przekraczać 5MB.');
+                            return false;
+                        }
+                    }
+                }
+                // jeśli istnieje prawdziwe wykonanie reCAPTCHA, ono powinno zastąpić to wywołanie
+                return true;
+            };
+
+
+            // ----------------------------------------------------
+            // JAWNA INICJALIZACJA GŁÓWNEJ KARUZELI (zabezpieczenie)
+            // ----------------------------------------------------
+            var myCarousel = document.querySelector('#sprzetCarousel');
+            if (myCarousel && typeof bootstrap !== 'undefined' && bootstrap.Carousel) {
+                new bootstrap.Carousel(myCarousel, {
+                    interval: false,
+                    ride: false
+                });
+            }
+
+            // ----------------------------------------------------
+            // INICJALIZACJA I OBSŁUGA KARUZELI W MODALU (Lightbox)
+            // ----------------------------------------------------
+            var imageModal = document.getElementById('imageModal');
+            var modalCarousel = document.getElementById('modalCarousel');
+            var bsModalCarousel = null; // Instancja karuzeli w modalu
+
+            // Jawna inicjalizacja karuzeli w modalu, jeśli istnieje
+            if (modalCarousel && typeof bootstrap !== 'undefined' && bootstrap.Carousel) {
+                bsModalCarousel = new bootstrap.Carousel(modalCarousel, {
+                    interval: false,
+                    ride: false
+                });
+            }
+
+            // Obsługa zdarzenia otwarcia Modala
+            imageModal.addEventListener('show.bs.modal', function (event) {
+                // Element, który wywołał modal (link <a> z karuzeli głównej)
+                var triggerLink = event.relatedTarget;
+
+                // Z głównej karuzeli pobieramy URL zdjęcia (można by też pobrać index)
+                var imageUrl = triggerLink.getAttribute('data-img-url');
+
+                // Znajdowanie wszystkich slajdów w karuzeli Modala
+                var modalItems = modalCarousel.querySelectorAll('.carousel-item');
+
+                // Iteracja w celu znalezienia slajdu odpowiadającego klikniętemu zdjęciu
+                let clickedIndex = 0;
+                let found = false;
+
+                // Usuwamy klasę 'active' ze wszystkich slajdów w modalu na wszelki wypadek
+                modalItems.forEach(item => item.classList.remove('active'));
+
+                // Szukanie odpowiedniego slajdu do aktywacji
+                for (let i = 0; i < modalItems.length; i++) {
+                    let itemImg = modalItems[i].querySelector('img');
+
+                    if (itemImg.src === imageUrl && !found) {
+                        modalItems[i].classList.add('active'); // Ustawiamy slajd jako aktywny
+                        clickedIndex = i;
+                        found = true;
+                    }
+                }
+
+                // Jeśli instancja karuzeli istnieje, ustawiamy ją na poprawny slajd
+                if (bsModalCarousel) {
+                    // Użycie metody 'to' z instancji karuzeli, aby zresetować pozycję
+                    // i upewnić się, że nawigacja działa poprawnie.
+                    // Używamy setTimeout, aby upewnić się, że modal jest już w pełni wyświetlony
+                    setTimeout(() => {
+                        bsModalCarousel.to(clickedIndex);
+                    }, 50);
+                }
+            });
+
+            // ----------------------------------------------------
+            // OBSŁUGA MINIATUR GŁÓWNEJ KARUZELI (pozostała bez zmian)
+            // ----------------------------------------------------
+            document.getElementById('sprzetCarousel').addEventListener('slid.bs.carousel', function (e) {
+                const activeIndex = e.to;
+                const thumbnails = this.closest('.card').querySelector('.card-footer').querySelectorAll('.img-thumbnail');
+
+                thumbnails.forEach(thumb => thumb.classList.remove('border-primary'));
+                if (thumbnails[activeIndex]) {
+                    thumbnails[activeIndex].classList.add('border-primary');
+                }
+            });
+
+            // ---------------------------------------------
+            // Generowanie QR kodu po otwarciu modala
+            // ---------------------------------------------
+            var qrModalEl = document.getElementById('qrModal');
+            if (!qrModalEl) return;
+
+            var isDebug = {{ 'true' if is_debug else 'false' }};
+
+            var baseTarget = 'https://200wdhigz.github.io/sprzet/{{ sprzet.id }}';
+
+            qrModalEl.addEventListener('show.bs.modal', function () {
+                var target = baseTarget;
+                if (isDebug) {
+                    target += (target.indexOf('?') === -1 ? '?' : '&') + 'dev';
+                }
+
+                // Lokalnie generowany QR kod
+                var qrSrc = '{{ url_for("views.generate_qr_code", sprzet_id=sprzet.id) }}';
+
+                var img = document.getElementById('qrImage');
+                var openLink = document.getElementById('qrOpenLink');
+                var downloadBtn = document.getElementById('qrDownloadBtn');
+                var targetText = document.getElementById('qrTargetText');
+
+                img.src = qrSrc;
+                img.alt = 'QR for ' + target;
+                openLink.href = target;
+                downloadBtn.href = qrSrc;
+                targetText.textContent = target;
+            });
+        });
+    </script>
+
+{% endblock %}
