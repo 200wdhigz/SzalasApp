@@ -23,9 +23,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Change directory
-        run: cd wiki
-
       - name: Prepare wiki files
         run: python prepare_wiki.py
         working-directory: wiki
