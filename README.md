@@ -111,7 +111,6 @@ Kompletna dokumentacja projektu znajduje się w folderze `docs/`:
 
 **Wdrożenie Produkcyjne:** 🚀
 - [**Wdrożenie z Docker i HTTPS**](wiki/docs/26_DEPLOYMENT_PRODUCTION.md) - Kompletny poradnik produkcyjny
-- [**Szybki Start Wdrożenia**](DEPLOYMENT_QUICKSTART.md) - Skrócona instrukcja
 - [Skrypt automatycznego setupu](deploy-setup.sh) - Dla serwerów Linux
 - [Skrypt wdrożenia z Windows](deploy-from-windows.ps1) - Dla Windows PowerShell
 

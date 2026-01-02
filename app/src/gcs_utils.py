@@ -25,14 +25,14 @@ def extract_blob_name(url: str) -> str:
         return ""
 
     try:
-        if 'storage.googleapis.com' in url:
+        if 'https://storage.googleapis.com' in url:
             # Rozdzielamy po nazwie bucketa
             parts = url.split(f"{GOOGLE_CLOUD_STORAGE_BUCKET_NAME}/")
             if len(parts) > 1:
                 blob_name = parts[1].split('?')[0]
                 return blob_name
     except Exception:
-        pass
+        print(f"Error extracting blob name from {url}")
     return ""
 
 def generate_signed_url(blob_name: str) -> str:

@@ -29,7 +29,7 @@ if os.path.exists(service_account_path):
     print(f"✅ Ustawiono GOOGLE_APPLICATION_CREDENTIALS: {service_account_path}")
 
 # TERAZ zaimportuj Firebase
-from firebase_admin import credentials, initialize_app, firestore as fb_firestore, _apps
+from firebase_admin import credentials, initialize_app, _apps
 from google.cloud import firestore
 
 # Sprawdź czy Firebase jest już zainicjalizowany

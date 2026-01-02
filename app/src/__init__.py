@@ -55,9 +55,10 @@ def create_app():
     def health_check():
         """Health check endpoint for Docker and load balancers."""
         try:
-            db = firestore.client()
+            firestore.client()
             return {'status': 'healthy', 'service': 'SzalasApp'}, 200
         except Exception as e:
+            app.logger.error(f"Health check failed: {e}")
             return {'status': 'unhealthy', 'error': str(e)}, 503
 
     @app.route('/.well-known/<path:filename>')

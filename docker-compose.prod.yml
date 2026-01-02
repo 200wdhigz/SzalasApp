@@ -28,7 +28,7 @@ services:
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - APP_URL=${APP_URL}
+      - BASE_URL=${BASE_URL}
       - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/app/credentials/service-account.json}
     volumes:
       # Mount credentials (read-only)

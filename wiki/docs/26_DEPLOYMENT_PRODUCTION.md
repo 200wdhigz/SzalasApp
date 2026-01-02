@@ -6,12 +6,13 @@
 3. [Architektura wdrożenia](#architektura-wdrożenia)
 4. [Przygotowanie serwera](#przygotowanie-serwera)
 5. [Konfiguracja domeny](#konfiguracja-domeny)
-6. [Konfiguracja SSL/HTTPS z Nginx i Let's Encrypt](#konfiguracja-ssl)
-7. [Przygotowanie aplikacji](#przygotowanie-aplikacji)
-8. [Wdrożenie z Docker Compose](#wdrożenie-docker)
-9. [Monitorowanie i utrzymanie](#monitorowanie)
-10. [Backup i odzyskiwanie](#backup)
-11. [Troubleshooting](#troubleshooting)
+6. **[Wariant A: Nginx Proxy Manager (Jeśli już używasz NPM)](#nginx-proxy-manager)**
+7. **[Wariant B: Standardowy Nginx](#konfiguracja-ssl)**
+8. [Przygotowanie aplikacji](#przygotowanie-aplikacji)
+9. [Wdrożenie z Docker Compose](#wdrożenie-docker)
+10. [Monitorowanie i utrzymanie](#monitorowanie)
+11. [Backup i odzyskiwanie](#backup)
+12. [Troubleshooting](#troubleshooting)
 
 ## Wprowadzenie
 
@@ -20,6 +21,23 @@ Ten poradnik opisuje krok po kroku, jak wdrożyć aplikację SzalasApp na serwer
 - **Nginx** - reverse proxy i obsługa SSL
 - **Let's Encrypt (Certbot)** - darmowe certyfikaty SSL
 - **HTTPS** dla domeny `szalasapp.kawak.uk`
+
+### 🎯 Wybierz wariant wdrożenia
+
+**Wariant A: Nginx Proxy Manager** (Jeśli już masz NPM) ⭐ ZALECANE
+- ✅ Łatwiejszy - interfejs webowy
+- ✅ Automatyczne zarządzanie certyfikatami
+- ✅ Idealne jeśli hostujesz więcej aplikacji
+- 📄 [Przejdź do Wariant A](#nginx-proxy-manager)
+- 📄 [Szybki Start NPM](../../DEPLOYMENT_NPM_QUICKSTART.md) - skrócona instrukcja
+
+**Wariant B: Standardowy Nginx** (Ręczna konfiguracja)
+- 🔧 Pełna kontrola nad konfiguracją
+- 🔧 Wymaga edycji plików konfiguracyjnych
+- 🔧 Dla zaawansowanych użytkowników
+- 📄 [Przejdź do Wariant B](#konfiguracja-ssl)
+
+**Oba warianty prowadzą do tego samego rezultatu - działającej aplikacji z HTTPS.**
 
 ## Wymagania
 
@@ -51,24 +69,113 @@ Ten poradnik opisuje krok po kroku, jak wdrożyć aplikację SzalasApp na serwer
 
 ## Architektura wdrożenia
 
+### Wariant A: Z Nginx Proxy Manager
+
 ```
-Internet (HTTPS)
-      ↓
-[Port 443] Nginx (Reverse Proxy + SSL Termination)
-      ↓
-[Port 8080] Docker Container (SzalasApp)
-      ↓
-Firebase/Firestore + Google Cloud Storage
+┌─────────────────────────────────────────────────────────────┐
+│                        INTERNET                             │
+│                    (HTTPS Traffic)                          │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ Port 443 (HTTPS)
+                         │ Port 80 (HTTP → redirect to HTTPS)
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              NGINX PROXY MANAGER                            │
+│              (Docker Container)                             │
+│                                                             │
+│  • SSL Termination (Let's Encrypt)                         │
+│  • Automatic certificate renewal                           │
+│  • Web UI for configuration                                │
+│  • Reverse proxy routing                                   │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ Docker Network: proxy-network
+                         │ Internal: szalasapp:8080
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              SZALASAPP                                      │
+│              (Docker Container)                             │
+│                                                             │
+│  Flask App + Gunicorn                                       │
+│  Port 8080 (internal only)                                 │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ API Calls
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│         GOOGLE CLOUD SERVICES                               │
+│                                                             │
+│  • Firebase Authentication                                  │
+│  • Firestore Database                                       │
+│  • Cloud Storage (photos)                                   │
+│  • reCAPTCHA Enterprise                                     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Przepływ ruchu:**
+### Wariant B: Ze standardowym Nginx
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        INTERNET                             │
+│                    (HTTPS Traffic)                          │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ Port 443 (HTTPS)
+                         │ Port 80 (HTTP → redirect to HTTPS)
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              NGINX (System Service)                         │
+│              /etc/nginx/sites-available/szalasapp           │
+│                                                             │
+│  • SSL Termination (Let's Encrypt via Certbot)            │
+│  • Manual certificate renewal (or cron)                    │
+│  • Manual configuration files                              │
+│  • Reverse proxy to localhost:8080                         │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ localhost:8080
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              SZALASAPP                                      │
+│              (Docker Container)                             │
+│                                                             │
+│  Flask App + Gunicorn                                       │
+│  Port 8080 (bound to 127.0.0.1:8080)                      │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ API Calls
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│         GOOGLE CLOUD SERVICES                               │
+│                                                             │
+│  • Firebase Authentication                                  │
+│  • Firestore Database                                       │
+│  • Cloud Storage (photos)                                   │
+│  • reCAPTCHA Enterprise                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Kluczowe różnice
+
+| Aspekt | Nginx Proxy Manager | Standardowy Nginx |
+|--------|-------------------|------------------|
+| Konfiguracja | Web UI (graficzny) | Pliki tekstowe |
+| Certyfikaty SSL | Automatyczne (1 klik) | Ręczne (certbot commands) |
+| Odnowienie certyfikatu | Automatyczne | Ręczne lub cron |
+| Łatwość zarządzania | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| Wiele aplikacji | Bardzo łatwe | Wymaga wielu plików config |
+| Docker networking | Wspólna sieć Docker | localhost binding |
+| Logi | UI + pliki | Tylko pliki |
+
+**Przepływ ruchu (oba warianty):**
 1. Użytkownik wchodzi na `https://szalasapp.kawak.uk`
-2. Nginx odbiera żądanie HTTPS (port 443)
-3. Nginx weryfikuje certyfikat SSL
-4. Nginx przekazuje żądanie do Docker container (port 8080)
+2. Nginx/NPM odbiera żądanie HTTPS (port 443)
+3. Nginx/NPM weryfikuje certyfikat SSL
+4. Nginx/NPM przekazuje żądanie do Docker container (port 8080)
 5. Aplikacja Flask/Gunicorn przetwarza żądanie
 6. Aplikacja komunikuje się z Firebase/GCS
-7. Odpowiedź wraca do użytkownika przez Nginx
+7. Odpowiedź wraca do użytkownika przez Nginx/NPM
 
 ## Przygotowanie serwera
 
@@ -204,7 +311,354 @@ dig szalasapp.kawak.uk +short
 
 Powinno zwrócić adres IP twojego serwera.
 
-## Konfiguracja SSL/HTTPS z Nginx i Let's Encrypt {#konfiguracja-ssl}
+## Wariant A: Nginx Proxy Manager (Jeśli już używasz NPM) {#nginx-proxy-manager}
+
+**⚠️ Jeśli już masz zainstalowany Nginx Proxy Manager w osobnym Docker Compose, przejdź do tej sekcji zamiast standardowej konfiguracji Nginx.**
+
+### Przegląd
+
+Nginx Proxy Manager (NPM) to narzędzie z interfejsem webowym do zarządzania reverse proxy i certyfikatami SSL. Jeśli już go używasz, możesz łatwo podłączyć SzalasApp bez ręcznej konfiguracji Nginx.
+
+### Architektura z NPM
+
+```
+Internet (HTTPS)
+      ↓
+[Port 443] Nginx Proxy Manager (Docker)
+      ↓
+[Sieć Docker] SzalasApp Container (port 8080)
+      ↓
+Firebase/Firestore + Google Cloud Storage
+```
+
+### Wymagania
+
+- Nginx Proxy Manager już zainstalowany i działający
+- Oba kontenery (NPM i SzalasApp) muszą być w tej samej sieci Docker lub możliwość komunikacji między sieciami
+
+### Krok 1: Konfiguracja sieci Docker
+
+**Opcja A: Wspólna sieć (zalecane)**
+
+1. **Utwórz zewnętrzną sieć Docker** (jeśli jeszcze nie istnieje):
+
+```bash
+docker network create proxy-network
+```
+
+2. **Dodaj NPM do sieci** (jeśli jeszcze nie jest):
+
+Edytuj docker-compose.yml Nginx Proxy Manager:
+
+```yaml
+services:
+  nginx-proxy-manager:
+    # ...existing config...
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    external: true
+```
+
+Restart NPM:
+
+```bash
+cd /path/to/nginx-proxy-manager
+docker compose up -d
+```
+
+3. **Podłącz SzalasApp do tej samej sieci**
+
+Utwórz `docker-compose.npm.yml` w katalogu SzalasApp:
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: szalasapp
+    # NIE eksponuj portów na zewnątrz - tylko wewnętrzna sieć Docker
+    expose:
+      - "8080"
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=${GOOGLE_CLOUD_STORAGE_BUCKET_NAME}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
+      - RECAPTCHA_PROJECT_ID=${RECAPTCHA_PROJECT_ID}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - BASE_URL=${BASE_URL}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/app/credentials/service-account.json}
+    volumes:
+      - ./credentials:/app/credentials:ro
+    restart: unless-stopped
+    networks:
+      - proxy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  proxy-network:
+    external: true
+```
+
+**Opcja B: Routing między sieciami Docker**
+
+Jeśli wolisz zachować osobne sieci, NPM może routować do kontenera przez IP:
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: szalasapp
+    ports:
+      - "127.0.0.1:8080:8080"  # Bind tylko do localhost
+    # ...rest of config...
+    networks:
+      - szalasapp-network
+
+networks:
+  szalasapp-network:
+    name: szalasapp-network
+```
+
+W tym przypadku w NPM użyjesz: `http://host.docker.internal:8080` (Windows/Mac) lub `http://172.17.0.1:8080` (Linux).
+
+### Krok 2: Uruchomienie SzalasApp
+
+```bash
+cd ~/SzalasApp
+
+# Przygotuj plik .env (patrz sekcja "Przygotowanie aplikacji")
+cp .env.example .env
+vim .env
+
+# Uruchom z konfiguracją dla NPM
+docker compose -f docker-compose.npm.yml up -d --build
+
+# Sprawdź status
+docker compose -f docker-compose.npm.yml ps
+
+# Sprawdź logi
+docker compose -f docker-compose.npm.yml logs -f
+```
+
+### Krok 3: Konfiguracja Proxy Host w NPM
+
+1. **Otwórz Nginx Proxy Manager** w przeglądarce (np. `http://YOUR_SERVER_IP:81`)
+
+2. **Zaloguj się** (domyślnie: admin@example.com / changeme)
+
+3. **Dodaj nowy Proxy Host:**
+   - Kliknij **"Proxy Hosts"** → **"Add Proxy Host"**
+
+4. **Zakładka "Details":**
+   - **Domain Names**: `szalasapp.kawak.uk`
+   - **Scheme**: `http`
+   - **Forward Hostname / IP**: 
+     - Jeśli używasz wspólnej sieci: `szalasapp` (nazwa kontenera)
+     - Jeśli osobne sieci (Windows/Mac): `host.docker.internal`
+     - Jeśli osobne sieci (Linux): `172.17.0.1`
+   - **Forward Port**: `8080`
+   - **Cache Assets**: ✅ (włącz)
+   - **Block Common Exploits**: ✅ (włącz)
+   - **Websockets Support**: ✅ (włącz, jeśli planujesz)
+
+5. **Zakładka "SSL":**
+   - **SSL Certificate**: `Request a new SSL Certificate`
+   - **Force SSL**: ✅ (włącz)
+   - **HTTP/2 Support**: ✅ (włącz)
+   - **HSTS Enabled**: ✅ (włącz)
+   - **HSTS Subdomains**: ❌ (wyłącz, chyba że potrzebujesz)
+   - **Email Address for Let's Encrypt**: Twój email
+   - **I Agree to the Let's Encrypt Terms of Service**: ✅
+
+6. **Zakładka "Advanced" (opcjonalne):**
+
+   Dodaj niestandardową konfigurację Nginx dla lepszej wydajności:
+
+   ```nginx
+   # Zwiększ limit uploadu dla zdjęć
+   client_max_body_size 50M;
+   
+   # Dodatkowe nagłówki bezpieczeństwa
+   add_header X-Frame-Options "SAMEORIGIN" always;
+   add_header X-Content-Type-Options "nosniff" always;
+   add_header X-XSS-Protection "1; mode=block" always;
+   add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+   
+   # Przekazuj poprawne nagłówki do aplikacji
+   proxy_set_header X-Forwarded-Host $host;
+   proxy_set_header X-Forwarded-Port $server_port;
+   
+   # Timeouty
+   proxy_connect_timeout 60s;
+   proxy_send_timeout 60s;
+   proxy_read_timeout 60s;
+   
+   # Buforowanie
+   proxy_buffering on;
+   proxy_buffer_size 4k;
+   proxy_buffers 8 4k;
+   ```
+
+7. **Zapisz** - NPM automatycznie:
+   - Skonfiguruje reverse proxy
+   - Pobierze certyfikat SSL z Let's Encrypt
+   - Skonfiguruje przekierowanie HTTP → HTTPS
+   - Odnowi certyfikat automatycznie
+
+### Krok 4: Weryfikacja
+
+```bash
+# Sprawdź czy aplikacja odpowiada wewnętrznie
+docker exec szalasapp curl http://localhost:8080/health
+
+# Sprawdź czy działa przez HTTPS
+curl -I https://szalasapp.kawak.uk
+
+# Otwórz w przeglądarce
+# https://szalasapp.kawak.uk
+```
+
+### Krok 5: Testowanie OAuth i funkcjonalności
+
+1. **Upewnij się, że BASE_URL w .env to HTTPS:**
+   ```bash
+   BASE_URL=https://szalasapp.kawak.uk
+   ```
+
+2. **Restart aplikacji po zmianie .env:**
+   ```bash
+   docker compose -f docker-compose.npm.yml restart app
+   ```
+
+3. **Sprawdź Google OAuth redirect URIs** (patrz sekcja "Przygotowanie aplikacji")
+
+4. **Przetestuj:**
+   - Logowanie przez Google
+   - Upload zdjęć
+   - Wszystkie funkcjonalności
+
+### Zarządzanie
+
+**Restart aplikacji:**
+```bash
+cd ~/SzalasApp
+docker compose -f docker-compose.npm.yml restart app
+```
+
+**Logi aplikacji:**
+```bash
+docker compose -f docker-compose.npm.yml logs -f app
+```
+
+**Aktualizacja aplikacji:**
+```bash
+cd ~/SzalasApp
+git pull
+docker compose -f docker-compose.npm.yml up -d --build
+```
+
+**Zarządzanie certyfikatem:**
+- W NPM: **SSL Certificates** → kliknij na certyfikat → **Renew**
+- Auto-renewal: NPM automatycznie odnawia certyfikaty co 60 dni
+
+**Logi NPM:**
+```bash
+# Przejdź do katalogu NPM
+cd /path/to/nginx-proxy-manager
+docker compose logs -f
+```
+
+### Troubleshooting dla NPM
+
+**Problem: 502 Bad Gateway**
+
+1. Sprawdź czy aplikacja działa:
+   ```bash
+   docker ps | grep szalasapp
+   docker exec szalasapp curl http://localhost:8080/health
+   ```
+
+2. Sprawdź czy kontenery są w tej samej sieci:
+   ```bash
+   docker network inspect proxy-network
+   # Powinny być widoczne: nginx-proxy-manager i szalasapp
+   ```
+
+3. Sprawdź konfigurację Forward Hostname w NPM:
+   - Jeśli wspólna sieć: użyj nazwy kontenera (`szalasapp`)
+   - Przetestuj ping: `docker exec nginx-proxy-manager ping szalasapp`
+
+**Problem: SSL nie działa**
+
+1. Sprawdź logi NPM:
+   ```bash
+   cd /path/to/nginx-proxy-manager
+   docker compose logs certbot
+   ```
+
+2. Upewnij się, że DNS jest poprawnie skonfigurowany (Let's Encrypt weryfikuje przez port 80)
+
+3. Spróbuj ręcznie odnowić certyfikat w interfejsie NPM
+
+**Problem: OAuth redirect error**
+
+1. Sprawdź BASE_URL w .env:
+   ```bash
+   docker exec szalasapp env | grep BASE_URL
+   # Musi być: BASE_URL=https://szalasapp.kawak.uk
+   ```
+
+2. Sprawdź Google Cloud Console:
+   - Authorized redirect URIs: `https://szalasapp.kawak.uk/oauth2callback`
+
+### Zalety używania NPM
+
+✅ Łatwy interfejs webowy (nie trzeba edytować plików Nginx)  
+✅ Automatyczne zarządzanie certyfikatami SSL  
+✅ Łatwe dodawanie wielu aplikacji/domen  
+✅ Wbudowane logi i monitoring  
+✅ Access Lists (kontrola dostępu)  
+✅ Stream (TCP/UDP proxy)  
+
+### Przejdź dalej
+
+Po skonfigurowaniu NPM przejdź do:
+- [Monitorowanie i utrzymanie](#monitorowanie)
+- [Backup i odzyskiwanie](#backup)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Wariant B: Standardowy Nginx (Bez NPM) {#konfiguracja-ssl}
+
+**⚠️ Pomiń tę sekcję jeśli używasz Nginx Proxy Manager (patrz [Wariant A](#nginx-proxy-manager))**
+
+### Konfiguracja SSL/HTTPS z Nginx i Let's Encrypt
 
 ### 1. Podstawowa konfiguracja Nginx (przed SSL)
 
@@ -442,7 +896,7 @@ SMTP_USERNAME=twoj-email@gmail.com
 SMTP_PASSWORD="twoja-app-password"
 
 # Application URL (WAŻNE: użyj HTTPS!)
-APP_URL=https://szalasapp.kawak.uk
+BASE_URL=https://szalasapp.kawak.uk
 ```
 
 **Generowanie SECRET_KEY:**
@@ -796,15 +1250,15 @@ sudo nginx -t
 ### Problem: OAuth nie działa (redirect error)
 
 **Przyczyny:**
-1. Nieprawidłowy APP_URL w .env
+1. Nieprawidłowy BASE_URL w .env
 2. Brak redirect URI w Google Cloud Console
 
 **Rozwiązanie:**
 
 1. Sprawdź `.env`:
    ```bash
-   grep APP_URL .env
-   # Powinno być: APP_URL=https://szalasapp.kawak.uk
+   grep BASE_URL .env
+   # Powinno być: BASE_URL=https://szalasapp.kawak.uk
    ```
 
 2. Sprawdź Google Cloud Console:
