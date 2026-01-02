@@ -6,19 +6,33 @@ System do zarządzania sprzętem szczepu z funkcją zgłaszania usterek i logowa
 
 ```
 SzalasApp/
-├── app.py                  # Główny plik aplikacji Flask
-├── Dockerfile              # Konfiguracja Docker
-├── .env.example            # Template zmiennych środowiskowych
-├── .gitignore              # Git ignore rules
-├── README.md               # Ten plik
+├── app/                    # Aplikacja Python
+│   ├── src/               # Kod źródłowy
+│   ├── templates/         # Szablony Jinja2
+│   ├── static/           # Pliki statyczne (CSS, JS, images)
+│   ├── scripts/          # Skrypty utility
+│   ├── app.py            # Entry point
+│   ├── pyproject.toml    # Poetry dependencies
+│   ├── poetry.lock       # Locked versions
+│   └── requirements.txt  # Eksport dla pip
 │
-├── pyproject.toml          # Poetry - definicja projektu
-├── poetry.lock             # Poetry - zamrożone wersje
-├── poetry.toml             # Poetry - konfiguracja
-├── requirements.txt        # pip - eksport zależności
+├── Dockerfile            # Docker configuration
+├── docker-compose.yml    # Docker Compose setup
+├── .env.example          # Template zmiennych środowiskowych
+├── .gitignore            # Git ignore rules
 │
-├── src/                    # Kod źródłowy aplikacji
-│   ├── __init__.py
+├── Makefile             # Convenience commands
+├── setup.ps1            # Setup script (Windows)
+├── setup.sh             # Setup script (Linux/macOS)
+│
+├── credentials/         # Service account JSON (NIE commitować!)
+│   └── service-account.json
+│
+├── wiki/               # Dokumentacja i Wiki
+│   ├── docs/          # Pliki źródłowe dokumentacji
+│   ├── export/        # Wygenerowane pliki wiki (generowane)
+│   ├── prepare_wiki.py # Skrypt generujący wiki
+│   └── GITHUB_WIKI_GUIDE.md
 │   ├── auth.py             # Uwierzytelnianie (Firebase, OAuth)
 │   ├── oauth.py            # OAuth (Google, Microsoft)
 │   ├── admin.py            # Panel administratora
@@ -94,6 +108,12 @@ Kompletna dokumentacja projektu znajduje się w folderze `docs/`:
 - [OAuth Setup](docs/03_OAUTH_SETUP.md) - Konfiguracja Google/Microsoft
 - [Synchronizacja Użytkowników](docs/05_USER_SYNC.md) - Sync z Firebase
 - [Panel Administratora](docs/09_ADMIN_PANEL.md) - Wszystkie funkcje
+
+**Wdrożenie Produkcyjne:** 🚀
+- [**Wdrożenie z Docker i HTTPS**](wiki/docs/26_DEPLOYMENT_PRODUCTION.md) - Kompletny poradnik produkcyjny
+- [**Szybki Start Wdrożenia**](DEPLOYMENT_QUICKSTART.md) - Skrócona instrukcja
+- [Skrypt automatycznego setupu](deploy-setup.sh) - Dla serwerów Linux
+- [Skrypt wdrożenia z Windows](deploy-from-windows.ps1) - Dla Windows PowerShell
 
 **Funkcje Systemu:**
 - [Zarządzanie Sprzętem](docs/06_EQUIPMENT_MANAGEMENT.md) - Kompletny przewodnik
