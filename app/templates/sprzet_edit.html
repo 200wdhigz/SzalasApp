@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">{% if sprzet %}Edytuj Sprzęt: {{ sprzet.id }}{% else %}Dodaj Nowy Sprzęt{% endif %}</h2>
+    
+    <div class="card shadow">
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="id" class="form-label">ID (np. NA01)</label>
+                        <input type="text" name="id" id="id" class="form-control" value="{{ sprzet.id if sprzet else '' }}" {% if sprzet %}readonly{% endif %} required pattern="^[A-Z]{2}\d{2,}$" title="ID musi składać się z dwóch wielkich liter i co najmniej dwóch cyfr (np. NA01)">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="typ" class="form-label">Typ</label>
+                        <input type="text" name="typ" id="typ" class="form-control" value="{{ sprzet.typ if sprzet else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="lokalizacja" class="form-label">Magazyn / Lokalizacja</label>
+                        <input type="text" name="lokalizacja" id="lokalizacja" class="form-control" value="{{ sprzet.lokalizacja if sprzet else '' }}">
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="wodoszczelnosc" class="form-label">Wodoszczelność</label>
+                        <select name="wodoszczelnosc" id="wodoszczelnosc" class="form-select">
+                            <option value="Nie cieknie" {% if sprzet and sprzet.wodoszczelnosc == 'Nie cieknie' %}selected{% endif %}>Nie cieknie</option>
+                            <option value="Cieknie" {% if sprzet and sprzet.wodoszczelnosc == 'Cieknie' %}selected{% endif %}>Cieknie</option>
+                            <option value="N/A" {% if sprzet and sprzet.wodoszczelnosc == 'N/A' %}selected{% endif %}>N/A</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="stan_ogolny" class="form-label">Stan Ogólny</label>
+                        <input type="text" name="stan_ogolny" id="stan_ogolny" class="form-control" value="{{ sprzet.stan_ogolny if sprzet else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="przeznaczenie" class="form-label">Przeznaczenie</label>
+                        <input type="text" name="przeznaczenie" id="przeznaczenie" class="form-control" value="{{ sprzet.przeznaczenie if sprzet else '' }}">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="zakup" class="form-label">Data Zakupu</label>
+                        <input type="text" name="zakup" id="zakup" class="form-control" value="{{ sprzet.zakup if sprzet else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="przejecie" class="form-label">Data Przejęcia</label>
+                        <input type="text" name="przejecie" id="przejecie" class="form-control" value="{{ sprzet.przejecie if sprzet else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="kolor_dachu" class="form-label">Kolor dachu</label>
+                        <input type="text" name="kolor_dachu" id="kolor_dachu" class="form-control" value="{{ sprzet.kolor_dachu if sprzet else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="kolor_bokow" class="form-label">Kolor boków</label>
+                        <input type="text" name="kolor_bokow" id="kolor_bokow" class="form-control" value="{{ sprzet.kolor_bokow if sprzet else '' }}">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="znak_szczegolny" class="form-label">Znak szczególny</label>
+                        <input type="text" name="znak_szczegolny" id="znak_szczegolny" class="form-control" value="{{ sprzet.znak_szczegolny if sprzet else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="zapalki" class="form-label">Zapałki</label>
+                        <input type="text" name="zapalki" id="zapalki" class="form-control" value="{{ sprzet.zapalki if sprzet else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="czyWraca" class="form-label">Czy wraca do Wawy?</label>
+                        <input type="text" name="czyWraca" id="czyWraca" class="form-control" value="{{ sprzet.czyWraca if sprzet else '' }}">
+                    </div>
+
+                    <div class="col-12">
+                        <label for="uwagi" class="form-label">Uwagi konserwacyjne</label>
+                        <textarea name="uwagi" id="uwagi" class="form-control" rows="2">{{ sprzet.uwagi if sprzet else '' }}</textarea>
+                    </div>
+                    <div class="col-12">
+                        <label for="historia" class="form-label">Historia</label>
+                        <textarea name="historia" id="historia" class="form-control" rows="2">{{ sprzet.historia if sprzet else '' }}</textarea>
+                    </div>
+
+                    {% if sprzet %}
+                    <div class="col-12 mt-4">
+                        <h5>Zarządzaj zdjęciami</h5>
+                        <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+                            {% for photo_url in sprzet.zdjecia_lista_url %}
+                            <div class="col">
+                                <div class="card h-100 shadow-sm">
+                                    <img src="{{ photo_url }}" class="card-img-top" alt="Zdjęcie sprzętu" style="height: 150px; object-fit: cover;">
+                                    <div class="card-footer text-center">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" name="usun_zdjecia" value="{{ photo_url }}" id="del_{{ loop.index }}">
+                                            <label class="form-check-label text-danger" for="del_{{ loop.index }}">Usuń</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="mb-3">
+                            <label for="nowe_zdjecia" class="form-label">Dodaj nowe zdjęcia</label>
+                            <input type="file" name="nowe_zdjecia" id="nowe_zdjecia" class="form-control" multiple accept="image/*">
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> {% if sprzet %}Zapisz Zmiany{% else %}Dodaj Sprzęt{% endif %}
+                    </button>
+                    <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">Anuluj</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
