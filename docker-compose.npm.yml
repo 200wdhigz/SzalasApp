@@ -14,9 +14,7 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: filiprar/szalasapp:latest
     container_name: szalasapp
 
     # NIE eksponuj portów na zewnątrz - tylko wewnętrzna sieć Docker
