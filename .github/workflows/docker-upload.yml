@@ -29,7 +29,6 @@ jobs:
           tags: |
             type=raw,value=edge
             type=sha,format=short,prefix=sha-
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
@@ -39,3 +38,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
