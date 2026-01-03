@@ -6,9 +6,7 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: filiprar/szalasapp:latest
     container_name: szalasapp
     ports:
       - "127.0.0.1:8080:8080"  # Bind tylko do localhost (Nginx proxy)
