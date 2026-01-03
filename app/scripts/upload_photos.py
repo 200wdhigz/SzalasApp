@@ -2,8 +2,8 @@ import os
 import re
 from dotenv import load_dotenv
 from google.cloud import firestore
-from ..src.gcs_utils import upload_blob_to_gcs, GOOGLE_CLOUD_STORAGE_BUCKET_NAME
-from ..src.db_firestore import COLLECTION_SPRZET
+from app.src.gcs_utils import upload_blob_to_gcs, GOOGLE_CLOUD_STORAGE_BUCKET_NAME
+from app.src.db_firestore import COLLECTION_SPRZET
 
 load_dotenv()
 
