@@ -51,10 +51,4 @@ USER appuser
 EXPOSE ${PORT}
 
 # Run with Gunicorn for production
-CMD gunicorn --bind 0.0.0.0:${PORT} \
-    --workers 4 \
-    --threads 2 \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile - \
-    app:app
+CMD poetry run app.py
