@@ -18,7 +18,7 @@ WORKDIR /app
 COPY app/pyproject.toml app/poetry.lock app/poetry.toml ./
 
 # Install dependencies (production only)
-RUN poetry install --only main,prod --no-root --no-ansi && \
+RUN poetry install --no-root && \
     rm -rf ${POETRY_CACHE_DIR}
 
 # Stage 2: Runtime - Minimal production image
@@ -51,4 +51,4 @@ USER appuser
 EXPOSE ${PORT}
 
 # Run with Gunicorn for production
-CMD poetry run app.py
+CMD python app.py
