@@ -51,7 +51,7 @@
                                     Pokaż
                                 </button>
                                 <div class="collapse mt-2" id="details_{{ loop.index }}">
-                                    <pre class="small bg-light p-2 rounded"><code>{{ log.details | tojson(indent=2) if log.details else 'Brak' }}</code></pre>
+                                    <pre class="small p-2 rounded"><code>{{ log.details | tojson(indent=2) if log.details else 'Brak' }}</code></pre>
                                 </div>
                             </td>
                         </tr>
