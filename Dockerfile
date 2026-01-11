@@ -16,8 +16,8 @@ WORKDIR /app
 
 # Copy dependency files first (better layer caching)
 COPY app/pyproject.toml app/poetry.lock app/poetry.toml ./
-# Poetry może wymagać pliku readme zdefiniowanego w pyproject
-COPY README.md ./README.md
+# Poetry requires readme file referenced in pyproject.toml
+COPY app/README.md ./README.md
 
 # Install dependencies (production only)
 RUN poetry install --no-root && \
