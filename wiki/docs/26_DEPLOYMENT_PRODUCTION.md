@@ -3,35 +3,142 @@
 ## Spis treści
 1. [Wprowadzenie](#wprowadzenie)
 2. [Wymagania](#wymagania)
-3. [Architektura wdrożenia](#architektura-wdrożenia)
+3. [Architektura wdrożenia](#architektura-wdrozenia)
 4. [Przygotowanie serwera](#przygotowanie-serwera)
 5. [Konfiguracja domeny](#konfiguracja-domeny)
 6. **[Wariant A: Nginx Proxy Manager (Jeśli już używasz NPM)](#nginx-proxy-manager)**
-   - [Konfiguracja sieci Docker](#krok-1-konfiguracja-sieci-docker)
-   - [Uruchomienie SzalasApp](#krok-2-uruchomienie-szalasapp)
-   - [Konfiguracja Proxy Host](#krok-3-konfiguracja-proxy-host-w-npm)
-   - [Zaawansowane funkcje NPM](#zaawansowane-funkcje-npm-dla-szalasapp)
-     - Access Lists
-     - Basic Authentication
-     - Custom Locations
-     - Monitorowanie
-     - Backup konfiguracji
-   - [Migracja do NPM](#migracja-do-npm-z-innych-rozwiązań)
-   - [Najlepsze praktyki](#najlepsze-praktyki-dla-npm--szalasapp)
-   - [Skalowanie](#skalowanie-z-npm)
-   - [FAQ](#faq-dla-npm)
-   - [Automatyzacja wdrożeń](#automatyzacja-wdrożeń-z-npm)
-     - GitHub Actions
-     - Webhook
-     - Watchtower
-     - Blue-Green Deployment
-     - Zero-Downtime Best Practices
 7. **[Wariant B: Standardowy Nginx](#konfiguracja-ssl)**
 8. [Przygotowanie aplikacji](#przygotowanie-aplikacji)
-9. [Wdrożenie z Docker Compose](#wdrożenie-docker)
+9. [Wdrożenie z Docker Compose](#wdrozenie-docker)
 10. [Monitorowanie i utrzymanie](#monitorowanie)
 11. [Backup i odzyskiwanie](#backup)
 12. [Troubleshooting](#troubleshooting)
+
+<!-- Anchor IDs for Markdown renderers/IDEs -->
+<a id="wprowadzenie"></a>
+
+## Jak nie „zaśmiecać” repo plikami `docker-compose` i `.env`
+
+Jeśli nie chcesz trzymać wielu wariantów `docker-compose*.yml` i plików `.env` w repo, najprostszy model jest taki:
+
+- repo zostaje źródłem kodu i dokumentacji,
+- a **konfigurację deploymentu trzymasz poza repo** (na serwerze), np. w `/opt/szalasapp/`.
+
+Poniżej masz jedną, referencyjną konfigurację do produkcji. Skopiuj ją 1:1 na serwer (bez dodawania do repo).
+
+### `docker-compose.yml` (na serwerze)
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    image: filiprar/szalasapp:latest  # albo: filiprar/szalasapp:vX.Y.Z
+    container_name: szalasapp
+
+    # jeśli używasz Nginx/NPM jako reverse proxy: bind tylko do localhost
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+
+      # Google Cloud / Firebase
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=${GOOGLE_CLOUD_STORAGE_BUCKET_NAME}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+
+      # reCAPTCHA
+      - RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
+      - RECAPTCHA_PROJECT_ID=${RECAPTCHA_PROJECT_ID}
+
+      # OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+
+      # SMTP
+      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+
+      # URL aplikacji (dla OAuth redirect)
+      - BASE_URL=${BASE_URL}
+
+    volumes:
+      - ./credentials:/app/credentials:ro
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  default:
+    name: szalasapp-network
+```
+
+### `.env` (na serwerze)
+
+```dotenv
+# Flask
+SECRET_KEY=change-me
+DEBUG=False
+
+# Google Cloud
+GOOGLE_PROJECT_ID=your-project-id
+GOOGLE_CLOUD_STORAGE_BUCKET_NAME=your-bucket
+GOOGLE_API_KEY=your-firebase-web-api-key
+
+# OAuth / URL
+BASE_URL=https://twoja-domena.pl
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+
+# reCAPTCHA
+RECAPTCHA_SITE_KEY=...
+RECAPTCHA_PROJECT_ID=...
+
+# SMTP (opcjonalnie)
+SMTP_USERNAME=...
+SMTP_PASSWORD=...
+```
+
+### Aktualizacja aplikacji na serwerze (bez gita)
+
+Jeśli wdrożenie jest oparte o obraz z DockerHub (`filiprar/szalasapp`), aktualizacja nie wymaga `git pull`.
+
+1. (Opcjonalnie) ustaw docelową wersję w `docker-compose.yml`:
+   - stabilnie: `image: filiprar/szalasapp:latest`
+   - pin do wersji: `image: filiprar/szalasapp:vX.Y.Z`
+
+2. Pobierz i uruchom:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Rollback:
+- ustaw starszy tag `vX.Y.Z` albo `sha-...` i zrób `docker compose up -d`.
+
+### Jak wypuścić nową wersję (GitHub UI / IDE)
+
+Jeśli maintainersi nie używają komend `git`:
+1. Utwórz Pull Request do `master`.
+2. W PR zmień `app/pyproject.toml` → `version = "X.Y.Z"` (na nowy numer).
+3. Zmerguj PR.
+4. GitHub Actions utworzy tag `vX.Y.Z` i wypchnie obraz `filiprar/szalasapp:vX.Y.Z` oraz zaktualizuje `latest`.
+
+> Jeśli PR nie zawiera zmiany wersji, publikowany jest tylko build `edge` i `sha-*`.
 
 ## Wprowadzenie
 
@@ -48,7 +155,6 @@ Ten poradnik opisuje krok po kroku, jak wdrożyć aplikację SzalasApp na serwer
 - ✅ Automatyczne zarządzanie certyfikatami
 - ✅ Idealne jeśli hostujesz więcej aplikacji
 - 📄 [Przejdź do Wariant A](#nginx-proxy-manager)
-- 📄 [Szybki Start NPM](../../DEPLOYMENT_NPM_QUICKSTART.md) - skrócona instrukcja
 
 **Wariant B: Standardowy Nginx** (Ręczna konfiguracja)
 - 🔧 Pełna kontrola nad konfiguracją
@@ -87,6 +193,7 @@ Ten poradnik opisuje krok po kroku, jak wdrożyć aplikację SzalasApp na serwer
 - Dane SMTP (opcjonalne)
 
 ## Architektura wdrożenia
+<a id="architektura-wdrozenia"></a>
 
 ### Wariant A: Z Nginx Proxy Manager
 
@@ -330,7 +437,8 @@ dig szalasapp.kawak.uk +short
 
 Powinno zwrócić adres IP twojego serwera.
 
-## Wariant A: Nginx Proxy Manager (Jeśli już używasz NPM) {#nginx-proxy-manager}
+## Wariant A: Nginx Proxy Manager (Jeśli już używasz NPM)
+<a id="nginx-proxy-manager"></a>
 
 **⚠️ Jeśli już masz zainstalowany Nginx Proxy Manager w osobnym Docker Compose, przejdź do tej sekcji zamiast standardowej konfiguracji Nginx.**
 
@@ -586,7 +694,12 @@ curl -I https://szalasapp.kawak.uk
 **Restart aplikacji:**
 ```bash
 cd ~/SzalasApp
-docker compose -f docker-compose.npm.yml restart app
+
+# Przywróć plik .env (jeśli był zmieniany)
+cp .env.example .env
+
+# Uruchom ponownie aplikację
+docker compose -f docker-compose.npm.yml up -d --build
 ```
 
 **Logi aplikacji:**
@@ -655,6 +768,11 @@ docker compose logs -f
 2. Sprawdź Google Cloud Console:
    - Authorized redirect URIs: `https://szalasapp.kawak.uk/oauth2callback`
 
+3. Restart aplikacji:
+   ```bash
+   docker compose -f docker-compose.npm.yml restart app
+   ```
+
 ### Zalety używania NPM
 
 ✅ Łatwy interfejs webowy (nie trzeba edytować plików Nginx)  
@@ -666,16 +784,17 @@ docker compose logs -f
 
 ### Przejdź dalej
 
-Po skonfigurowaniu NPM przejdź do:
-- [Monitorowanie i utrzymanie](#monitorowanie)
-- [Backup i odzyskiwanie](#backup)
-- [Troubleshooting](#troubleshooting)
+Po skonfigurowaniu NPM przejdź dalej do sekcji:
+- "Monitorowanie i utrzymanie"
+- "Backup i odzyskiwanie"
+- "Troubleshooting"
 
 ---
 
-## Wariant B: Standardowy Nginx (Bez NPM) {#konfiguracja-ssl}
+## Wariant B: Standardowy Nginx (Bez NPM)
+<a id="konfiguracja-ssl"></a>
 
-**⚠️ Pomiń tę sekcję jeśli używasz Nginx Proxy Manager (patrz [Wariant A](#nginx-proxy-manager))**
+**⚠️ Pomiń tę sekcję jeśli używasz Nginx Proxy Manager (patrz sekcja "Wariant A: Nginx Proxy Manager").**
 
 ### Konfiguracja SSL/HTTPS z Nginx i Let's Encrypt
 
@@ -966,7 +1085,8 @@ W Google Cloud Console (reCAPTCHA):
 3. Dodaj domenę: `szalasapp.kawak.uk`
 4. Zapisz
 
-## Wdrożenie z Docker Compose {#wdrożenie-docker}
+## Wdrożenie z Docker Compose
+<a id="wdrozenie-docker"></a>
 
 ### 1. Budowanie i uruchomienie kontenera
 
@@ -1043,6 +1163,7 @@ services:
 ```
 
 ## Monitorowanie i utrzymanie
+<a id="monitorowanie"></a>
 
 ### 1. Monitorowanie logów aplikacji
 
@@ -1125,6 +1246,7 @@ docker system prune -a --volumes
 ```
 
 ## Backup i odzyskiwanie
+<a id="backup"></a>
 
 ### 1. Backup aplikacji
 
@@ -1201,6 +1323,7 @@ docker compose up -d
 ```
 
 ## Troubleshooting
+<a id="troubleshooting"></a>
 
 ### Problem: Aplikacja nie startuje
 
@@ -1491,4 +1614,3 @@ sudo certbot renew
 **Powodzenia z wdrożeniem! 🚀**
 
 Jeśli napotkasz problemy, sprawdź sekcję [Troubleshooting](#troubleshooting) lub logi aplikacji.
-

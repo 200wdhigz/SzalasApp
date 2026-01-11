@@ -1,5 +1,9 @@
 # ✅ Aktualizacja prepare_wiki.py - Podsumowanie
 
+> ⚠️ Uwaga (aktualizacja 2026-01-11): ten dokument jest **historyczny**.
+> Obecnie generowanie i publikacja Wiki odbywa się przez GitHub Actions workflow:
+> `.github/workflows/update-wiki.yml` (bez uruchamiania `prepare_wiki.py`).
+
 **Data:** 2026-01-01  
 **Status:** ✅ UKOŃCZONE
 
@@ -87,36 +91,16 @@ FILE_MAPPING = {
 
 ---
 
-## ✅ Weryfikacja
+## ✅ Weryfikacja (obecnie)
 
-### Test skryptu:
-```bash
-python prepare_wiki.py
-```
+Dziś aktualizacja Wiki odbywa się przez GitHub Actions workflow:
+- `.github/workflows/update-wiki.yml`
 
-**Rezultat:**
-- ✅ Przetworzono: **27 plików**
-- ✅ Błędów: **0**
-- ✅ Wygenerowano: **29 plików** (27 + _Sidebar + _Footer)
+**Jak uruchomić ręcznie (bez gita):**
+1. GitHub → Actions
+2. workflow `update-wiki`
+3. **Run workflow** (branch `master`)
 
-### Nowe pliki w wiki_export/:
-
-✅ Wszystkie 13 nowych plików zostały wygenerowane:
-- Data-Export.md
-- Security.md
-- Backup-and-Restore.md
-- Installation.md
-- Docker-Deployment.md
-- Monitoring-and-Logs.md
-- ReCAPTCHA.md
-- Firebase-Configuration.md
-- Email-SMTP.md
-- Troubleshooting.md
-- Development.md
-- Testing.md
-- Contributing.md
-
----
 
 ## 📋 Kompletne FILE_MAPPING
 
@@ -165,37 +149,6 @@ FILE_MAPPING = {
 
 ---
 
-## 🎉 Rezultat
-
-### Skrypt prepare_wiki.py jest teraz:
-
-- ✅ **Kompletny** - Wszystkie 27 plików z docs/
-- ✅ **Aktualny** - Sidebar odzwierciedla rzeczywistą strukturę
-- ✅ **Działający** - 0 błędów, 27 plików przetworzonych
-- ✅ **Gotowy** - Do generowania pełnej dokumentacji Wiki
-
-### Użytkownik może:
-
-1. **Wygenerować Wiki:**
-   ```bash
-   python prepare_wiki.py
-   # Wygeneruje 29 plików (27 + sidebar + footer)
-   ```
-
-2. **Deploy do GitHub:**
-   ```bash
-   git clone https://github.com/200wdhigz/SzalasApp.wiki.git
-   Copy-Item -Path wiki_export\* -Destination SzalasApp.wiki\ -Force
-   cd SzalasApp.wiki
-   git add .
-   git commit -m "Complete documentation - 27 files"
-   git push
-   ```
-
-3. **Cieszyć się pełną dokumentacją na Wiki!** 🎊
-
----
-
 ## 📈 Statystyki
 
 ### Zmiany w prepare_wiki.py:
@@ -216,4 +169,3 @@ FILE_MAPPING = {
 **Plików dodanych:** 13
 
 🎊 **prepare_wiki.py jest teraz kompletny i gotowy do użycia!**
-

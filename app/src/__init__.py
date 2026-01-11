@@ -20,6 +20,30 @@ def get_firestore_client():
     return firestore.client()
 
 
+def _init_firebase_admin():
+    """Inicjalizuje Firebase Admin w sposób przyjazny dla localhost/Docker.
+
+    Preferuje service account JSON (GOOGLE_APPLICATION_CREDENTIALS), bo ADC na
+    środowiskach bez metadata server potrafi kończyć się długim timeoutem.
+    """
+    if _apps:
+        return
+
+    cred_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    try:
+        if cred_path and os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            initialize_app(cred, {'projectId': GOOGLE_PROJECT_ID} if GOOGLE_PROJECT_ID else {})
+            return
+
+        # Fallback: Application Default Credentials
+        cred = credentials.ApplicationDefault()
+        initialize_app(cred, {'projectId': GOOGLE_PROJECT_ID} if GOOGLE_PROJECT_ID else {})
+    except Exception as e:
+        # Nie wywalamy aplikacji przy starcie, ale logujemy ostrzeżenie.
+        print(f"Firebase initialization warning: {e}")
+
+
 def create_app():
     template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
     app = Flask("SzalasApp", template_folder=template_dir)
@@ -35,12 +59,7 @@ def create_app():
             csrf_token=generate_csrf_token
         )
 
-    if not _apps:
-        try:
-            cred = credentials.ApplicationDefault()
-            initialize_app(cred, {'projectId': GOOGLE_PROJECT_ID})
-        except Exception as e:
-            print(f"Firebase initialization warning: {e}")
+    _init_firebase_admin()
 
     from .views import views_bp
     from .auth import auth_bp
