@@ -1,6 +1,6 @@
 # 📚 Wiki & Dokumentacja
 
-Ten folder zawiera całą dokumentację projektu SzalasApp oraz narzędzia do generowania GitHub Wiki.
+Ten folder zawiera dokumentację projektu SzalasApp oraz źródła dla GitHub Wiki.
 
 ---
 
@@ -8,241 +8,59 @@ Ten folder zawiera całą dokumentację projektu SzalasApp oraz narzędzia do ge
 
 ```
 wiki/
-├── docs/               # Pliki źródłowe dokumentacji (Markdown)
+├── docs/                 # Pliki źródłowe dokumentacji (Markdown)
 │   ├── 00_INDEX.md
 │   ├── 01_QUICK_START.md
-│   ├── 02_ARCHITECTURE.md
-│   ├── 03_OAUTH_SETUP.md
-│   └── ... (25+ dokumentów)
+│   └── ...
 │
-├── export/            # Wygenerowane pliki wiki (generowane, git ignore)
-│   └── (pliki .md dla GitHub Wiki)
-│
-├── prepare_wiki.py    # Skrypt generujący wiki
-├── GITHUB_WIKI_GUIDE.md # Instrukcje publikacji
-└── README.md          # Ten plik
+├── export/               # Wygenerowane pliki wiki (tworzone przez workflow)
+├── GITHUB_WIKI_GUIDE.md  # Instrukcje publikacji / działania Wiki
+└── README.md             # Ten plik
 ```
+
+> `export/` jest generowane automatycznie przez workflow i nie powinno być edytowane ręcznie.
 
 ---
 
-## 🚀 Jak Używać
+## 🚀 Jak aktualizować GitHub Wiki (zalecane)
 
-### 1. Edytuj Dokumentację
+Wiki aktualizuje się automatycznie przez GitHub Actions workflow: `.github/workflows/update-wiki.yml`.
 
-Wszystkie pliki źródłowe są w `docs/`:
+### Kiedy się uruchamia?
 
-```bash
-cd wiki/docs
-# Edytuj pliki .md
-```
+- po merge / push do `master`
+- albo ręcznie (Actions → **update-wiki** → **Run workflow**)
 
-### 2. Generuj Wiki dla GitHub
+### Co robi workflow?
 
-```bash
-cd wiki
-python prepare_wiki.py
-```
+1. Bierze pliki z `wiki/docs/`
+2. Generuje `wiki/export/` (konwersja linków na format GitHub Wiki + generuje `_Sidebar.md` i `_Footer.md`)
+3. Wypycha wynik do repozytorium Wiki (`<repo>.wiki`)
 
-To utworzy pliki w `export/` gotowe do publikacji na GitHub Wiki.
-
-### 3. Publikuj na GitHub Wiki
-
-```bash
-# Sklonuj wiki repo
-git clone https://github.com/200wdhigz/SzalasApp.wiki.git
-
-# Skopiuj wygenerowane pliki
-cp export/* SzalasApp.wiki/
-
-# Commit i push
-cd SzalasApp.wiki
-git add .
-git commit -m "Update documentation"
-git push origin master
-```
-
-Pełne instrukcje w: [GITHUB_WIKI_GUIDE.md](GITHUB_WIKI_GUIDE.md)
+✅ **Nie musisz uruchamiać żadnych skryptów lokalnie** i **nie musisz mieć Pythona**.
 
 ---
 
-## 📝 Pliki Dokumentacji
+## 🧑‍💻 Aktualizacja ręczna (opcjonalnie)
 
-### Główne Dokumenty
+Jeśli z jakiegoś powodu nie możesz użyć GitHub Actions:
 
-| Plik | Opis |
-|------|------|
-| `00_INDEX.md` | Indeks wszystkich dokumentów |
-| `01_QUICK_START.md` | Szybki start |
-| `02_ARCHITECTURE.md` | Architektura systemu |
-| `03_OAUTH_SETUP.md` | Konfiguracja OAuth |
-| `04_ACCOUNT_MANAGEMENT.md` | Zarządzanie kontami |
-| `05_USER_SYNC.md` | Synchronizacja użytkowników |
+1. Skopiuj pliki z `wiki/docs/` do swojego repo wiki i zachowaj nazwy z mapowania w workflow.
+2. Pamiętaj, że w GitHub Wiki linki powinny mieć format: `[tekst](Nazwa-Strony)` (bez `.md`).
 
-### Funkcje
-
-| Plik | Opis |
-|------|------|
-| `06_EQUIPMENT_MANAGEMENT.md` | Zarządzanie sprzętem |
-| `07_MALFUNCTION_SYSTEM.md` | System usterek |
-| `08_DATA_EXPORT.md` | Eksport danych |
-| `09_ADMIN_PANEL.md` | Panel administratora |
-
-### Bezpieczeństwo & Konfiguracja
-
-| Plik | Opis |
-|------|------|
-| `10_SECURITY.md` | Bezpieczeństwo |
-| `15_RECAPTCHA.md` | reCAPTCHA |
-| `16_FIREBASE.md` | Firebase |
-| `17_EMAIL_SMTP.md` | Email/SMTP |
-
-### Deployment
-
-| Plik | Opis |
-|------|------|
-| `12_INSTALLATION.md` | Instalacja |
-| `13_DOCKER.md` | Docker |
-| `11_BACKUP_RESTORE.md` | Backup i restore |
-| `14_MONITORING.md` | Monitoring |
-
-### Dla Deweloperów
-
-| Plik | Opis |
-|------|------|
-| `21_DEVELOPMENT.md` | Development |
-| `22_TESTING.md` | Testing |
-| `23_CONTRIBUTING.md` | Contributing |
-| `24_DEPENDENCIES.md` | Dependencies |
-
-### Inne
-
-| Plik | Opis |
-|------|------|
-| `18_CHANGELOG.md` | Changelog |
-| `19_FAQ.md` | FAQ |
-| `20_TROUBLESHOOTING.md` | Troubleshooting |
-| `25_FEATURE_SUMMARY.md` | Feature summary |
+W praktyce zalecamy jednak użycie workflow (automatyczne poprawianie linków i plików specjalnych).
 
 ---
 
-## 🔧 Skrypt prepare_wiki.py
+## 🔄 Workflow aktualizacji (skrót)
 
-### Co robi?
-
-1. Czyta pliki z `docs/`
-2. Przetwarza linki i referencje
-3. Dodaje nawigację
-4. Generuje pliki gotowe dla GitHub Wiki do `export/`
-
-### Użycie
-
-```bash
-cd wiki
-python prepare_wiki.py
-```
-
-### Wymagania
-
-- Python 3.8+
-- Standardowa biblioteka (brak dodatkowych pakietów)
+1. Edytujesz pliki Markdown w `wiki/docs/`
+2. Tworzysz PR → merge do `master`
+3. GitHub Actions aktualizuje Wiki automatycznie
 
 ---
 
-## 📖 Konwencje Pisania
+## ⚠️ Ważne uwagi
 
-### Nazewnictwo Plików
-
-- Format: `XX_NAZWA.md`
-- XX = numer (00-99)
-- NAZWA = wielkie litery z underscore
-- Przykład: `01_QUICK_START.md`
-
-### Linki Wewnętrzne
-
-```markdown
-# W docs/ (przed generowaniem):
-[Zobacz OAuth Setup](03_OAUTH_SETUP.md)
-
-# W export/ (po wygenerowaniu):
-[Zobacz OAuth Setup](OAuth-Setup)
-```
-
-### Obrazy
-
-```markdown
-# Relatywne do docs/
-![Diagram](../assets/diagram.png)
-
-# Po wygenerowaniu linki będą dostosowane
-```
-
-### Nagłówki
-
-```markdown
-# Główny Tytuł (H1) - jeden na dokument
-
-## Sekcja (H2)
-
-### Podsekcja (H3)
-
-#### Szczegół (H4)
-```
-
----
-
-## 🔄 Workflow Aktualizacji
-
-1. **Edytuj** pliki w `docs/`
-2. **Generuj** wiki: `python prepare_wiki.py`
-3. **Sprawdź** pliki w `export/`
-4. **Publikuj** na GitHub Wiki
-
----
-
-## ⚠️ Ważne Uwagi
-
-- **NIE edytuj** plików w `export/` - są generowane automatycznie
-- **Commituj** tylko pliki w `docs/`
-- `export/` jest w `.gitignore`
-- Zawsze uruchamiaj `prepare_wiki.py` z folderu `wiki/`
-
----
-
-## 🆘 Problemy?
-
-### "Module not found"
-
-```bash
-# Upewnij się że jesteś w wiki/
-cd wiki
-python prepare_wiki.py
-```
-
-### "File not found"
-
-```bash
-# Sprawdź strukturę
-ls docs/  # Powinny być pliki .md
-```
-
-### "Git push rejected"
-
-```bash
-# Upewnij się że masz dostęp do wiki
-# Wiki musi być włączone w ustawieniach repo
-```
-
----
-
-## 📞 Wsparcie
-
-- [GITHUB_WIKI_GUIDE.md](GITHUB_WIKI_GUIDE.md) - Szczegółowe instrukcje
-- [docs/20_TROUBLESHOOTING.md](docs/20_TROUBLESHOOTING.md) - Troubleshooting
-- [docs/19_FAQ.md](docs/19_FAQ.md) - FAQ
-
----
-
-**Struktura:** wiki/ jako centralne miejsce dla całej dokumentacji  
-**Generator:** prepare_wiki.py dla GitHub Wiki  
-**Status:** ✅ Gotowe do użycia
-
+- **Nie edytuj** ręcznie plików w `wiki/export/` – są generowane.
+- Jeśli chcesz dodać nowy dokument, dodaj go w `wiki/docs/` oraz dopisz w mapowaniu w `.github/workflows/update-wiki.yml`.
