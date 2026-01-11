@@ -146,7 +146,7 @@ def restore_item(log_id, user_id):
     data_to_restore = {k: v for k, v in before_data.items() if k not in ['id']}
 
     collection = COLLECTION_SPRZET if target_type == 'sprzet' else COLLECTION_USTERKI
-    
+
     # Pobierz aktualny stan przed przywróceniem (do logowania)
     current_item = get_item(collection, target_id)
 
@@ -158,10 +158,10 @@ def restore_item(log_id, user_id):
 
     # Przywróć dane
     set_item(collection, target_id, data_to_restore)
-    
+
     # Zaloguj akcję przywrócenia
     add_log(user_id, 'restore', target_type, target_id, before=current_data, after=data_to_restore, details={'restored_from_log_id': log_id})
-    
+
     return True, f"Przywrócono stan {target_type} {target_id}."
 
 def _get_doc_data(doc):
