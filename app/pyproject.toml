@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "szalasapp"
-version = "0.1.0"
+version = "0.1.2"
 description = "Equipment and malfunction management system with Firebase backend"
 authors = ["lodyczekoladowe <65414380+lodyczekoladowe@users.noreply.github.com>"]
 readme = "README.md"
