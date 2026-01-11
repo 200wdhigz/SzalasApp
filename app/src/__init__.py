@@ -44,6 +44,10 @@ def _init_firebase_admin():
         print(f"Firebase initialization warning: {e}")
 
 
+def _is_truthy(value: str | None) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def create_app():
     template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
     app = Flask("SzalasApp", template_folder=template_dir)
@@ -72,13 +76,35 @@ def create_app():
 
     @app.route('/health')
     def health_check():
-        """Health check endpoint for Docker and load balancers."""
+        """Health check endpoint.
+
+        Domyślnie jest to **liveness** (czy aplikacja działa) i zwraca 200 nawet
+        bez połączenia do Firestore (np. lokalnie / w CI bez credentials).
+
+        Jeśli chcesz wymusić sprawdzenie zależności (readiness), ustaw:
+        HEALTHCHECK_STRICT=true
+        """
+        strict = _is_truthy(os.getenv("HEALTHCHECK_STRICT"))
         try:
-            firestore.client()
-            return {'status': 'healthy', 'service': 'SzalasApp'}, 200
+            if strict:
+                if not _apps:
+                    raise RuntimeError("Firebase Admin not initialized")
+                firestore.client()
+            return {
+                'status': 'healthy',
+                'service': 'SzalasApp',
+                'firebase_initialized': bool(_apps),
+                'strict': strict,
+            }, 200
         except Exception as e:
             app.logger.error(f"Health check failed: {e}")
-            return {'status': 'unhealthy', 'error': str(e)}, 503
+            return {
+                'status': 'unhealthy',
+                'service': 'SzalasApp',
+                'firebase_initialized': bool(_apps),
+                'strict': strict,
+                'error': str(e)
+            }, 503
 
     @app.route('/.well-known/<path:filename>')
     def well_known(filename):
