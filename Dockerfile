@@ -16,8 +16,8 @@ WORKDIR /app
 
 # Copy dependency files first (better layer caching)
 COPY app/pyproject.toml app/poetry.lock app/poetry.toml ./
-# Poetry może wymagać pliku readme zdefiniowanego w pyproject (readme = "README.md")
-COPY app/README.md ./README.md
+# Poetry może wymagać pliku readme zdefiniowanego w pyproject
+COPY README.md ./README.md
 
 # Install dependencies (production only)
 RUN poetry install --no-root && \
@@ -53,4 +53,4 @@ USER appuser
 EXPOSE ${PORT}
 
 # Run with Gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:${PORT}", "--workers", "4", "--threads", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+CMD ["/bin/sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 4 --threads 2 --timeout 120 --access-logfile - --error-logfile - app:app"]
