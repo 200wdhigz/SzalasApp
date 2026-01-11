@@ -2,7 +2,7 @@
 # Ten plik jest używany gdy masz już zainstalowany Nginx Proxy Manager w osobnym docker-compose
 #
 # Uruchomienie:
-# docker compose -f docker-compose.npm.yml up -d --build
+# docker compose -f docker-compose.npm.yml up -d
 #
 # Wymagania:
 # 1. Nginx Proxy Manager już działa w osobnym docker-compose
@@ -17,53 +17,27 @@ services:
     image: filiprar/szalasapp:latest
     container_name: szalasapp
 
-    # NIE eksponuj portów na zewnątrz - tylko wewnętrzna sieć Docker
-    # NPM będzie łączył się bezpośrednio przez nazwę kontenera
     expose:
       - "8080"
+
+    # Load most configuration from .env (avoids issues with '$' being treated as variable interpolation)
+    env_file:
+      - .env
 
     environment:
       - PORT=8080
       - HOST=0.0.0.0
       - DEBUG=${DEBUG:-False}
-
-      # Security
-      - SECRET_KEY=${SECRET_KEY}
-
-      # Google Cloud / Firebase
-      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
-      - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=${GOOGLE_CLOUD_STORAGE_BUCKET_NAME}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/app/credentials/service-account.json}
 
-      # reCAPTCHA
-      - RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
-      - RECAPTCHA_PROJECT_ID=${RECAPTCHA_PROJECT_ID}
-
-      # OAuth
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-
-      # SMTP
-      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-
-      # App URL - WAŻNE: musi być pełny URL z HTTPS
-      - BASE_URL=${BASE_URL}
-
     volumes:
-      # Mount credentials (read-only)
       - ./credentials:/app/credentials:ro
 
     restart: unless-stopped
 
-    # Podłączenie do wspólnej sieci z NPM
     networks:
       - proxy-network
 
-    # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -71,20 +45,8 @@ services:
       retries: 3
       start_period: 40s
 
-    # Opcjonalne limity zasobów (odkomentuj jeśli potrzebujesz)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '2.0'
-    #       memory: 2G
-    #     reservations:
-    #       cpus: '0.5'
-    #       memory: 512M
-
 networks:
   proxy-network:
-    # Zewnętrzna sieć współdzielona z Nginx Proxy Manager
-    # Musi być utworzona wcześniej: docker network create proxy-network
     external: true
 
 # INSTRUKCJA KONFIGURACJI NGINX PROXY MANAGER:
@@ -112,4 +74,3 @@ networks:
 #
 # Więcej informacji w dokumentacji:
 # wiki/docs/26_DEPLOYMENT_PRODUCTION.md - sekcja "Wariant A: Nginx Proxy Manager"
-

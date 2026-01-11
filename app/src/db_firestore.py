@@ -5,7 +5,7 @@ COLLECTION_SPRZET = 'sprzet'
 COLLECTION_USTERKI = 'usterki'
 COLLECTION_LOGS = 'logs'
 
-def add_log(user_id, action, target_type, target_id, details=None):
+def add_log(user_id, action, target_type, target_id, details=None, before=None, after=None):
     """Zapisuje log akcji użytkownika."""
     db = get_firestore_client()
     log_data = {
@@ -14,6 +14,8 @@ def add_log(user_id, action, target_type, target_id, details=None):
         'target_type': target_type,
         'target_id': target_id,
         'details': details,
+        'before': before,
+        'after': after,
         'timestamp': firestore.SERVER_TIMESTAMP
     }
     db.collection(COLLECTION_LOGS).add(log_data)
@@ -24,11 +26,50 @@ def get_logs_by_user(user_id):
     query = db.collection(COLLECTION_LOGS).where(filter=firestore.FieldFilter('user_id', '==', user_id)).order_by('timestamp', direction=firestore.Query.DESCENDING)
     return [_get_doc_data(doc) for doc in query.stream()]
 
+def get_logs_by_target(target_id):
+    """Pobiera logi dla konkretnego obiektu (sprzętu lub usterki)."""
+    db = get_firestore_client()
+    query = db.collection(COLLECTION_LOGS).where(filter=firestore.FieldFilter('target_id', '==', target_id)).order_by('timestamp', direction=firestore.Query.DESCENDING)
+    return [_get_doc_data(doc) for doc in query.stream()]
+
 def get_all_logs():
     """Pobiera wszystkie logi (dla admina/zalogowanych)."""
     db = get_firestore_client()
     query = db.collection(COLLECTION_LOGS).order_by('timestamp', direction=firestore.Query.DESCENDING)
     return [_get_doc_data(doc) for doc in query.stream()]
+
+def get_log(log_id):
+    """Pobiera pojedynczy log."""
+    db = get_firestore_client()
+    doc = db.collection(COLLECTION_LOGS).document(log_id).get()
+    return _get_doc_data(doc)
+
+def restore_item(log_id, user_id):
+    """Przywraca stan obiektu z loga."""
+    log = get_log(log_id)
+    if not log or not log.get('before'):
+        return False, "Nie znaleziono danych do przywrócenia."
+
+    target_type = log.get('target_type')
+    target_id = log.get('target_id')
+    before_data = log.get('before')
+
+    # Usuwamy pola, które nie powinny być nadpisywane podczas przywracania (np. id, timestampy jeśli są)
+    data_to_restore = {k: v for k, v in before_data.items() if k not in ['id']}
+
+    collection = COLLECTION_SPRZET if target_type == 'sprzet' else COLLECTION_USTERKI
+    
+    # Pobierz aktualny stan przed przywróceniem (do logowania)
+    current_item = get_item(collection, target_id)
+    current_data = {k: v for k, v in current_item.items() if k not in ['id', 'zdjecia_lista_url']} if current_item else None
+
+    # Przywróć dane
+    set_item(collection, target_id, data_to_restore)
+    
+    # Zaloguj akcję przywrócenia
+    add_log(user_id, 'restore', target_type, target_id, before=current_data, after=data_to_restore, details={'restored_from_log_id': log_id})
+    
+    return True, f"Przywrócono stan {target_type} {target_id}."
 
 def _get_doc_data(doc):
     """Pomocnicza funkcja do konwersji dokumentu Firestore na słownik z ID i formatowaniem daty."""

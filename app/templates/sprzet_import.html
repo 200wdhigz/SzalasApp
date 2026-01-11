@@ -58,6 +58,7 @@
                                         <td rowspan="{{ row_count }}">
                                             <input type="checkbox" name="import_ids" value="{{ item.id }}" checked>
                                             <input type="hidden" name="data_{{ item.id }}" value='{{ item.new_data | tojson }}'>
+                                            <input type="hidden" name="before_{{ item.id }}" value='{{ item.before_data | tojson }}'>
                                         </td>
                                         <td rowspan="{{ row_count }}">{{ item.id }}</td>
                                         {% endif %}

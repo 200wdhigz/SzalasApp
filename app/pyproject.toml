@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "src"
-version = "0.1.3"
+version = "0.1.4"
 description = "Equipment and malfunction management system with Firebase backend"
 authors = ["lodyczekoladowe <65414380+lodyczekoladowe@users.noreply.github.com>"]
 

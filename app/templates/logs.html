@@ -24,7 +24,11 @@
                         {% for log in logs %}
                         <tr>
                             <td>{{ log.timestamp }}</td>
-                            <td>{{ log.user_name }}</td>
+                            <td>
+                                <a href="{{ url_for('views.user_profile', user_id=log.user_id) }}" class="text-decoration-none">
+                                    <i class="bi bi-person"></i> {{ log.user_name }}
+                                </a>
+                            </td>
                             <td>
                                 {% if log.action == 'add' %}
                                     <span class="badge bg-success">Dodano</span>
@@ -34,6 +38,8 @@
                                     <span class="badge bg-danger">Usunięto</span>
                                 {% elif log.action == 'import' %}
                                     <span class="badge bg-primary">Import</span>
+                                {% elif log.action == 'restore' %}
+                                    <span class="badge bg-warning text-dark">Przywrócono</span>
                                 {% endif %}
                             </td>
                             <td>{{ log.target_type | capitalize }}</td>
@@ -47,11 +53,43 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#details_{{ loop.index }}">
-                                    Pokaż
-                                </button>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#details_{{ loop.index }}">
+                                        Pokaż
+                                    </button>
+                                    {% if IS_ADMIN and log.before and log.action != 'restore' %}
+                                        <form method="POST" action="{{ url_for('admin.log_restore', log_id=log.id) }}" style="display: inline;" onsubmit="return confirm('Czy na pewno chcesz przywrócić tę wersję?');">
+                                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Przywróć tę wersję">
+                                                <i class="bi bi-arrow-counterclockwise"></i> Przywróć
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
                                 <div class="collapse mt-2" id="details_{{ loop.index }}">
-                                    <pre class="small p-2 rounded"><code>{{ log.details | tojson(indent=2) if log.details else 'Brak' }}</code></pre>
+                                    {% if log.before or log.after %}
+                                        <div class="row">
+                                            {% if log.before %}
+                                            <div class="col-md-6">
+                                                <small class="text-muted fw-bold">Przed:</small>
+                                                <pre class="small p-2 rounded bg-body-tertiary border" style="max-height: 200px; overflow-y: auto;"><code>{{ log.before | tojson(indent=2) }}</code></pre>
+                                            </div>
+                                            {% endif %}
+                                            {% if log.after %}
+                                            <div class="col-md-6">
+                                                <small class="text-muted fw-bold">Po:</small>
+                                                <pre class="small p-2 rounded bg-body-tertiary border" style="max-height: 200px; overflow-y: auto;"><code>{{ log.after | tojson(indent=2) }}</code></pre>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                    {% if log.details %}
+                                        <small class="text-muted fw-bold">Szczegóły dodatkowe:</small>
+                                        <pre class="small p-2 rounded bg-body-tertiary border"><code>{{ log.details | tojson(indent=2) }}</code></pre>
+                                    {% endif %}
+                                    {% if not log.before and not log.after and not log.details %}
+                                        <p class="small text-muted">Brak szczegółów.</p>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

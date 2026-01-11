@@ -113,7 +113,7 @@ def sprzet_add():
         else:
             data = {k: v for k, v in request.form.items() if k != 'id'}
             set_item(COLLECTION_SPRZET, sprzet_id, data)
-            add_log(session.get('user_id'), 'add', 'sprzet', sprzet_id, data)
+            add_log(session.get('user_id'), 'add', 'sprzet', sprzet_id, after=data)
             flash(f'Sprzęt {sprzet_id} został dodany.', 'success')
             return redirect(url_for('views.sprzet_list'))
     return render_template('sprzet_edit.html', sprzet=None)
@@ -161,7 +161,7 @@ def sprzet_import():
                     new_data = {mapping[k]: str(v).strip() for k, v in row.to_dict().items() if k in mapping and mapping[k] != 'id'}
                     
                     if sid in all_sprzet:
-                        old_data = all_sprzet[sid]
+                        old_data = {k: v for k, v in all_sprzet[sid].items() if k not in ['id', 'zdjecia_lista_url']}
                         diffs = {}
                         for k, v in new_data.items():
                             old_val = str(old_data.get(k, '')).strip()
@@ -169,7 +169,7 @@ def sprzet_import():
                                 diffs[k] = {'old': old_val, 'new': v}
                         
                         if diffs:
-                            diff_data.append({'id': sid, 'diffs': diffs, 'new_data': new_data})
+                            diff_data.append({'id': sid, 'diffs': diffs, 'new_data': new_data, 'before_data': old_data})
                     else:
                         diff_data.append({'id': sid, 'diffs': {}, 'new_data': new_data})
                 
@@ -190,8 +190,11 @@ def sprzet_import_confirm():
         data_json = request.form.get(f'data_{sid}')
         if data_json:
             data = json.loads(data_json)
+            before_json = request.form.get(f'before_{sid}')
+            before_data = json.loads(before_json) if before_json else None
+            
             set_item(COLLECTION_SPRZET, sid, data)
-            add_log(session.get('user_id'), 'import', 'sprzet', sid, data)
+            add_log(session.get('user_id'), 'import', 'sprzet', sid, before=before_data, after=data)
             count += 1
     
     flash(f'Pomyślnie zaimportowano/zaktualizowano {count} pozycji.', 'success')
@@ -228,8 +231,11 @@ def sprzet_edit(sprzet_id):
 
         data['zdjecia'] = nowa_lista_zdjec
 
+        # Przygotuj dane przed zapisem do loga
+        before_data = {k: v for k, v in sprzet.items() if k not in ['id', 'zdjecia_lista_url']}
+        
         set_item(COLLECTION_SPRZET, sprzet_id, data)
-        add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, data)
+        add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, before=before_data, after=data)
         flash(f'Sprzęt {sprzet_id} został zaktualizowany.', 'success')
         return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
     
@@ -299,8 +305,31 @@ def sprzet_card(sprzet_id):
     else:
         sprzet_item['zdjecia_lista_url'] = list_equipment_photos(sprzet_id)
 
+    # Pobieranie logów aktywności dla tego sprzętu
+    from .db_firestore import get_logs_by_target
+    from .db_users import get_all_users
+    
+    logs = get_logs_by_target(sprzet_id)
+    users = get_all_users()
+    user_map = {}
+    for user in users:
+        first_name = user.get('first_name', '')
+        last_name = user.get('last_name', '')
+        if first_name and last_name:
+            user_map[user['id']] = f"{first_name} {last_name}"
+        elif first_name:
+            user_map[user['id']] = first_name
+        elif last_name:
+            user_map[user['id']] = last_name
+        else:
+            user_map[user['id']] = user.get('email', user['id'])
+    
+    for log in logs:
+        log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
+
     return render_template('sprzet_card.html', sprzet=sprzet_item, 
-                           usterki=get_usterki_for_sprzet(sprzet_id))
+                           usterki=get_usterki_for_sprzet(sprzet_id),
+                           logs=logs)
 
 
 @views_bp.route('/sprzet/<sprzet_id>/qrcode')
@@ -413,7 +442,30 @@ def usterka_card(usterka_id):
         photos = list_files(f"usterki/{usterka_id}/")
 
     usterka['zdjecia_lista_url'] = photos
-    return render_template('usterka_card.html', usterka=usterka)
+
+    # Pobieranie logów aktywności dla tej usterki
+    from .db_firestore import get_logs_by_target
+    from .db_users import get_all_users
+    
+    logs = get_logs_by_target(usterka_id)
+    users = get_all_users()
+    user_map = {}
+    for user in users:
+        first_name = user.get('first_name', '')
+        last_name = user.get('last_name', '')
+        if first_name and last_name:
+            user_map[user['id']] = f"{first_name} {last_name}"
+        elif first_name:
+            user_map[user['id']] = first_name
+        elif last_name:
+            user_map[user['id']] = last_name
+        else:
+            user_map[user['id']] = user.get('email', user['id'])
+    
+    for log in logs:
+        log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
+
+    return render_template('usterka_card.html', usterka=usterka, logs=logs)
 
 @views_bp.route('/usterka/edit/<usterka_id>', methods=['GET', 'POST'])
 @login_required
@@ -452,8 +504,11 @@ def usterka_edit(usterka_id):
         if status in ['oczekuje', 'w trakcie', 'naprawiona', 'odrzucona']:
             data['status'] = status
 
+        # Przygotuj dane przed zapisem do loga
+        before_data = {k: v for k, v in usterka.items() if k not in ['id', 'zdjecia_lista_url']}
+
         update_usterka(usterka_id, **data)
-        add_log(session.get('user_id'), 'edit', 'usterka', usterka_id, data)
+        add_log(session.get('user_id'), 'edit', 'usterka', usterka_id, before=before_data, after=data)
         flash(f'Usterka {usterka_id} zaktualizowana.', 'success')
         return redirect(url_for('views.usterka_card', usterka_id=usterka_id))
 
@@ -498,6 +553,28 @@ def logs_list():
         log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
 
     return render_template('logs.html', logs=logs)
+
+
+@views_bp.route('/user/<user_id>')
+@login_required
+def user_profile(user_id):
+    """Wyświetla profil użytkownika."""
+    from .db_users import get_user_by_uid
+    from .db_firestore import get_logs_by_user
+
+    user = get_user_by_uid(user_id)
+    if not user:
+        flash('Nie znaleziono użytkownika.', 'danger')
+        return redirect(url_for('views.logs_list'))
+
+    logs = get_logs_by_user(user_id)
+
+    # Ustawiamy czytelną nazwę użytkownika dla logów (w tym przypadku to ten sam użytkownik)
+    user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('email', user_id)
+    for log in logs:
+        log['user_name'] = user_name
+
+    return render_template('user_profile.html', user_info=user, logs=logs)
 
 # =======================================================================
 #                       EKSPORTY
@@ -570,3 +647,107 @@ def export_usterki():
     if fmt == 'docx': return export_to_docx(filtered, filename, title)
     if fmt == 'pdf': return export_to_pdf(filtered, filename, title)
     return export_to_csv(filtered, filename)
+
+@views_bp.route('/sprzet/bulk-edit', methods=['POST'])
+@admin_required
+def sprzet_bulk_edit():
+    """Start masowej edycji: przyjmuje listę zaznaczonych ID i pokazuje formularz bulk edit."""
+    # CSRF (w tej aplikacji walidacja jest ręczna w wybranych miejscach)
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF. Odśwież stronę i spróbuj ponownie.', 'danger')
+        return redirect(url_for('views.sprzet_list'))
+
+    sprzet_ids = [x.strip().upper() for x in request.form.getlist('sprzet_ids') if x and x.strip()]
+    sprzet_ids = sorted(list(dict.fromkeys(sprzet_ids)))  # dedupe, preserve order
+
+    if not sprzet_ids:
+        flash('Nie wybrano żadnych pozycji do edycji.', 'warning')
+        return redirect(url_for('views.sprzet_list'))
+
+    return_query = (request.form.get('return_query') or '').strip()
+    cancel_url = url_for('views.sprzet_list') + (f'?{return_query}' if return_query else '')
+
+    return render_template(
+        'sprzet_bulk_edit.html',
+        sprzet_ids=sprzet_ids,
+        return_query=return_query,
+        cancel_url=cancel_url,
+    )
+
+
+@views_bp.route('/sprzet/bulk-edit/confirm', methods=['POST'])
+@admin_required
+def sprzet_bulk_edit_confirm():
+    """Zapis masowej edycji: aktualizuje wskazane pola dla wielu sprzętów."""
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF. Odśwież stronę i spróbuj ponownie.', 'danger')
+        return redirect(url_for('views.sprzet_list'))
+
+    sprzet_ids = [x.strip().upper() for x in request.form.getlist('sprzet_ids') if x and x.strip()]
+    sprzet_ids = sorted(list(dict.fromkeys(sprzet_ids)))
+    if not sprzet_ids:
+        flash('Nie wybrano żadnych pozycji do zmiany.', 'warning')
+        return redirect(url_for('views.sprzet_list'))
+
+    # Puste = bez zmian (rekomendowane). Tylko te pola wspieramy na start.
+    allowed_fields = ['lokalizacja', 'wodoszczelnosc', 'stan_ogolny', 'uwagi']
+    updates = {}
+    for field in allowed_fields:
+        value = request.form.get(field)
+        if value is None:
+            continue
+        value = value.strip() if isinstance(value, str) else value
+        if value != '':
+            updates[field] = value
+
+    if not updates:
+        flash('Nie ustawiono żadnych pól do zmiany (wszystko puste = bez zmian).', 'info')
+        return_query = (request.form.get('return_query') or '').strip()
+        return redirect(url_for('views.sprzet_list') + (f'?{return_query}' if return_query else ''))
+
+    changed = 0
+    skipped_missing = 0
+    errors = 0
+
+    for sid in sprzet_ids:
+        try:
+            current = get_sprzet_item(sid)
+            if not current:
+                skipped_missing += 1
+                continue
+
+            before_data = {k: v for k, v in current.items() if k not in ['id', 'zdjecia_lista_url']}
+
+            # Wylicz realne zmiany (nie logujemy, jeśli po zastosowaniu nic się nie zmienia)
+            effective_updates = {}
+            for k, v in updates.items():
+                old_val = before_data.get(k)
+                if old_val != v:
+                    effective_updates[k] = v
+
+            if not effective_updates:
+                continue
+
+            # Używamy update aby nie nadpisać całego dokumentu
+            update_item(COLLECTION_SPRZET, sid, **effective_updates)
+
+            after_data = dict(before_data)
+            after_data.update(effective_updates)
+            add_log(session.get('user_id'), 'bulk_edit', 'sprzet', sid, before=before_data, after=after_data, details={'fields': list(effective_updates.keys())})
+            changed += 1
+        except Exception as e:
+            errors += 1
+            # Nie przerywamy całej operacji; raport na końcu
+            print(f"Bulk edit error for {sid}: {e}")
+
+    if changed:
+        flash(f'Zapisano zmiany dla {changed} pozycji.', 'success')
+    if skipped_missing:
+        flash(f'Pominięto {skipped_missing} pozycji (nie znaleziono w bazie).', 'warning')
+    if errors:
+        flash(f'Wystąpiły błędy dla {errors} pozycji. Sprawdź logi serwera.', 'danger')
+
+    return_query = (request.form.get('return_query') or '').strip()
+    return redirect(url_for('views.sprzet_list') + (f'?{return_query}' if return_query else ''))

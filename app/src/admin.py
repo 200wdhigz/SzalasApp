@@ -5,6 +5,9 @@ import string
 import os
 
 from .auth import admin_required
+from .db_firestore import (
+    get_all_logs, add_log, restore_item
+)
 from .db_users import (
     get_all_users, get_user_by_uid, update_user,
     set_user_active_status, set_user_admin_status, create_user,
@@ -356,6 +359,21 @@ def user_delete(user_id):
         flash(f'Wystąpił błąd podczas usuwania użytkownika: {str(e)}', 'danger')
 
     return redirect(url_for('admin.users_list'))
+
+@admin_bp.route('/restore/<log_id>', methods=['POST'])
+@admin_required
+def log_restore(log_id):
+    """Przywraca stan obiektu z loga."""
+    if not validate_csrf_token():
+        return redirect(url_for('views.logs_list'))
+    
+    success, message = restore_item(log_id, session.get('user_id'))
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
+    
+    return redirect(request.referrer or url_for('views.logs_list'))
 
 
 
