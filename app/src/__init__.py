@@ -3,6 +3,23 @@ from firebase_admin import credentials, initialize_app, firestore, _apps
 import os
 import secrets
 
+# Load .env (development/local) early so the app behaves the same under gunicorn and flask.
+# Prefer app/.env if present, otherwise fall back to repo-root .env.
+try:
+    from dotenv import load_dotenv
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    app_dir = os.path.dirname(here)  # .../app
+    repo_root = os.path.dirname(app_dir)
+
+    # 1) app/.env
+    load_dotenv(os.path.join(app_dir, '.env'), override=False)
+    # 2) repo root .env
+    load_dotenv(os.path.join(repo_root, '.env'), override=False)
+except Exception:
+    # dotenv is optional in production; ignore if missing
+    pass
+
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 GOOGLE_PROJECT_ID = os.getenv('GOOGLE_PROJECT_ID')
 GOOGLE_CLOUD_STORAGE_BUCKET_NAME = os.getenv('GOOGLE_CLOUD_STORAGE_BUCKET_NAME')

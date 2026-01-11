@@ -35,6 +35,11 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+
+        if not GOOGLE_API_KEY:
+            flash('Brakuje konfiguracji GOOGLE_API_KEY. Skontaktuj się z administratorem.', 'danger')
+            return redirect(url_for('auth.login'))
+
         auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={GOOGLE_API_KEY}"
 
         try:
@@ -42,36 +47,49 @@ def login():
                 'email': email,
                 'password': password,
                 'returnSecureToken': True
-            })
+            }, timeout=15)
             response.raise_for_status()
+
             id_token = response.json()['idToken']
             decoded_token = auth.verify_id_token(id_token)
             uid = decoded_token['uid']
-            
-            # Sprawdzamy, czy użytkownik ma rolę admina i zapisujemy to w sesji
-            is_admin = decoded_token.get('admin', False)
-            
-            # Sprawdź, czy użytkownik istnieje w Firestore, jeśli nie - utwórz
+
+            # NOTE: Firebase custom claims are top-level keys of decoded_token.
+            # Previously we used 'admin', but our user documents store 'is_admin'.
+            # Keep session consistent with Firestore field: is_admin.
+            is_admin = bool(decoded_token.get('admin', False))
+
+            # Sprawdź, czy użytkownik istnieje w Firestore, jeżeli nie - utwórz
             user = get_user_by_uid(uid)
             if not user:
-                # Utwórz dokument użytkownika w Firestore
                 create_user(uid, email, is_admin=is_admin)
                 user = get_user_by_uid(uid)
-            
-            # Sprawdź, czy konto jest aktywne
+
+            # Jeśli użytkownik jest wyłączony w Firestore
             if not user.get('active', True):
                 flash('Twoje konto zostało wyłączone. Skontaktuj się z administratorem.', 'danger')
                 return redirect(url_for('auth.login'))
-            
-            session['user_id'] = uid
-            session['is_admin'] = is_admin
-            session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or email
 
+            # Jeśli użytkownik jest wyłączony w Firebase Auth (np. disabled=True)
+            try:
+                record = auth.get_user(uid)
+                if getattr(record, 'disabled', False):
+                    flash('Twoje konto zostało wyłączone. Skontaktuj się z administratorem.', 'danger')
+                    return redirect(url_for('auth.login'))
+            except Exception:
+                # nie blokujemy logowania jeśli nie uda się pobrać user record
+                pass
+
+            session['user_id'] = uid
+            session['is_admin'] = bool(user.get('is_admin', is_admin))
+            session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or email
 
             flash('Pomyślnie zalogowano!', 'success')
             return redirect(url_for('views.sprzet_list'))
-        except requests.exceptions.HTTPError as e:
-            # Check if user exists and has OAuth accounts linked
+
+        except requests.exceptions.HTTPError:
+            # Błąd 400/401 z Identity Toolkit — najczęściej złe hasło lub email.
+            # Dodatkowo możemy podpowiedzieć, jeśli konto jest OAuth-only.
             from .db_users import get_user_by_email
             user = get_user_by_email(email)
 
@@ -82,12 +100,19 @@ def login():
                 if user.get('microsoft_id'):
                     oauth_methods.append('Microsoft')
 
-                flash(f'To konto ma powiązane logowanie przez {" i ".join(oauth_methods)}. '
-                      f'Użyj odpowiedniego przycisku poniżej aby się zalogować.', 'warning')
+                flash(
+                    f'To konto ma powiązane logowanie przez {" i ".join(oauth_methods)}. '
+                    f'Użyj odpowiedniego przycisku poniżej aby się zalogować.',
+                    'warning'
+                )
             else:
                 flash('Błąd logowania: Nieprawidłowy email lub hasło.', 'danger')
+
+        except requests.exceptions.Timeout:
+            flash('Błąd logowania: timeout połączenia z usługą logowania. Spróbuj ponownie.', 'danger')
         except Exception as e:
             flash(f'Wystąpił błąd serwera: {e}', 'danger')
+
         return redirect(url_for('auth.login'))
 
     return render_template('login.html')
