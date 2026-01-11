@@ -25,7 +25,7 @@ jobs:
 
     outputs:
       created: ${{ steps.should_release.outputs.create }}
-      tag: ${{ steps.tag.outputs.tag }}
+      tag: ${{ steps.compute.outputs.tag }}
 
     steps:
       - name: Check out the repo
@@ -34,8 +34,10 @@ jobs:
           fetch-depth: 0
 
       - name: Compute version/tag from app/pyproject.toml
-        id: tag
+        id: compute
+        shell: bash
         run: |
+          set -euo pipefail
           python - <<'PY'
           import re
           from pathlib import Path
@@ -47,52 +49,71 @@ jobs:
           version = m.group(1).strip()
           tag = f"v{version}"
 
-          with open(Path.cwd() / 'GITHUB_OUTPUT', 'a', encoding='utf-8') as f:
+          # GitHub Actions: write outputs to the file path stored in $GITHUB_OUTPUT
+          out = Path.cwd() / 'GITHUB_OUTPUT'
+          with out.open('a', encoding='utf-8') as f:
               f.write(f"version={version}\n")
               f.write(f"tag={tag}\n")
+
           print(f"Computed version={version}, tag={tag}")
           PY
 
       - name: Decide if this is a new version
         id: should_release
+        shell: bash
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "create=false" >> $GITHUB_OUTPUT
-            echo "Tag $TAG already exists - skipping release."
+          set -euo pipefail
+          TAG='${{ steps.compute.outputs.tag }}'
+          if [ -z "$TAG" ]; then
+            echo "Computed TAG is empty - failing early."
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "create=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} already exists - skipping release."
           else
-            echo "create=true" >> $GITHUB_OUTPUT
-            echo "Tag $TAG does not exist - will create release."
+            echo "create=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} does not exist - will create release."
           fi
 
       - name: Determine previous version tag
         if: steps.should_release.outputs.create == 'true'
         id: prev
+        shell: bash
         run: |
+          set -euo pipefail
           PREV=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -n 1 || true)
-          echo "previous=$PREV" >> $GITHUB_OUTPUT
+          echo "previous=$PREV" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes (inline)
         if: steps.should_release.outputs.create == 'true'
         env:
           OWNER_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          RELEASE_TAG: ${{ steps.compute.outputs.tag }}
           PREVIOUS_TAG: ${{ steps.prev.outputs.previous }}
+        shell: bash
         run: |
           set -euo pipefail
 
-          echo "$RELEASE_TAG" > payload.md
+          if [ -z "${RELEASE_TAG}" ]; then
+            echo "RELEASE_TAG is empty - failing early."
+            exit 1
+          fi
+
+          echo "${RELEASE_TAG}" > payload.md
           echo "" >> payload.md
           echo "## What's Changed" >> payload.md
 
           CUTOFF="1970-01-01"
           if [ -n "${PREVIOUS_TAG:-}" ]; then
-            CUTOFF=$(git show -s --format=%cs "$PREVIOUS_TAG" || echo "1970-01-01")
+            CUTOFF=$(git show -s --format=%cs "${PREVIOUS_TAG}" || echo "1970-01-01")
           fi
 
+          # Query merged PRs since cutoff. We keep it simple and URL-encode via python argv (no env needed).
           Q="repo:${OWNER_REPO} is:pr is:merged merged:>${CUTOFF}"
-          URL="https://api.github.com/search/issues?q=$(python -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["Q"]))')"
+          ENC_Q=$(python -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$Q")
+          URL="https://api.github.com/search/issues?q=${ENC_Q}"
 
           API_JSON=$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$URL" || true)
           PR_COUNT=$(echo "$API_JSON" | jq -r '.items | length' 2>/dev/null || echo 0)
@@ -121,11 +142,13 @@ jobs:
 
       - name: Create Git tag
         if: steps.should_release.outputs.create == 'true'
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.tag.outputs.tag }}"
-          git push origin "${{ steps.tag.outputs.tag }}"
+          git tag "${{ steps.compute.outputs.tag }}"
+          git push origin "${{ steps.compute.outputs.tag }}"
 
       - name: Create GitHub Release
         if: steps.should_release.outputs.create == 'true'
@@ -133,8 +156,8 @@ jobs:
         with:
           draft: false
           prerelease: false
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: ${{ steps.tag.outputs.tag }}
+          tag_name: ${{ steps.compute.outputs.tag }}
+          name: ${{ steps.compute.outputs.tag }}
           body_path: payload.md
 
   # 3) Build and push Docker image on push to master
