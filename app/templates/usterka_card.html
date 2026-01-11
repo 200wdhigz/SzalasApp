@@ -58,18 +58,38 @@
                             {% else %}
                                 <div class="carousel-item active">
                                     <style>
-                                        .placeholder-img { width:100%; height:auto; display:block; }
-                                        .placeholder-dark { display:none; }
-                                        .placeholder-light { display:block; }
+                                        .placeholder-img {
+                                            width: 100%;
+                                            height: auto;
+                                            display: block;
+                                        }
+
+                                        .placeholder-dark {
+                                            display: none;
+                                        }
+
+                                        .placeholder-light {
+                                            display: block;
+                                        }
 
                                         /* When theme toggler sets data-bs-theme="dark" on <html> */
-                                        html[data-bs-theme="dark"] .placeholder-dark { display:block; }
-                                        html[data-bs-theme="dark"] .placeholder-light { display:none; }
+                                        html[data-bs-theme="dark"] .placeholder-dark {
+                                            display: block;
+                                        }
+
+                                        html[data-bs-theme="dark"] .placeholder-light {
+                                            display: none;
+                                        }
 
                                         /* Fallback: use user OS preference if no explicit data-bs-theme set */
                                         @media (prefers-color-scheme: dark) {
-                                            html:not([data-bs-theme]) .placeholder-dark { display:block; }
-                                            html:not([data-bs-theme]) .placeholder-light { display:none; }
+                                            html:not([data-bs-theme]) .placeholder-dark {
+                                                display: block;
+                                            }
+
+                                            html:not([data-bs-theme]) .placeholder-light {
+                                                display: none;
+                                            }
                                         }
                                     </style>
 
@@ -128,9 +148,10 @@
                             <span>Szczegóły Zgłoszenia</span>
                             <div class="ms-auto d-flex gap-2">
                                 {% if IS_ADMIN %}
-                                <a href="{{ url_for('views.usterka_edit', usterka_id=usterka.id) }}" class="btn btn-outline-dark" title="Edytuj usterkę">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
+                                    <a href="{{ url_for('views.usterka_edit', usterka_id=usterka.id) }}"
+                                       class="btn btn-outline-dark" title="Edytuj usterkę">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
                                 {% endif %}
                             </div>
                         </h4>
@@ -143,7 +164,8 @@
                                 <ul class="list-group list-group-flush mb-4">
                                     <li class="list-group-item"><strong>ID Usterki:</strong> {{ usterka.id }}</li>
                                     <li class="list-group-item"><strong>Powiązany Sprzęt:</strong>
-                                        <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}" class="text-decoration-none">
+                                        <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}"
+                                           class="text-decoration-none">
                                             {{ usterka.sprzet_id | upper }}
                                         </a>
                                     </li>
@@ -160,8 +182,10 @@
                                         {{ usterka.status | capitalize }}
                                     </span>
                                     </li>
-                                    <li class="list-group-item"><strong>Data Zgłoszenia:</strong> {{ usterka.data_zgloszenia }}</li>
-                                    <li class="list-group-item"><strong>Zgłoszono przez:</strong> {{ usterka.zgloszono_przez | default('Anonim', true) }}</li>
+                                    <li class="list-group-item"><strong>Data
+                                        Zgłoszenia:</strong> {{ usterka.data_zgloszenia }}</li>
+                                    <li class="list-group-item"><strong>Zgłoszono
+                                        przez:</strong> {{ usterka.zgloszono_przez | default('Anonim', true) }}</li>
                                 </ul>
                             </div>
 
@@ -176,12 +200,105 @@
                         </div>
                     </div>
                 </div>
-
+                {% if IS_LOGGED_IN %}
+                    <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-dark text-white">
+                        <h4 class="mb-0"><i class="bi bi-journal-text"></i> Historia Aktywności</h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Użytkownik</th>
+                                    <th>Akcja</th>
+                                    <th>Szczegóły</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for log in logs %}
+                                    <tr>
+                                        <td class="small">{{ log.timestamp }}</td>
+                                        <td class="small">
+                                            <a href="{{ url_for('views.user_profile', user_id=log.user_id) }}"
+                                               class="text-decoration-none">
+                                                {{ log.user_name }}
+                                            </a>
+                                        </td>
+                                        <td>
+                                            {% if log.action == 'add' %}
+                                                <span class="badge bg-success">Dodano</span>
+                                            {% elif log.action == 'edit' %}
+                                                <span class="badge bg-info">Edytowano</span>
+                                            {% elif log.action == 'delete' %}
+                                                <span class="badge bg-danger">Usunięto</span>
+                                            {% elif log.action == 'import' %}
+                                                <span class="badge bg-primary">Import</span>
+                                            {% elif log.action == 'restore' %}
+                                                <span class="badge bg-warning text-dark">Przywrócono</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="d-flex gap-1">
+                                                <button class="btn btn-sm btn-outline-secondary" type="button"
+                                                        data-bs-toggle="collapse"
+                                                        data-bs-target="#details_log_{{ loop.index }}">
+                                                    Pokaż
+                                                </button>
+                                                {% if IS_ADMIN and log.before and log.action != 'restore' %}
+                                                    <form method="POST"
+                                                          action="{{ url_for('admin.log_restore', log_id=log.id) }}"
+                                                          style="display: inline;"
+                                                          onsubmit="return confirm('Czy na pewno chcesz przywrócić tę wersję?');">
+                                                        <input type="hidden" name="_csrf_token"
+                                                               value="{{ csrf_token() }}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-warning"
+                                                                title="Przywróć tę wersję">
+                                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                            </div>
+                                            <div class="collapse mt-2" id="details_log_{{ loop.index }}">
+                                                {% if log.before or log.after %}
+                                                    <div class="mb-2">
+                                                        {% if log.before %}
+                                                            <small class="text-muted fw-bold">Przed:</small>
+                                                            <pre class="small p-2 rounded bg-body-tertiary border"
+                                                                 style="max-height: 150px; overflow-y: auto;"><code>{{ log.before | tojson(indent=2) }}</code></pre>
+                                                        {% endif %}
+                                                        {% if log.after %}
+                                                            <small class="text-muted fw-bold">Po:</small>
+                                                            <pre class="small p-2 rounded bg-body-tertiary border"
+                                                                 style="max-height: 150px; overflow-y: auto;"><code>{{ log.after | tojson(indent=2) }}</code></pre>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
+                                                {% if log.details %}
+                                                    <small class="text-muted fw-bold">Szczegóły:</small>
+                                                    <pre class="small p-2 rounded bg-body-tertiary border"
+                                                         style="max-width: 250px; overflow-x: auto;"><code>{{ log.details | tojson(indent=2) }}</code></pre>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-muted small">Brak historii
+                                            aktywności dla tego elementu.
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
-
-    <!-- Modal lightbox -->
     <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content bg-transparent border-0">
@@ -202,18 +319,38 @@
                             {% else %}
                                 <div class="carousel-item active">
                                     <style>
-                                        .placeholder-img { width:100%; height:auto; display:block; }
-                                        .placeholder-dark { display:none; }
-                                        .placeholder-light { display:block; }
+                                        .placeholder-img {
+                                            width: 100%;
+                                            height: auto;
+                                            display: block;
+                                        }
+
+                                        .placeholder-dark {
+                                            display: none;
+                                        }
+
+                                        .placeholder-light {
+                                            display: block;
+                                        }
 
                                         /* When theme toggler sets data-bs-theme="dark" on <html> */
-                                        html[data-bs-theme="dark"] .placeholder-dark { display:block; }
-                                        html[data-bs-theme="dark"] .placeholder-light { display:none; }
+                                        html[data-bs-theme="dark"] .placeholder-dark {
+                                            display: block;
+                                        }
+
+                                        html[data-bs-theme="dark"] .placeholder-light {
+                                            display: none;
+                                        }
 
                                         /* Fallback: use user OS preference if no explicit data-bs-theme set */
                                         @media (prefers-color-scheme: dark) {
-                                            html:not([data-bs-theme]) .placeholder-dark { display:block; }
-                                            html:not([data-bs-theme]) .placeholder-light { display:none; }
+                                            html:not([data-bs-theme]) .placeholder-dark {
+                                                display: block;
+                                            }
+
+                                            html:not([data-bs-theme]) .placeholder-light {
+                                                display: none;
+                                            }
                                         }
                                     </style>
 

@@ -23,7 +23,7 @@
                 <div class="alert alert-warning alert-dismissible fade show" role="alert">
                     <h5 class="alert-heading"><i class="bi bi-key"></i> Hasło zostało zresetowane</h5>
                     <p><strong>Email:</strong> {{ session.get('reset_password_email') }}</p>
-                    <p><strong>Nowe hasło:</strong> <code class="fs-5 bg-light p-2 rounded">{{ session.pop('reset_password') }}</code></p>
+                    <p><strong>Nowe hasło:</strong> <code class="fs-5 bg-body-tertiary p-2 rounded">{{ session.pop('reset_password') }}</code></p>
                     {% if session.get('reset_password_email_sent') %}
                     <p class="text-success"><i class="bi bi-check-circle-fill"></i> Hasło zostało wysłane na adres email użytkownika.</p>
                     {% else %}
@@ -53,10 +53,14 @@
                             <tr>
                                 <td>
                                     {% if user.first_name or user.last_name %}
-                                        <strong>{{ user.first_name or '' }} {{ user.last_name or '' }}</strong>
+                                        <a href="{{ url_for('views.user_profile', user_id=user.id) }}" class="text-decoration-none fw-bold">
+                                            {{ user.first_name or '' }} {{ user.last_name or '' }}
+                                        </a>
                                         <br><small class="text-muted">{{ user.firebase_email }}</small>
                                     {% else %}
-                                        <strong>{{ user.firebase_email }}</strong>
+                                        <a href="{{ url_for('views.user_profile', user_id=user.id) }}" class="text-decoration-none fw-bold">
+                                            {{ user.firebase_email }}
+                                        </a>
                                     {% endif %}
                                     {% if user.firebase_display_name %}
                                     <br><small class="text-muted fst-italic">{{ user.firebase_display_name }}</small>

@@ -126,16 +126,16 @@ Przyciski eksportu:
 ┌─────────────────────────────────────────────────────────┐
 │ Karta Sprzętu: NAMIOT_01 - NAMIOT                       │
 ├──────────────────┬──────────────────────────────────────┤
-│                  │                                       │
-│   GALERIA ZDJĘĆ │  DANE TECHNICZNE I HISTORIA          │
-│                  │                                       │
+│                  │                                      │
+│   GALERIA ZDJĘĆ  │  DANE TECHNICZNE I HISTORIA          │
+│                  │                                      │
 │   [Karuzela]     │  [Tabele z danymi]                   │
-│                  │                                       │
+│                  │                                      │
 │   [Miniatury]    │  [Zgłoszone usterki]                 │
-│                  │                                       │
+│                  │                                      │
 ├──────────────────┴──────────────────────────────────────┤
-│  ZGŁOŚ NOWĄ USTERKĘ                                      │
-│  [Formularz]                                             │
+│  ZGŁOŚ NOWĄ USTERKĘ                                     │
+│  [Formularz]                                            │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -246,14 +246,14 @@ Zobacz sekcję [Import Sprzętu](#import-sprzętu)
 
 ```html
 ┌─────────────────────────────────────┐
-│ Edycja Sprzętu: NAMIOT_01          │
+│ Edycja Sprzętu: NAMIOT_01           │
 ├─────────────────────────────────────┤
-│ ID: namiot_01 [tylko odczyt]       │
+│ ID: namiot_01 [tylko odczyt]        │
 │ Typ: [_____________]                │
 │ Stan: [Dropdown]                    │
 │ Lokalizacja: [_____________]        │
 │ ...                                 │
-│ [Anuluj]  [Zapisz Zmiany]         │
+│ [Anuluj]  [Zapisz Zmiany]           │
 └─────────────────────────────────────┘
 ```
 

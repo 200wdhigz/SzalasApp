@@ -4,54 +4,54 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         SzalasApp                                │
-│                    Equipment Management System                    │
+│                         SzalasApp                               │
+│                    Equipment Management System                  │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Frontend (Templates)                        │
+│                      Frontend (Templates)                       │
 ├─────────────────────────────────────────────────────────────────┤
-│ login.html          │ OAuth login buttons                        │
-│ account.html        │ User account management                    │
-│ admin/users_list    │ Admin user list view                       │
-│ admin/user_new      │ New user registration                      │
-│ admin/user_edit     │ Edit user details                          │
-│ base.html           │ Enhanced navigation                        │
+│ login.html          │ OAuth login buttons                       │
+│ account.html        │ User account management                   │
+│ admin/users_list    │ Admin user list view                      │
+│ admin/user_new      │ New user registration                     │
+│ admin/user_edit     │ Edit user details                         │
+│ base.html           │ Enhanced navigation                       │
 └─────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Flask Application (Backend)                    │
+│                   Flask Application (Backend)                   │
 ├─────────────────────────────────────────────────────────────────┤
-│ auth_bp             │ /login, /logout                            │
-│ oauth_bp            │ /auth/google, /auth/microsoft, /account    │
-│ admin_bp            │ /admin/users/*                             │
+│ auth_bp             │ /login, /logout                           │
+│ oauth_bp            │ /auth/google, /auth/microsoft, /account   │
+│ admin_bp            │ /admin/users/*                            │
 │ views_bp            │ /sprzet, /usterki (existing)              │
 └─────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Business Logic Layer                        │
+│                      Business Logic Layer                       │
 ├─────────────────────────────────────────────────────────────────┤
-│ src/auth.py         │ Login/logout, decorators                   │
-│ src/oauth.py        │ OAuth flows, account linking               │
-│ src/admin.py        │ User management operations                 │
-│ src/db_users.py     │ User database operations                   │
-│ src/db_firestore.py │ Equipment/malfunction ops (existing)       │
+│ src/auth.py         │ Login/logout, decorators                  │
+│ src/oauth.py        │ OAuth flows, account linking              │
+│ src/admin.py        │ User management operations                │
+│ src/db_users.py     │ User database operations                  │
+│ src/db_firestore.py │ Equipment/malfunction ops (existing)      │
 └─────────────────────────────────────────────────────────────────┘
                                   ↓
-┌──────────────────────┬──────────────────────┬────────────────────┐
-│   Firebase Auth      │   Google OAuth       │  Microsoft OAuth   │
-│   (Password)         │   (OAuth 2.0)        │  (OAuth 2.0)       │
-└──────────────────────┴──────────────────────┴────────────────────┘
+┌──────────────────────┬─────────────────────┬────────────────────┐
+│   Firebase Auth      │   Google OAuth      │  Microsoft OAuth   │
+│   (Password)         │   (OAuth 2.0)       │  (OAuth 2.0)       │
+└──────────────────────┴─────────────────────┴────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Data Storage (Firestore)                    │
+│                      Data Storage (Firestore)                   │
 ├─────────────────────────────────────────────────────────────────┤
-│ Collection: users   │ email, is_admin, active, google_id,        │
-│                     │ microsoft_id, created_at, updated_at       │
+│ Collection: users   │ email, is_admin, active, google_id,       │
+│                     │ microsoft_id, created_at, updated_at      │
 ├─────────────────────────────────────────────────────────────────┤
-│ Collection: sprzet  │ Equipment data (existing)                  │
+│ Collection: sprzet  │ Equipment data (existing)                 │
 ├─────────────────────────────────────────────────────────────────┤
-│ Collection: usterki │ Malfunction data (existing)                │
+│ Collection: usterki │ Malfunction data (existing)               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -209,36 +209,36 @@ Admin → /admin/users → Toggle Status
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Request Layer                            │
+│                         Request Layer                           │
 ├─────────────────────────────────────────────────────────────────┤
-│ ✓ HTTPS (Production)                                             │
-│ ✓ CSRF Token Validation                                          │
-│ ✓ Session Management                                             │
+│ ✓ HTTPS (Production)                                            │
+│ ✓ CSRF Token Validation                                         │
+│ ✓ Session Management                                            │
 └─────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Authentication Layer                        │
+│                      Authentication Layer                       │
 ├─────────────────────────────────────────────────────────────────┤
-│ ✓ Firebase Authentication                                        │
-│ ✓ OAuth State Parameter                                          │
-│ ✓ Token Verification                                             │
+│ ✓ Firebase Authentication                                       │
+│ ✓ OAuth State Parameter                                         │
+│ ✓ Token Verification                                            │
 └─────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Authorization Layer                         │
+│                      Authorization Layer                        │
 ├─────────────────────────────────────────────────────────────────┤
-│ ✓ @login_required decorator                                      │
-│ ✓ @admin_required decorator                                      │
-│ ✓ Account status check                                           │
-│ ✓ Domain validation (Microsoft)                                  │
+│ ✓ @login_required decorator                                     │
+│ ✓ @admin_required decorator                                     │
+│ ✓ Account status check                                          │
+│ ✓ Domain validation (Microsoft)                                 │
 └─────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Data Layer                               │
+│                         Data Layer                              │
 ├─────────────────────────────────────────────────────────────────┤
-│ ✓ Firestore security rules                                       │
-│ ✓ Firebase Auth management                                       │
-│ ✓ No sensitive data in logs                                      │
+│ ✓ Firestore security rules                                      │
+│ ✓ Firebase Auth management                                      │
+│ ✓ No sensitive data in logs                                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -246,36 +246,36 @@ Admin → /admin/users → Toggle Status
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Public Routes                            │
+│                         Public Routes                           │
 ├─────────────────────────────────────────────────────────────────┤
-│ /login                   │ Login page with OAuth buttons         │
-│ /auth/google             │ Initiate Google OAuth                 │
-│ /auth/microsoft          │ Initiate Microsoft OAuth              │
+│ /login                   │ Login page with OAuth buttons        │
+│ /auth/google             │ Initiate Google OAuth                │
+│ /auth/microsoft          │ Initiate Microsoft OAuth             │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Authenticated Routes                         │
+│                     Authenticated Routes                        │
 ├─────────────────────────────────────────────────────────────────┤
-│ /                        │ Equipment list (existing)             │
-│ /sprzet/*                │ Equipment views (existing)            │
-│ /usterki/*               │ Malfunction views (existing)          │
-│ /account                 │ Account management (NEW)              │
-│ /account/unlink/*        │ Unlink OAuth accounts (NEW)           │
-│ /logout                  │ Logout                                │
+│ /                        │ Equipment list (existing)            │
+│ /sprzet/*                │ Equipment views (existing)           │
+│ /usterki/*               │ Malfunction views (existing)         │
+│ /account                 │ Account management (NEW)             │
+│ /account/unlink/*        │ Unlink OAuth accounts (NEW)          │
+│ /logout                  │ Logout                               │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Admin Routes                             │
+│                         Admin Routes                            │
 ├─────────────────────────────────────────────────────────────────┤
-│ /admin/users             │ List all users (NEW)                  │
-│ /admin/users/new         │ Create new user (NEW)                 │
-│ /admin/users/:id/edit    │ Edit user (NEW)                       │
-│ /admin/users/:id/disable │ Disable user (NEW)                    │
-│ /admin/users/:id/enable  │ Enable user (NEW)                     │
-│ /admin/users/:id/reset-* │ Reset password (NEW)                  │
-│ /sprzet/add              │ Add equipment (existing)              │
-│ /sprzet/edit/*           │ Edit equipment (existing)             │
-│ /usterka/edit/*          │ Edit malfunction (existing)           │
+│ /admin/users             │ List all users (NEW)                 │
+│ /admin/users/new         │ Create new user (NEW)                │
+│ /admin/users/:id/edit    │ Edit user (NEW)                      │
+│ /admin/users/:id/disable │ Disable user (NEW)                   │
+│ /admin/users/:id/enable  │ Enable user (NEW)                    │
+│ /admin/users/:id/reset-* │ Reset password (NEW)                 │
+│ /sprzet/add              │ Add equipment (existing)             │
+│ /sprzet/edit/*           │ Edit equipment (existing)            │
+│ /usterka/edit/*          │ Edit malfunction (existing)          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
