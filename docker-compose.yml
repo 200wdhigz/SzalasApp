@@ -6,24 +6,17 @@ services:
     container_name: szalasapp
     ports:
       - "${PORT:-8080}:8080"
+
+    # Load most configuration from .env (avoids issues with '$' being treated as variable interpolation)
+    env_file:
+      - .env
+
     environment:
       - PORT=8080
       - HOST=${HOST:-0.0.0.0}
       - DEBUG=${DEBUG:-False}
-      - SECRET_KEY=${SECRET_KEY}
-      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
-      - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=${GOOGLE_CLOUD_STORAGE_BUCKET_NAME}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
-      - RECAPTCHA_PROJECT_ID=${RECAPTCHA_PROJECT_ID}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - BASE_URL=${BASE_URL}
       - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/app/credentials/service-account.json}
+
     volumes:
       # Mount credentials (create credentials/ folder and place service-account.json there)
       - ./credentials:/app/credentials:ro
@@ -42,4 +35,3 @@ services:
 networks:
   default:
     name: szalasapp-network
-
