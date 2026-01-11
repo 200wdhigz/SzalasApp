@@ -458,7 +458,7 @@ def sprzet_import_confirm():
             data = json.loads(data_json)
             before_json = request.form.get(f'before_{sid}')
             before_data = json.loads(before_json) if before_json else None
-            
+
             set_item(COLLECTION_SPRZET, sid, data)
             add_log(session.get('user_id'), 'import', 'sprzet', sid, before=before_data, after=data)
             count += 1
