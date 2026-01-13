@@ -22,6 +22,9 @@ from .recaptcha import verify_recaptcha
 
 views_bp = Blueprint('views', __name__, url_prefix='/')
 
+# Maksymalna liczba błędów pokazywanych użytkownikowi w bulk edit
+MAX_DISPLAYED_ERRORS = 5
+
 def process_uploads(files, folder, id_prefix=None):
     """Waliduje i wgrywa pliki do GCS."""
     ALLOWED_MIMES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
@@ -686,8 +689,6 @@ def sprzet_bulk_edit():
 @admin_required
 def sprzet_bulk_edit_confirm():
     """Zapis masowej edycji: aktualizuje wskazane pola dla wielu sprzętów."""
-    MAX_DISPLAYED_ERRORS = 5  # Maksymalna liczba błędów pokazywanych użytkownikowi
-    
     token = request.form.get('_csrf_token')
     if not token or token != session.get('_csrf_token'):
         flash('Błąd weryfikacji CSRF. Odśwież stronę i spróbuj ponownie.', 'danger')
@@ -759,16 +760,14 @@ def sprzet_bulk_edit_confirm():
         flash(f'Pominięto {skipped_missing} pozycji (nie znaleziono w bazie).', 'warning')
     if errors:
         # Pokaż do MAX_DISPLAYED_ERRORS błędów, żeby nie przytłoczyć UI
-        displayed_errors = min(errors, MAX_DISPLAYED_ERRORS)
         if errors <= MAX_DISPLAYED_ERRORS:
             flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
+            for error_detail in error_details[:MAX_DISPLAYED_ERRORS]:
+                flash(error_detail, 'danger')
         else:
-            flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze {displayed_errors} błędów:', 'danger')
-        
-        for error_detail in error_details[:displayed_errors]:
-            flash(error_detail, 'danger')
-        
-        if errors > MAX_DISPLAYED_ERRORS:
+            flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze {MAX_DISPLAYED_ERRORS} błędów:', 'danger')
+            for error_detail in error_details[:MAX_DISPLAYED_ERRORS]:
+                flash(error_detail, 'danger')
             flash(f'... i {errors - MAX_DISPLAYED_ERRORS} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
 
     return_query = (request.form.get('return_query') or '').strip()
