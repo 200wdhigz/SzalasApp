@@ -65,10 +65,10 @@ def process_uploads(files, folder, id_prefix=None):
 def build_user_map(users):
     """
     Tworzy mapowanie user_id -> wyświetlana nazwa użytkownika.
-    
+
     Args:
         users: Lista użytkowników z polami 'id', 'first_name', 'last_name', 'email'
-    
+
     Returns:
         Dict mapujący user_id na wyświetlaną nazwę (imię nazwisko, imię, nazwisko lub email)
     """
@@ -176,7 +176,7 @@ def sprzet_list():
     parent_id = request.args.get('parent_id')
     search_query = request.args.get('search')
     category = request.args.get('category')
-    
+
     # Podstawowe filtry
     typ = request.args.get('typ')
     wodoszczelnosc = request.args.get('wodoszczelnosc')
@@ -191,10 +191,10 @@ def sprzet_list():
         filters.append(('wodoszczelnosc', '==', wodoszczelnosc))
     if lokalizacja:
         filters.append(('lokalizacja', '==', lokalizacja))
-    
+
     if parent_id:
         filters.append(('parent_id', '==', parent_id))
-    
+
     if filters:
         items = get_items_by_filters(COLLECTION_SPRZET, filters, order_by='__name__', direction=firestore.Query.ASCENDING)
     else:
@@ -208,10 +208,10 @@ def sprzet_list():
     if search_query:
         s = search_query.lower()
         items = [
-            i for i in items 
-            if s in str(i.get('id', '')).lower() or 
-               s in str(i.get('nazwa', '')).lower() or 
-               s in str(i.get('typ', '')).lower() or 
+            i for i in items
+            if s in str(i.get('id', '')).lower() or
+               s in str(i.get('nazwa', '')).lower() or
+               s in str(i.get('typ', '')).lower() or
                s in str(i.get('uwagi', '')).lower() or
                s in str(i.get('informacje', '')).lower()
         ]
@@ -225,7 +225,7 @@ def sprzet_list():
 
     # Pobieramy mapę ID -> obiekt dla wszystkich sprzętów
     sprzet_map = {s['id']: s for s in all_items if 'id' in s}
-    
+
     # Dodajemy informację o nazwie magazynu nadrzędnego
     for item in items:
         # Poczyszczenie po ewentualnych brakach w logice filtrów/importów
@@ -243,13 +243,13 @@ def sprzet_list():
                     item['magazyn_id'] = parent.get('id')
                     break
                 curr = parent
-        
+
         if not item.get('magazyn_display'):
             if item.get('lokalizacja'):
                 item['magazyn_display'] = item['lokalizacja']
             else:
                 item['magazyn_display'] = 'N/A'
-        
+
         # Ochrona danych osobowych dla Zgłaszającego
         if session.get('user_role') not in ['quartermaster', 'admin']:
             # Sprawdzamy czy jest jakieś aktywne wypożyczenie
@@ -267,7 +267,7 @@ def sprzet_list():
         zelastwo = [i for i in items if i.get('category') == CATEGORIES['ZELASTWO']]
         other_items = [i for i in items if i.get('category') != CATEGORIES['ZELASTWO'] and i.get('category') != CATEGORIES['KANADYJKI']]
         kanadyjki = [i for i in items if i.get('category') == CATEGORIES['KANADYJKI']]
-        
+
         # Grupowanie Żelastwa: (do_czego, typ_zelastwa, sprawny)
         zel_groups = {}
         for z in zelastwo:
@@ -275,7 +275,7 @@ def sprzet_list():
             if key not in zel_groups:
                 zel_groups[key] = []
             zel_groups[key].append(z)
-        
+
         for key, group in zel_groups.items():
             if len(group) > 1:
                 # Tworzymy wirtualny obiekt grupy
@@ -290,7 +290,7 @@ def sprzet_list():
                 })
             else:
                 grouped_items.extend(group)
-        
+
         # Grupowanie Kanadyjek: (material, sprawny)
         kan_groups = {}
         for k in kanadyjki:
@@ -298,7 +298,7 @@ def sprzet_list():
             if key not in kan_groups:
                 kan_groups[key] = []
             kan_groups[key].append(k)
-            
+
         for key, group in kan_groups.items():
             if len(group) > 1:
                 rep = group[0]
@@ -312,7 +312,7 @@ def sprzet_list():
                 })
             else:
                 grouped_items.extend(group)
-        
+
         grouped_items.extend(other_items)
         items = grouped_items
 
@@ -781,7 +781,7 @@ def usterka_edit(usterka_id):
     # Uprawnienia: Kwatermistrz może wszystko, Reporter tylko swoje
     is_quartermaster = session.get('user_role') in ['quartermaster', 'admin']
     is_owner = usterka.get('user_id') == session.get('user_id')
-    
+
     if not is_quartermaster and not is_owner:
         flash('Nie masz uprawnień do edycji tej usterki.', 'danger')
         return redirect(url_for('views.usterka_card', usterka_id=usterka_id))
@@ -809,7 +809,7 @@ def usterka_edit(usterka_id):
             'opis': request.form.get('opis'),
             'zdjecia': nowa_lista_zdjec
         }
-        
+
         # Tylko kwatermistrz może zmieniać status i dodawać uwagi admina
         if is_quartermaster:
             status = request.form.get('status')
@@ -853,7 +853,7 @@ def usterki_bulk_edit():
     if not usterka_ids:
         flash('Nie wybrano żadnych usterek.', 'warning')
         return redirect(url_for('views.usterki_list'))
-    
+
     if not new_status or new_status not in ['oczekuje', 'w trakcie', 'naprawiona', 'odrzucona']:
         flash('Nieprawidłowy status.', 'warning')
         return redirect(url_for('views.usterki_list'))
@@ -868,7 +868,7 @@ def usterki_bulk_edit():
             after_data['status'] = new_status
             add_log(session.get('user_id'), 'bulk_edit', 'usterka', uid, before=before_data, after=after_data)
             count += 1
-    
+
     flash(f'Pomyślnie zaktualizowano {count} usterek.', 'success')
     return redirect(url_for('views.usterki_list'))
 
@@ -904,13 +904,13 @@ def sprzet_bulk_delete():
 
     if count:
         flash(f'Pomyślnie usunięto {count} elementów.', 'success')
-    
+
     if errors:
         if errors <= MAX_DISPLAYED_ERRORS:
             flash(f'Wystąpiły błędy przy usuwaniu {errors} pozycji:', 'danger')
         else:
             flash(f'Wystąpiły błędy przy usuwaniu {errors} pozycji. Pierwsze {MAX_DISPLAYED_ERRORS} błędów:', 'danger')
-        
+
         for error_detail in error_details[:MAX_DISPLAYED_ERRORS]:
             flash(error_detail, 'danger')
 
@@ -942,11 +942,11 @@ def loan_add(item_id):
     if not item:
         flash('Nie znaleziono przedmiotu.', 'danger')
         return redirect(url_for('views.sprzet_list'))
-    
+
     if item.get('category') == 'magazyn':
         flash('Nie można wypożyczyć magazynu.', 'danger')
         return redirect(url_for('views.sprzet_card', sprzet_id=item_id))
-    
+
     if request.method == 'POST':
         data = {
             'item_id': item_id,
@@ -960,20 +960,20 @@ def loan_add(item_id):
         add_log(session.get('user_id'), 'loan', 'sprzet', item_id, after=data)
         flash(f'Wypożyczono {item_id}.', 'success')
         return redirect(url_for('views.loans_list'))
-    
+
     from .db_users import get_all_users
     users = get_all_users()
     user_names = sorted(list(set(build_user_map(users).values())))
-    
+
     # Budujemy mapę użytkowników do auto-uzupełniania kontaktu
     user_contact_map = {}
     for user in users:
         display_name = (f"{user.get('first_name', '')} {user.get('last_name', '')}").strip() or user.get('email', user['id'])
         user_contact_map[display_name] = user.get('email', '')
-    
-    return render_template('loan_edit.html', 
-                           item=item, 
-                           user_names=user_names, 
+
+    return render_template('loan_edit.html',
+                           item=item,
+                           user_names=user_names,
                            user_contact_map=user_contact_map)
 
 @views_bp.route('/loan/return/<loan_id>', methods=['POST'])
@@ -988,16 +988,16 @@ def loan_return(loan_id):
     current_user_id = session.get('user_id')
     from .db_users import get_user_by_uid
     current_user = get_user_by_uid(current_user_id)
-    
+
     if current_user:
         # Budujemy nazwę aktualnego użytkownika do porównania
         first_name = current_user.get('first_name', '')
         last_name = current_user.get('last_name', '')
         full_name = (f"{first_name} {last_name}").strip()
         email = current_user.get('email', '')
-        
+
         przez_kogo = loan.get('przez_kogo', '')
-        
+
         if (full_name and przez_kogo == full_name) or (email and przez_kogo == email):
             flash('Osoba która wypożyczała nie może sama sobie zwrócić wypożyczenia.', 'danger')
             return redirect(url_for('views.loans_list'))
@@ -1016,7 +1016,7 @@ def logs_list():
     page = request.args.get('page', 1, type=int)
     per_page = 50
     offset = (page - 1) * per_page
-    
+
     user_id_filter = request.args.get('user_id')
     target_id_filter = request.args.get('target_id')
 
@@ -1038,9 +1038,9 @@ def logs_list():
 
     total_pages = (total_logs + per_page - 1) // per_page
 
-    return render_template('logs.html', 
-                           logs=logs, 
-                           page=page, 
+    return render_template('logs.html',
+                           logs=logs,
+                           page=page,
                            total_pages=total_pages,
                            total_logs=total_logs,
                            user_id_filter=user_id_filter,
