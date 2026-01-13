@@ -59,7 +59,8 @@ def restore_item(log_id, user_id):
         return False, "Log nie zawiera wymaganych informacji o celu przywrócenia."
     
     # Walidacja: sprawdź czy target_type jest poprawny
-    if target_type not in ['sprzet', 'usterki']:
+    valid_types = [COLLECTION_SPRZET, COLLECTION_USTERKI]
+    if target_type not in valid_types:
         return False, f"Nieprawidłowy typ obiektu w logu: {target_type}."
 
     # Usuwamy pola, które nie powinny być nadpisywane podczas przywracania (np. id, timestampy jeśli są)
