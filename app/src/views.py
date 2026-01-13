@@ -762,7 +762,7 @@ def sprzet_bulk_edit_confirm():
                 flash(error_detail, 'danger')
         else:
             # Jeśli jest więcej niż 5 błędów, pokaż tylko pierwsze 5 i policz resztę
-            flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze {min(5, len(error_details))} błędów:', 'danger')
+            flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze 5 błędów:', 'danger')
             for error_detail in error_details[:5]:
                 flash(error_detail, 'danger')
             if errors > 5:
