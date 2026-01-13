@@ -54,6 +54,31 @@ def process_uploads(files, folder, id_prefix=None):
     return saved_urls, None
 
 
+def build_user_map(users):
+    """
+    Tworzy mapowanie user_id -> wyświetlana nazwa użytkownika.
+    
+    Args:
+        users: Lista użytkowników z polami 'id', 'first_name', 'last_name', 'email'
+    
+    Returns:
+        Dict mapujący user_id na wyświetlaną nazwę (imię nazwisko, imię, nazwisko lub email)
+    """
+    user_map = {}
+    for user in users:
+        first_name = user.get('first_name', '')
+        last_name = user.get('last_name', '')
+        if first_name and last_name:
+            user_map[user['id']] = f"{first_name} {last_name}"
+        elif first_name:
+            user_map[user['id']] = first_name
+        elif last_name:
+            user_map[user['id']] = last_name
+        else:
+            user_map[user['id']] = user.get('email', user['id'])
+    return user_map
+
+
 # =======================================================================
 #               WIDOKI BAZOWE (Logowanie/Wylogowanie)
 # =======================================================================
@@ -311,18 +336,7 @@ def sprzet_card(sprzet_id):
     
     logs = get_logs_by_target(sprzet_id)
     users = get_all_users()
-    user_map = {}
-    for user in users:
-        first_name = user.get('first_name', '')
-        last_name = user.get('last_name', '')
-        if first_name and last_name:
-            user_map[user['id']] = f"{first_name} {last_name}"
-        elif first_name:
-            user_map[user['id']] = first_name
-        elif last_name:
-            user_map[user['id']] = last_name
-        else:
-            user_map[user['id']] = user.get('email', user['id'])
+    user_map = build_user_map(users)
     
     for log in logs:
         log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
@@ -449,18 +463,7 @@ def usterka_card(usterka_id):
     
     logs = get_logs_by_target(usterka_id)
     users = get_all_users()
-    user_map = {}
-    for user in users:
-        first_name = user.get('first_name', '')
-        last_name = user.get('last_name', '')
-        if first_name and last_name:
-            user_map[user['id']] = f"{first_name} {last_name}"
-        elif first_name:
-            user_map[user['id']] = first_name
-        elif last_name:
-            user_map[user['id']] = last_name
-        else:
-            user_map[user['id']] = user.get('email', user['id'])
+    user_map = build_user_map(users)
     
     for log in logs:
         log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
@@ -535,18 +538,7 @@ def logs_list():
     users = get_all_users()
 
     # Tworzymy mapowanie user_id -> imię i nazwisko
-    user_map = {}
-    for user in users:
-        first_name = user.get('first_name', '')
-        last_name = user.get('last_name', '')
-        if first_name and last_name:
-            user_map[user['id']] = f"{first_name} {last_name}"
-        elif first_name:
-            user_map[user['id']] = first_name
-        elif last_name:
-            user_map[user['id']] = last_name
-        else:
-            user_map[user['id']] = user.get('email', user['id'])
+    user_map = build_user_map(users)
 
     # Dodajemy user_name do każdego logu
     for log in logs:
