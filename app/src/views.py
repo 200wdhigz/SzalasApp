@@ -746,19 +746,27 @@ def sprzet_bulk_edit_confirm():
             changed += 1
         except Exception as e:
             errors += 1
-            error_msg = f"Błąd dla {sid}: {str(e)}"
+            error_msg = f"{sid}: {str(e)}"
             error_details.append(error_msg)
             # Nie przerywamy całej operacji; raport na końcu
-            current_app.logger.error(f"Bulk edit error for {sid}: {e}", exc_info=True)
+            current_app.logger.error(f"Bulk edit error for {error_msg}", exc_info=True)
 
     if changed:
         flash(f'Zapisano zmiany dla {changed} pozycji.', 'success')
     if skipped_missing:
         flash(f'Pominięto {skipped_missing} pozycji (nie znaleziono w bazie).', 'warning')
     if errors:
-        flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
-        for error_detail in error_details:
-            flash(error_detail, 'danger')
+        if errors <= 5:
+            flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
+            for error_detail in error_details:
+                flash(error_detail, 'danger')
+        else:
+            # Jeśli jest więcej niż 5 błędów, pokaż tylko pierwsze 5 i policz resztę
+            flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze {min(5, len(error_details))} błędów:', 'danger')
+            for error_detail in error_details[:5]:
+                flash(error_detail, 'danger')
+            if errors > 5:
+                flash(f'... i {errors - 5} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
 
     return_query = (request.form.get('return_query') or '').strip()
     return redirect(url_for('views.sprzet_list') + (f'?{return_query}' if return_query else ''))
