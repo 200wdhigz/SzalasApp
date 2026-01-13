@@ -96,7 +96,7 @@ def get_logs_count(user_id=None, target_id=None):
         query = query.where(filter=firestore.FieldFilter('user_id', '==', user_id))
     if target_id:
         query = query.where(filter=firestore.FieldFilter('target_id', '==', target_id))
-    
+
     # Uwaga: count() w Firestore jest bardzo szybkie i tanie
     return query.count().get()[0][0].value
 
@@ -127,7 +127,7 @@ def restore_item(log_id, user_id):
         current_item = get_item(collection, target_id)
         if not current_item:
             return False, f"Nie można cofnąć dodania, ponieważ obiekt {target_type} {target_id} już nie istnieje."
-        
+
         delete_item(collection, target_id)
         add_log(user_id, 'restore_delete', target_type, target_id, details={'restored_from_log_id': log_id})
         return True, f"Cofnięto dodanie {target_type} {target_id} (element został usunięty)."
@@ -149,11 +149,11 @@ def restore_item(log_id, user_id):
     
     # Pobierz aktualny stan przed przywróceniem (do logowania)
     current_item = get_item(collection, target_id)
-    
+
     # Walidacja: sprawdź czy obiekt docelowy istnieje
     if not current_item:
         return False, f"Nie znaleziono obiektu {target_type} o ID {target_id}."
-    
+
     current_data = {k: v for k, v in current_item.items() if k not in ['id', 'zdjecia_lista_url']}
 
     # Przywróć dane

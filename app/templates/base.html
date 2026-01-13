@@ -29,7 +29,7 @@
     <div class="container-fluid">
         <a class="navbar-brand" href="{{ url_for('views.home') }}"><span
                 class="material-symbols-outlined">nature_people</span>Szałas App</a>
-        
+
         <div class="d-flex d-lg-none ms-auto me-2">
             <button class="btn btn-outline-light btn-sm" onclick="startScanner()" title="Skanuj kod QR">
                 <i class="bi bi-qr-code-scan"></i> Skanuj
@@ -186,7 +186,7 @@
                 if (e.target.closest('a, button, form')) {
                     return;
                 }
-                
+
                 const targetId = row.getAttribute('data-bs-target');
                 if (targetId) {
                     const target = document.querySelector(targetId);
@@ -207,7 +207,7 @@
                 if (el.previousElementSibling) el.previousElementSibling.classList.add('table-active');
             }
         });
-        
+
         document.addEventListener('hide.bs.collapse', function(event) {
             const el = event.target;
             if (el.id && el.id.startsWith('collapse-')) {
@@ -224,10 +224,10 @@
     function startScanner() {
         const modalEl = document.getElementById('qrScannerModal');
         const modal = new bootstrap.Modal(modalEl);
-        
+
         // Zapewnij zatrzymanie skanera przy zamknięciu modala
         modalEl.addEventListener('hidden.bs.modal', stopScanner, { once: true });
-        
+
         modal.show();
 
         const statusEl = document.getElementById('scanner-status');
@@ -240,7 +240,7 @@
             const modalEl = document.getElementById('qrScannerModal');
             const modalInstance = bootstrap.Modal.getInstance(modalEl);
             modalInstance.hide();
-            
+
             // Sprawdź czy to nasz URL (bezpieczeństwo)
             if (decodedText.includes(window.location.hostname) || decodedText.startsWith('/')) {
                 window.location.href = decodedText;
