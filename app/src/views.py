@@ -233,12 +233,12 @@ def sprzet_edit(sprzet_id):
 
         # Przygotuj dane przed zapisem do loga
         before_data = {k: v for k, v in sprzet.items() if k not in ['id', 'zdjecia_lista_url']}
-        
+
         set_item(COLLECTION_SPRZET, sprzet_id, data)
         add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, before=before_data, after=data)
         flash(f'Sprzęt {sprzet_id} został zaktualizowany.', 'success')
         return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
-    
+
     # Priorytet dla zdjęć zapisanych w bazie danych (odświeżamy linki), fallback do listowania GCS
     if sprzet.get('zdjecia'):
         sprzet['zdjecia_lista_url'] = refresh_urls(sprzet['zdjecia'])
