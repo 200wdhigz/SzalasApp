@@ -756,15 +756,17 @@ def sprzet_bulk_edit_confirm():
     if skipped_missing:
         flash(f'Pominięto {skipped_missing} pozycji (nie znaleziono w bazie).', 'warning')
     if errors:
+        # Pokaż do 5 błędów, żeby nie przytłoczyć UI
+        displayed_errors = min(errors, 5)
         if errors <= 5:
             flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
-            for error_detail in error_details[:5]:
-                flash(error_detail, 'danger')
         else:
-            # Jeśli jest więcej niż 5 błędów, pokaż tylko pierwsze 5 i policz resztę
-            flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze 5 błędów:', 'danger')
-            for error_detail in error_details[:5]:
-                flash(error_detail, 'danger')
+            flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze {displayed_errors} błędów:', 'danger')
+        
+        for error_detail in error_details[:displayed_errors]:
+            flash(error_detail, 'danger')
+        
+        if errors > 5:
             flash(f'... i {errors - 5} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
 
     return_query = (request.form.get('return_query') or '').strip()
