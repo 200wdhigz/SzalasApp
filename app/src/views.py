@@ -762,12 +762,13 @@ def sprzet_bulk_edit_confirm():
         # Pokaż do MAX_DISPLAYED_ERRORS błędów, żeby nie przytłoczyć UI
         if errors <= MAX_DISPLAYED_ERRORS:
             flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
-            for error_detail in error_details[:MAX_DISPLAYED_ERRORS]:
-                flash(error_detail, 'danger')
         else:
             flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze {MAX_DISPLAYED_ERRORS} błędów:', 'danger')
-            for error_detail in error_details[:MAX_DISPLAYED_ERRORS]:
-                flash(error_detail, 'danger')
+        
+        for error_detail in error_details[:MAX_DISPLAYED_ERRORS]:
+            flash(error_detail, 'danger')
+        
+        if errors > MAX_DISPLAYED_ERRORS:
             flash(f'... i {errors - MAX_DISPLAYED_ERRORS} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
 
     return_query = (request.form.get('return_query') or '').strip()
