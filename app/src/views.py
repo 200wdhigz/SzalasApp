@@ -749,7 +749,7 @@ def sprzet_bulk_edit_confirm():
             error_msg = f"{sid}: {str(e)}"
             error_details.append(error_msg)
             # Nie przerywamy całej operacji; raport na końcu
-            current_app.logger.error(f"Bulk edit error for {error_msg}", exc_info=True)
+            current_app.logger.error(f"Bulk edit error: {error_msg}", exc_info=True)
 
     if changed:
         flash(f'Zapisano zmiany dla {changed} pozycji.', 'success')
@@ -758,7 +758,7 @@ def sprzet_bulk_edit_confirm():
     if errors:
         if errors <= 5:
             flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
-            for error_detail in error_details:
+            for error_detail in error_details[:5]:
                 flash(error_detail, 'danger')
         else:
             # Jeśli jest więcej niż 5 błędów, pokaż tylko pierwsze 5 i policz resztę
