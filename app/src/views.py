@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app
 import os
 import uuid
 import json
@@ -21,6 +21,9 @@ from .exports import export_to_csv, export_to_xlsx, export_to_docx, export_to_pd
 from .recaptcha import verify_recaptcha
 
 views_bp = Blueprint('views', __name__, url_prefix='/')
+
+# Maksymalna liczba błędów pokazywanych użytkownikowi w bulk edit
+MAX_DISPLAYED_ERRORS = 5
 
 def process_uploads(files, folder, id_prefix=None):
     """Waliduje i wgrywa pliki do GCS."""
@@ -52,6 +55,31 @@ def process_uploads(files, folder, id_prefix=None):
         url = upload_blob_to_gcs(blob_name, f.stream, f.mimetype)
         saved_urls.append(url)
     return saved_urls, None
+
+
+def build_user_map(users):
+    """
+    Tworzy mapowanie user_id -> wyświetlana nazwa użytkownika.
+    
+    Args:
+        users: Lista użytkowników z polami 'id', 'first_name', 'last_name', 'email'
+    
+    Returns:
+        Dict mapujący user_id na wyświetlaną nazwę (imię nazwisko, imię, nazwisko lub email)
+    """
+    user_map = {}
+    for user in users:
+        first_name = user.get('first_name', '')
+        last_name = user.get('last_name', '')
+        if first_name and last_name:
+            user_map[user['id']] = f"{first_name} {last_name}"
+        elif first_name:
+            user_map[user['id']] = first_name
+        elif last_name:
+            user_map[user['id']] = last_name
+        else:
+            user_map[user['id']] = user.get('email', user['id'])
+    return user_map
 
 
 # =======================================================================
@@ -311,18 +339,7 @@ def sprzet_card(sprzet_id):
     
     logs = get_logs_by_target(sprzet_id)
     users = get_all_users()
-    user_map = {}
-    for user in users:
-        first_name = user.get('first_name', '')
-        last_name = user.get('last_name', '')
-        if first_name and last_name:
-            user_map[user['id']] = f"{first_name} {last_name}"
-        elif first_name:
-            user_map[user['id']] = first_name
-        elif last_name:
-            user_map[user['id']] = last_name
-        else:
-            user_map[user['id']] = user.get('email', user['id'])
+    user_map = build_user_map(users)
     
     for log in logs:
         log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
@@ -449,18 +466,7 @@ def usterka_card(usterka_id):
     
     logs = get_logs_by_target(usterka_id)
     users = get_all_users()
-    user_map = {}
-    for user in users:
-        first_name = user.get('first_name', '')
-        last_name = user.get('last_name', '')
-        if first_name and last_name:
-            user_map[user['id']] = f"{first_name} {last_name}"
-        elif first_name:
-            user_map[user['id']] = first_name
-        elif last_name:
-            user_map[user['id']] = last_name
-        else:
-            user_map[user['id']] = user.get('email', user['id'])
+    user_map = build_user_map(users)
     
     for log in logs:
         log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
@@ -535,18 +541,7 @@ def logs_list():
     users = get_all_users()
 
     # Tworzymy mapowanie user_id -> imię i nazwisko
-    user_map = {}
-    for user in users:
-        first_name = user.get('first_name', '')
-        last_name = user.get('last_name', '')
-        if first_name and last_name:
-            user_map[user['id']] = f"{first_name} {last_name}"
-        elif first_name:
-            user_map[user['id']] = first_name
-        elif last_name:
-            user_map[user['id']] = last_name
-        else:
-            user_map[user['id']] = user.get('email', user['id'])
+    user_map = build_user_map(users)
 
     # Dodajemy user_name do każdego logu
     for log in logs:
@@ -716,6 +711,7 @@ def sprzet_bulk_edit_confirm():
     changed = 0
     skipped_missing = 0
     errors = 0
+    error_details = []
 
     for sid in sprzet_ids:
         try:
@@ -745,15 +741,27 @@ def sprzet_bulk_edit_confirm():
             changed += 1
         except Exception as e:
             errors += 1
+            error_msg = f"{sid}: {str(e)}"
+            error_details.append(error_msg)
             # Nie przerywamy całej operacji; raport na końcu
-            print(f"Bulk edit error for {sid}: {e}")
+            current_app.logger.error(f"Bulk edit error: {error_msg}", exc_info=True)
 
     if changed:
         flash(f'Zapisano zmiany dla {changed} pozycji.', 'success')
     if skipped_missing:
         flash(f'Pominięto {skipped_missing} pozycji (nie znaleziono w bazie).', 'warning')
     if errors:
-        flash(f'Wystąpiły błędy dla {errors} pozycji. Sprawdź logi serwera.', 'danger')
+        # Pokaż do MAX_DISPLAYED_ERRORS błędów, żeby nie przytłoczyć UI
+        if errors <= MAX_DISPLAYED_ERRORS:
+            flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
+        else:
+            flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze {MAX_DISPLAYED_ERRORS} błędów:', 'danger')
+        
+        for error_detail in error_details[:MAX_DISPLAYED_ERRORS]:
+            flash(error_detail, 'danger')
+        
+        if errors > MAX_DISPLAYED_ERRORS:
+            flash(f'... i {errors - MAX_DISPLAYED_ERRORS} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
 
     return_query = (request.form.get('return_query') or '').strip()
     return redirect(url_for('views.sprzet_list') + (f'?{return_query}' if return_query else ''))
