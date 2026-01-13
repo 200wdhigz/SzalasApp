@@ -686,6 +686,8 @@ def sprzet_bulk_edit():
 @admin_required
 def sprzet_bulk_edit_confirm():
     """Zapis masowej edycji: aktualizuje wskazane pola dla wielu sprzętów."""
+    MAX_DISPLAYED_ERRORS = 5  # Maksymalna liczba błędów pokazywanych użytkownikowi
+    
     token = request.form.get('_csrf_token')
     if not token or token != session.get('_csrf_token'):
         flash('Błąd weryfikacji CSRF. Odśwież stronę i spróbuj ponownie.', 'danger')
@@ -756,9 +758,9 @@ def sprzet_bulk_edit_confirm():
     if skipped_missing:
         flash(f'Pominięto {skipped_missing} pozycji (nie znaleziono w bazie).', 'warning')
     if errors:
-        # Pokaż do 5 błędów, żeby nie przytłoczyć UI
-        displayed_errors = min(errors, 5)
-        if errors <= 5:
+        # Pokaż do MAX_DISPLAYED_ERRORS błędów, żeby nie przytłoczyć UI
+        displayed_errors = min(errors, MAX_DISPLAYED_ERRORS)
+        if errors <= MAX_DISPLAYED_ERRORS:
             flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
         else:
             flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze {displayed_errors} błędów:', 'danger')
@@ -766,8 +768,8 @@ def sprzet_bulk_edit_confirm():
         for error_detail in error_details[:displayed_errors]:
             flash(error_detail, 'danger')
         
-        if errors > 5:
-            flash(f'... i {errors - 5} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
+        if errors > MAX_DISPLAYED_ERRORS:
+            flash(f'... i {errors - MAX_DISPLAYED_ERRORS} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
 
     return_query = (request.form.get('return_query') or '').strip()
     return redirect(url_for('views.sprzet_list') + (f'?{return_query}' if return_query else ''))
