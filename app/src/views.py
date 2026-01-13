@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app
 import os
 import uuid
 import json
@@ -716,6 +716,7 @@ def sprzet_bulk_edit_confirm():
     changed = 0
     skipped_missing = 0
     errors = 0
+    error_details = []
 
     for sid in sprzet_ids:
         try:
@@ -745,15 +746,19 @@ def sprzet_bulk_edit_confirm():
             changed += 1
         except Exception as e:
             errors += 1
+            error_msg = f"Błąd dla {sid}: {str(e)}"
+            error_details.append(error_msg)
             # Nie przerywamy całej operacji; raport na końcu
-            print(f"Bulk edit error for {sid}: {e}")
+            current_app.logger.error(f"Bulk edit error for {sid}: {e}", exc_info=True)
 
     if changed:
         flash(f'Zapisano zmiany dla {changed} pozycji.', 'success')
     if skipped_missing:
         flash(f'Pominięto {skipped_missing} pozycji (nie znaleziono w bazie).', 'warning')
     if errors:
-        flash(f'Wystąpiły błędy dla {errors} pozycji. Sprawdź logi serwera.', 'danger')
+        flash(f'Wystąpiły błędy dla {errors} pozycji:', 'danger')
+        for error_detail in error_details:
+            flash(error_detail, 'danger')
 
     return_query = (request.form.get('return_query') or '').strip()
     return redirect(url_for('views.sprzet_list') + (f'?{return_query}' if return_query else ''))
