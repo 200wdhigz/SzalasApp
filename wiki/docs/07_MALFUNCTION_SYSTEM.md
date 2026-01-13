@@ -341,7 +341,7 @@ DZIEŃ 1 - Zgłoszenie
 DZIEŃ 1 - Weryfikacja
 ┌─────────────────────────────────────────┐
 │ Admin sprawdza:                         │
-│ • Śledzieestnieją, są w zestawie        │
+│ • Śledzie istnieją, są w zestawie       │
 │ • Użytkownik ich nie znalazł            │
 │                                         │
 │ Admin:                                  │

@@ -4,6 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Katalog Sprzętu Szczepu</title>
+    {% if RECAPTCHA_KEY %}
+        <script src="https://www.google.com/recaptcha/enterprise.js?render={{ RECAPTCHA_KEY }}"></script>
+        <script>
+            // Funkcja do generowania tokena i osadzania go w formularzu
+            function submitFormWithRecaptcha(form, action_name) {
+                if (typeof grecaptcha === 'undefined') {
+                    console.error("reCAPTCHA Enterprise nie załadowane.");
+                    return true; // Zezwól na wysłanie bez tokena jako fallback
+                }
+                grecaptcha.enterprise.ready(function () {
+                    grecaptcha.enterprise.execute('{{ RECAPTCHA_KEY }}', {action: action_name})
+                        .then(function (token) {
+                            // Utwórz ukryte pole z tokenem
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'g-recaptcha-response';
+                            input.value = token;
+                            form.appendChild(input);
+
+                            // Wyślij formularz, który był wcześniej zablokowany
+                            form.submit();
+                        });
+                });
+                return false; // Zawsze blokuj domyślne wysłanie, dopóki JS nie doda tokena
+            }
+
+        </script>
+    {% endif %}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
           rel="stylesheet"
           integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
@@ -142,33 +170,5 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
         crossorigin="anonymous"></script>
-{% if RECAPTCHA_KEY %}
-    <script src="https://www.google.com/recaptcha/enterprise.js?render={{ RECAPTCHA_KEY }}"></script>
-    <script>
-        // Funkcja do generowania tokena i osadzania go w formularzu
-        function submitFormWithRecaptcha(form, action_name) {
-            if (typeof grecaptcha === 'undefined') {
-                console.error("reCAPTCHA Enterprise nie załadowane.");
-                return true; // Zezwól na wysłanie bez tokena jako fallback
-            }
-            grecaptcha.enterprise.ready(function () {
-                grecaptcha.enterprise.execute('{{ RECAPTCHA_KEY }}', {action: action_name})
-                    .then(function (token) {
-                        // Utwórz ukryte pole z tokenem
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = 'g-recaptcha-response';
-                        input.value = token;
-                        form.appendChild(input);
-
-                        // Wyślij formularz, który był wcześniej zablokowany
-                        form.submit();
-                    });
-            });
-            return false; // Zawsze blokuj domyślne wysłanie, dopóki JS nie doda tokena
-        }
-
-    </script>
-{% endif %}
 </body>
 </html>

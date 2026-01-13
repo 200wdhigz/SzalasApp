@@ -127,6 +127,32 @@ python scripts/migrate_user_names.py
 
 ---
 
+### 5. `export_firestore_json.py`
+
+**Cel:** Pełny eksport danych z Firestore do pojedynczego pliku `.json`.
+
+**Użycie (PowerShell, z folderu `app/`):**
+```powershell
+$env:GOOGLE_APPLICATION_CREDENTIALS="..\credentials\service-account.json"
+python -m scripts.export_firestore_json --out ..\export\firestore_export.json --pretty
+```
+
+**Parametry:**
+- `--out` (wymagane) – ścieżka do pliku wynikowego
+- `--collections` – lista kolekcji (domyślnie: `sprzet usterki logs users`)
+- `--page-size` – rozmiar strony przy eksportowaniu (domyślnie: 1000)
+- `--pretty` – czytelne formatowanie JSON (większy plik)
+
+**Format pliku:**
+- `metadata` – informacje o eksporcie (data, kolekcje, liczniki)
+- `collections` – dane dokumentów (każdy dokument zawiera pole `id` = ID dokumentu)
+
+**Uwagi:**
+- Skrypt wymaga dostępu do Firestore (service account / ADC)
+- Typy specjalne (np. daty) są serializowane jako obiekty z polem `__type__`.
+
+---
+
 ## 🔧 Konfiguracja
 
 Wszystkie skrypty wymagają pliku `.env` w głównym folderze projektu:

@@ -2,7 +2,7 @@
 # Ten plik jest używany gdy masz już zainstalowany Nginx Proxy Manager w osobnym docker-compose
 #
 # Uruchomienie:
-# docker compose -f docker-compose.npm.yml up -d
+# docker compose -f docker-compose.npm.yml up -d --build
 #
 # Wymagania:
 # 1. Nginx Proxy Manager już działa w osobnym docker-compose
