@@ -54,6 +54,14 @@ def restore_item(log_id, user_id):
     target_id = log.get('target_id')
     before_data = log.get('before')
 
+    # Walidacja: sprawdź czy log zawiera wymagane pola target_type i target_id
+    if not target_type or not target_id:
+        return False, "Log nie zawiera wymaganych informacji o celu przywrócenia."
+    
+    # Walidacja: sprawdź czy target_type jest poprawny
+    if target_type not in ['sprzet', 'usterki']:
+        return False, f"Nieprawidłowy typ obiektu w logu: {target_type}."
+
     # Usuwamy pola, które nie powinny być nadpisywane podczas przywracania (np. id, timestampy jeśli są)
     data_to_restore = {k: v for k, v in before_data.items() if k not in ['id']}
 
@@ -61,7 +69,12 @@ def restore_item(log_id, user_id):
     
     # Pobierz aktualny stan przed przywróceniem (do logowania)
     current_item = get_item(collection, target_id)
-    current_data = {k: v for k, v in current_item.items() if k not in ['id', 'zdjecia_lista_url']} if current_item else None
+    
+    # Walidacja: sprawdź czy obiekt docelowy istnieje
+    if not current_item:
+        return False, f"Nie znaleziono obiektu {target_type} o ID {target_id}."
+    
+    current_data = {k: v for k, v in current_item.items() if k not in ['id', 'zdjecia_lista_url']}
 
     # Przywróć dane
     set_item(collection, target_id, data_to_restore)
