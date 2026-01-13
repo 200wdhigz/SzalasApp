@@ -6,7 +6,7 @@ import os
 
 from .auth import admin_required
 from .db_firestore import (
-    restore_item
+    get_all_logs, add_log, restore_item
 )
 from .db_users import (
     get_all_users, get_user_by_uid, update_user,

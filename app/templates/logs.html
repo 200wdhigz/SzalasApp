@@ -42,6 +42,7 @@
                                     <span class="badge bg-warning text-dark">Przywrócono</span>
                                 {% elif log.action == 'bulk_edit' %}
                                     <span class="badge bg-secondary">Edycja masowa</span>
+
                                 {% endif %}
                             </td>
                             <td>{{ log.target_type | capitalize }}</td>
