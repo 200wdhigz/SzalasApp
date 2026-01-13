@@ -765,8 +765,7 @@ def sprzet_bulk_edit_confirm():
             flash(f'Wystąpiły błędy dla {errors} pozycji. Pierwsze 5 błędów:', 'danger')
             for error_detail in error_details[:5]:
                 flash(error_detail, 'danger')
-            if errors > 5:
-                flash(f'... i {errors - 5} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
+            flash(f'... i {errors - 5} więcej. Sprawdź logi serwera dla szczegółów.', 'danger')
 
     return_query = (request.form.get('return_query') or '').strip()
     return redirect(url_for('views.sprzet_list') + (f'?{return_query}' if return_query else ''))
