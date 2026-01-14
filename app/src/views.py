@@ -1190,6 +1190,11 @@ def sprzet_bulk_edit():
         flash('Nie wybrano żadnych elementów.', 'warning')
         return redirect(url_for('views.sprzet_list'))
 
+    # Pobieramy dane wybranych sprzętów, aby wyświetlić podsumowanie/przegląd przed masową edycją.
+    all_sprzet = get_all_sprzet()
+    sprzet_map = {s.get('id'): s for s in all_sprzet if isinstance(s, dict)}
+    sprzet_selected = [sprzet_map[s_id] for s_id in sprzet_ids if s_id in sprzet_map]
+
     return_query = (request.form.get('return_query') or '').strip()
     cancel_url = url_for('views.sprzet_list') + (f'?{return_query}' if return_query else '')
 
@@ -1199,6 +1204,7 @@ def sprzet_bulk_edit():
     return render_template(
         'sprzet_bulk_edit.html',
         sprzet_ids=sprzet_ids,
+        sprzet_selected=sprzet_selected,
         return_query=return_query,
         cancel_url=cancel_url,
         sprzet_all=sprzet_all,
