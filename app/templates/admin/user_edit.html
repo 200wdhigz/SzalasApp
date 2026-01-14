@@ -4,7 +4,7 @@
     <div class="row justify-content-center">
         <div class="col-md-6">
             <div class="card shadow-lg mt-4">
-                <div class="card-header bg-danger text-white">
+                <div class="card-header text-bg-danger">
                     <h4 class="mb-0"><i class="bi bi-pencil"></i> Edytuj Użytkownika</h4>
                 </div>
                 <div class="card-body">
@@ -60,17 +60,17 @@
                             <p class="mb-1">
                                 <i class="bi bi-google text-danger"></i> Google:
                                 {% if user.google_id %}
-                                    <span class="badge bg-success">Połączone</span>
+                                    <span class="badge text-bg-success">Połączone</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">Niepołączone</span>
+                                    <span class="badge text-bg-secondary">Niepołączone</span>
                                 {% endif %}
                             </p>
                             <p class="mb-1">
                                 <i class="bi bi-microsoft text-primary"></i> Microsoft:
                                 {% if user.microsoft_id %}
-                                    <span class="badge bg-success">Połączone</span>
+                                    <span class="badge text-bg-success">Połączone</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">Niepołączone</span>
+                                    <span class="badge text-bg-secondary">Niepołączone</span>
                                 {% endif %}
                             </p>
                         </div>
