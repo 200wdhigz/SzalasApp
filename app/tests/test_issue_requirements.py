@@ -1,6 +1,5 @@
 from __future__ import annotations
 import pytest
-from flask import session
 
 @pytest.fixture
 def app():
