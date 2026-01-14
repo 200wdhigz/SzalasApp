@@ -4,6 +4,26 @@ from google.cloud import firestore
 COLLECTION_SPRZET = 'sprzet'
 COLLECTION_USTERKI = 'usterki'
 COLLECTION_LOGS = 'logs'
+COLLECTION_WYPOZYCZENIA = 'wypozyczenia'
+
+CATEGORIES = {
+    'MAGAZYN': 'magazyn',
+    'POLKA': 'polka_skrzynia',
+    'NAMIOT': 'namiot',
+    'PRZEDMIOT': 'przedmiot',
+    'ZELASTWO': 'zelastwo',
+    'KANADYJKI': 'kanadyjki'
+}
+
+MAGAZYNY_NAMES = [
+    'Esperanto',
+    'Obozowa/magazynek',
+    'Obozowa/skrzynie',
+    'Obozowa/piwnica',
+    'Leśniczy/strych',
+    'Leśniczy/schody',
+    'Leśniczy/magazynek'
+]
 
 def add_log(user_id, action, target_type, target_id, details=None, before=None, after=None):
     """Zapisuje log akcji użytkownika."""
@@ -47,17 +67,34 @@ def get_log(log_id):
 def restore_item(log_id, user_id):
     """Przywraca stan obiektu z loga."""
     log = get_log(log_id)
-    if not log or not log.get('before'):
-        return False, "Nie znaleziono danych do przywrócenia."
+    if not log:
+        return False, "Nie znaleziono loga."
 
     target_type = log.get('target_type')
     target_id = log.get('target_id')
-    before_data = log.get('before')
+    action = log.get('action')
 
     # Walidacja: sprawdź czy log zawiera wymagane pola target_type i target_id
     if not target_type or not target_id:
         return False, "Log nie zawiera wymaganych informacji o celu przywrócenia."
-    
+
+    collection = COLLECTION_SPRZET if target_type == 'sprzet' else COLLECTION_USTERKI
+
+    if action == 'add':
+        # Cofnięcie dodania = usunięcie elementu
+        current_item = get_item(collection, target_id)
+        if not current_item:
+            return False, f"Nie można cofnąć dodania, ponieważ obiekt {target_type} {target_id} już nie istnieje."
+        
+        delete_item(collection, target_id)
+        add_log(user_id, 'restore_delete', target_type, target_id, details={'restored_from_log_id': log_id})
+        return True, f"Cofnięto dodanie {target_type} {target_id} (element został usunięty)."
+
+    if not log.get('before'):
+        return False, "Nie znaleziono danych do przywrócenia."
+
+    before_data = log.get('before')
+
     # Walidacja: sprawdź czy target_type jest poprawny
     valid_types = [COLLECTION_SPRZET, COLLECTION_USTERKI]
     if target_type not in valid_types:
@@ -131,8 +168,13 @@ def get_sprzet_item(sprzet_id: str):
 def get_usterka_item(usterka_id: str):
     return get_item(COLLECTION_USTERKI, usterka_id)
 
-def get_all_sprzet():
+def get_all_sprzet(category=None):
+    if category:
+        return get_items_by_filter(COLLECTION_SPRZET, 'category', '==', category, order_by='__name__', direction=firestore.Query.ASCENDING)
     return get_all_items(COLLECTION_SPRZET, order_by='__name__', direction=firestore.Query.ASCENDING)
+
+def get_items_by_parent(parent_id):
+    return get_items_by_filter(COLLECTION_SPRZET, 'parent_id', '==', parent_id, order_by='__name__', direction=firestore.Query.ASCENDING)
 
 def get_all_usterki():
     return get_all_items(COLLECTION_USTERKI, order_by='data_zgloszenia')
@@ -170,3 +212,25 @@ def delete_item(collection: str, item_id: str):
     """Usuwa dokument z kolekcji."""
     db = get_firestore_client()
     db.collection(collection).document(item_id).delete()
+
+# =======================================================================
+#                       WYPOŻYCZENIA
+# =======================================================================
+
+def add_loan(data):
+    """Dodaje nowe wypożyczenie."""
+    data['status'] = 'active'
+    data['timestamp'] = firestore.SERVER_TIMESTAMP
+    return add_item(COLLECTION_WYPOZYCZENIA, data)
+
+def get_active_loans():
+    """Pobiera wszystkie aktywne wypożyczenia."""
+    return get_items_by_filter(COLLECTION_WYPOZYCZENIA, 'status', '==', 'active', order_by='timestamp')
+
+def get_loans_for_item(item_id):
+    """Pobiera historię wypożyczeń dla danego przedmiotu."""
+    return get_items_by_filter(COLLECTION_WYPOZYCZENIA, 'item_id', '==', item_id, order_by='timestamp')
+
+def mark_loan_returned(loan_id):
+    """Oznacza wypożyczenie jako zwrócone."""
+    update_item(COLLECTION_WYPOZYCZENIA, loan_id, status='returned', return_timestamp=firestore.SERVER_TIMESTAMP)

@@ -1,222 +1,224 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<!-- Hero Section -->
-<div class="row mt-4 mb-5">
-    <div class="col-12">
-        <div class="card shadow-lg border-0">
-            <div class="card-body text-center py-5">
-                <span class="material-symbols-outlined" style="font-size: 80px; color: var(--bs-primary);">nature_people</span>
-                <h1 class="display-4 fw-bold mt-3">Szałas App</h1>
-                <p class="lead text-muted mb-4">System Zarządzania Sprzętem Szczepu</p>
-                <p class="mb-4">Kompleksowe rozwiązanie do zarządzania sprzętem, zgłaszania usterek i koordynacji prac konserwacyjnych.</p>
-                {% if not IS_LOGGED_IN %}
-                <div class="d-flex gap-3 justify-content-center">
-                    <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-box-arrow-in-right"></i> Zaloguj się
-                    </a>
+    <!-- Hero Section -->
+    <div class="row mt-4 mb-5">
+        <div class="col-12">
+            <div class="card shadow-lg border-0">
+                <div class="card-body text-center py-5">
+                    <span class="material-symbols-outlined" style="font-size: 80px; color: var(--bs-primary);">nature_people</span>
+                    <h1 class="display-4 fw-bold mt-3">Szałas App</h1>
+                    <p class="lead text-muted mb-4">System Zarządzania Sprzętem Szczepu</p>
+                    <p class="mb-4">Kompleksowe rozwiązanie do zarządzania sprzętem, zgłaszania usterek i koordynacji
+                        prac konserwacyjnych.</p>
+                    {% if not IS_LOGGED_IN %}
+                        <div class="d-flex gap-3 justify-content-center">
+                            <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg">
+                                <i class="bi bi-box-arrow-in-right"></i> Zaloguj się
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="d-flex gap-3 justify-content-center">
+                            <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-primary btn-lg">
+                                <i class="bi bi-list-ul"></i> Lista Sprzętu
+                            </a>
+                            <a href="{{ url_for('views.usterki_list') }}" class="btn btn-outline-primary btn-lg">
+                                <i class="bi bi-tools"></i> Lista Usterek
+                            </a>
+                        </div>
+                    {% endif %}
                 </div>
-                {% else %}
-                <div class="d-flex gap-3 justify-content-center">
-                    <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-list-ul"></i> Lista Sprzętu
-                    </a>
-                    <a href="{{ url_for('views.usterki_list') }}" class="btn btn-outline-primary btn-lg">
-                        <i class="bi bi-tools"></i> Lista Usterek
-                    </a>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Features Section -->
-<div class="row mb-4">
-    <div class="col-12">
-        <h2 class="text-center mb-4">Główne Funkcje</h2>
-    </div>
-</div>
-
-<div class="row g-4 mb-5">
-    <!-- Feature 1: Equipment Management -->
-    <div class="col-md-6 col-lg-4">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-center mb-3">
-                    <i class="bi bi-box-seam" style="font-size: 3rem; color: var(--bs-primary);"></i>
-                </div>
-                <h5 class="card-title text-center">Zarządzanie Sprzętem</h5>
-                <p class="card-text">
-                    Kompletna baza danych sprzętu z możliwością dodawania zdjęć, szczegółowych opisów i generowania kodów QR.
-                </p>
-                <ul class="list-unstyled small">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Katalog sprzętu z wyszukiwarką</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Zdjęcia i dokumentacja</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Kody QR do szybkiego dostępu</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Import danych z plików</li>
-                </ul>
             </div>
         </div>
     </div>
 
-    <!-- Feature 2: Malfunction Reports -->
-    <div class="col-md-6 col-lg-4">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-center mb-3">
-                    <i class="bi bi-tools" style="font-size: 3rem; color: var(--bs-warning);"></i>
-                </div>
-                <h5 class="card-title text-center">System Usterek</h5>
-                <p class="card-text">
-                    Zgłaszanie, śledzenie i zarządzanie usterkami sprzętu z możliwością dodawania zdjęć i statusów.
-                </p>
-                <ul class="list-unstyled small">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Łatwe zgłaszanie usterek</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Śledzenie statusu naprawy</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Historia zgłoszeń</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Zdjęcia dokumentujące problem</li>
-                </ul>
-            </div>
+    <!-- Features Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="text-center mb-4">Główne Funkcje</h2>
         </div>
     </div>
 
-    <!-- Feature 3: OAuth Login -->
-    <div class="col-md-6 col-lg-4">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-center mb-3">
-                    <i class="bi bi-shield-lock" style="font-size: 3rem; color: var(--bs-success);"></i>
-                </div>
-                <h5 class="card-title text-center">Bezpieczne Logowanie</h5>
-                <p class="card-text">
-                    Logowanie przez Google, Microsoft (ZHP) lub standardowe konto Firebase z pełną ochroną danych.
-                </p>
-                <ul class="list-unstyled small">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> OAuth Google i Microsoft</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Firebase Authentication</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Zarządzanie kontem</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Bezpieczne sesje</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Feature 4: Data Export -->
-    <div class="col-md-6 col-lg-4">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-center mb-3">
-                    <i class="bi bi-file-earmark-arrow-down" style="font-size: 3rem; color: var(--bs-info);"></i>
-                </div>
-                <h5 class="card-title text-center">Eksport Danych</h5>
-                <p class="card-text">
-                    Eksportuj dane sprzętu i usterek w różnych formatach dla raportów i analizy.
-                </p>
-                <ul class="list-unstyled small">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Format CSV i Excel (XLSX)</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Dokumenty Word (DOCX)</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Pliki PDF</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Filtrowanie danych</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Feature 5: Admin Panel -->
-    <div class="col-md-6 col-lg-4">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-center mb-3">
-                    <i class="bi bi-people" style="font-size: 3rem; color: var(--bs-danger);"></i>
-                </div>
-                <h5 class="card-title text-center">Panel Administratora</h5>
-                <p class="card-text">
-                    Kompleksowe zarządzanie użytkownikami, uprawnieniami i konfiguracją systemu.
-                </p>
-                <ul class="list-unstyled small">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Zarządzanie użytkownikami</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Nadawanie uprawnień</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Reset haseł z email</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Aktywacja/dezaktywacja kont</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Feature 6: Cloud Storage -->
-    <div class="col-md-6 col-lg-4">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-center mb-3">
-                    <i class="bi bi-cloud-upload" style="font-size: 3rem; color: var(--bs-secondary);"></i>
-                </div>
-                <h5 class="card-title text-center">Przechowywanie w Chmurze</h5>
-                <p class="card-text">
-                    Wszystkie dane i zdjęcia bezpiecznie przechowywane w Google Cloud Platform.
-                </p>
-                <ul class="list-unstyled small">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Google Cloud Firestore</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Google Cloud Storage</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Automatyczne backupy</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Wysoka dostępność</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Technology Stack Section -->
-<div class="row mb-5">
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h3 class="card-title text-center mb-4">Technologie</h3>
-                <div class="row text-center">
-                    <div class="col-6 col-md-3 mb-3">
-                        <i class="bi bi-code-slash" style="font-size: 2rem;"></i>
-                        <p class="mt-2 mb-0"><strong>Flask</strong></p>
-                        <small class="text-muted">Python Web Framework</small>
+    <div class="row g-4 mb-5">
+        <!-- Feature 1: Equipment Management -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-box-seam" style="font-size: 3rem; color: var(--bs-primary);"></i>
                     </div>
-                    <div class="col-6 col-md-3 mb-3">
-                        <i class="bi bi-fire" style="font-size: 2rem; color: #FFA611;"></i>
-                        <p class="mt-2 mb-0"><strong>Firebase</strong></p>
-                        <small class="text-muted">Authentication & Firestore</small>
-                    </div>
-                    <div class="col-6 col-md-3 mb-3">
-                        <i class="bi bi-google" style="font-size: 2rem; color: #4285F4;"></i>
-                        <p class="mt-2 mb-0"><strong>Google Cloud</strong></p>
-                        <small class="text-muted">Storage & Services</small>
-                    </div>
-                    <div class="col-6 col-md-3 mb-3">
-                        <i class="bi bi-bootstrap-fill" style="font-size: 2rem; color: #7952B3;"></i>
-                        <p class="mt-2 mb-0"><strong>Bootstrap 5</strong></p>
-                        <small class="text-muted">Responsive Design</small>
-                    </div>
+                    <h5 class="card-title text-center">Zarządzanie Sprzętem</h5>
+                    <p class="card-text">
+                        Kompletna baza danych sprzętu z możliwością dodawania zdjęć, szczegółowych opisów i generowania
+                        kodów QR.
+                    </p>
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Katalog sprzętu z wyszukiwarką</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Zdjęcia i dokumentacja</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Kody QR do szybkiego dostępu</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Import danych z plików</li>
+                    </ul>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-<!-- Call to Action -->
-{% if not IS_LOGGED_IN %}
-<div class="row mb-5">
-    <div class="col-12">
-        <div class="card bg-primary text-white shadow-lg">
-            <div class="card-body text-center py-5">
-                <h3 class="mb-3">Gotowy do rozpoczęcia?</h3>
-                <p class="lead mb-4">Zaloguj się, aby uzyskać dostęp do pełnej funkcjonalności systemu.</p>
-                <div class="d-flex gap-3 justify-content-center flex-wrap">
-                    <a href="{{ url_for('auth.login') }}" class="btn btn-light btn-lg">
-                        <i class="bi bi-box-arrow-in-right"></i> Zaloguj się
-                    </a>
+        <!-- Feature 2: Malfunction Reports -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-tools" style="font-size: 3rem; color: var(--bs-warning);"></i>
+                    </div>
+                    <h5 class="card-title text-center">System Usterek</h5>
+                    <p class="card-text">
+                        Zgłaszanie, śledzenie i zarządzanie usterkami sprzętu z możliwością dodawania zdjęć i statusów.
+                    </p>
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Łatwe zgłaszanie usterek</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Śledzenie statusu naprawy</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Historia zgłoszeń</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Zdjęcia dokumentujące problem</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature 3: OAuth Login -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-shield-lock" style="font-size: 3rem; color: var(--bs-success);"></i>
+                    </div>
+                    <h5 class="card-title text-center">Bezpieczne Logowanie</h5>
+                    <p class="card-text">
+                        Logowanie przez Google, Microsoft (ZHP) lub standardowe konto Firebase z pełną ochroną danych.
+                    </p>
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-check-circle-fill text-success"></i> OAuth Google i Microsoft</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Firebase Authentication</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Zarządzanie kontem</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Bezpieczne sesje</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature 4: Data Export -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-file-earmark-arrow-down" style="font-size: 3rem; color: var(--bs-info);"></i>
+                    </div>
+                    <h5 class="card-title text-center">Eksport Danych</h5>
+                    <p class="card-text">
+                        Eksportuj dane sprzętu i usterek w różnych formatach dla raportów i analizy.
+                    </p>
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Format CSV i Excel (XLSX)</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Dokumenty Word (DOCX)</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Pliki PDF</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Filtrowanie danych</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature 5: Admin Panel -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-people" style="font-size: 3rem; color: var(--bs-danger);"></i>
+                    </div>
+                    <h5 class="card-title text-center">Panel Administratora</h5>
+                    <p class="card-text">
+                        Kompleksowe zarządzanie użytkownikami, uprawnieniami i konfiguracją systemu.
+                    </p>
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Zarządzanie użytkownikami</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Nadawanie uprawnień</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Reset haseł z email</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Aktywacja/dezaktywacja kont</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature 6: Cloud Storage -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-cloud-upload" style="font-size: 3rem; color: var(--bs-secondary);"></i>
+                    </div>
+                    <h5 class="card-title text-center">Przechowywanie w Chmurze</h5>
+                    <p class="card-text">
+                        Wszystkie dane i zdjęcia bezpiecznie przechowywane w Google Cloud Platform.
+                    </p>
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Google Cloud Firestore</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Google Cloud Storage</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Automatyczne backupy</li>
+                        <li><i class="bi bi-check-circle-fill text-success"></i> Wysoka dostępność</li>
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
-</div>
-{% endif %}
+
+    <!-- Technology Stack Section -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h3 class="card-title text-center mb-4">Technologie</h3>
+                    <div class="row text-center">
+                        <div class="col-6 col-md-3 mb-3">
+                            <i class="bi bi-code-slash" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0"><strong>Flask</strong></p>
+                            <small class="text-muted">Python Web Framework</small>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <i class="bi bi-fire" style="font-size: 2rem; color: #FFA611;"></i>
+                            <p class="mt-2 mb-0"><strong>Firebase</strong></p>
+                            <small class="text-muted">Authentication & Firestore</small>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <i class="bi bi-google" style="font-size: 2rem; color: #4285F4;"></i>
+                            <p class="mt-2 mb-0"><strong>Google Cloud</strong></p>
+                            <small class="text-muted">Storage & Services</small>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <i class="bi bi-bootstrap-fill" style="font-size: 2rem; color: #7952B3;"></i>
+                            <p class="mt-2 mb-0"><strong>Bootstrap 5</strong></p>
+                            <small class="text-muted">Responsive Design</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call to Action -->
+    {% if not IS_LOGGED_IN %}
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="card bg-primary text-white shadow-lg">
+                    <div class="card-body text-center py-5">
+                        <h3 class="mb-3">Gotowy do rozpoczęcia?</h3>
+                        <p class="lead mb-4">Zaloguj się, aby uzyskać dostęp do pełnej funkcjonalności systemu.</p>
+                        <div class="d-flex gap-3 justify-content-center flex-wrap">
+                            <a href="{{ url_for('auth.login') }}" class="btn btn-light btn-lg">
+                                <i class="bi bi-box-arrow-in-right"></i> Zaloguj się
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
 
 {% endblock %}
 

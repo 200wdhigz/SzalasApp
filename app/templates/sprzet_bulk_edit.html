@@ -1,63 +1,94 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-3">Masowa edycja sprzętów</h2>
+    <div class="container mt-4">
+        <h2 class="mb-3">Masowa edycja sprzętów</h2>
 
-    <div class="alert alert-info">
-        <div><strong>Zaznaczone pozycje:</strong> {{ sprzet_ids|length }}</div>
-        <div class="small text-muted">ID: {{ sprzet_ids|join(', ') }}</div>
-    </div>
+        <div class="alert alert-info">
+            <div><strong>Zaznaczone pozycje:</strong> {{ sprzet_ids|length }}</div>
+            <div class="small text-muted">ID: {{ sprzet_ids|join(', ') }}</div>
+        </div>
 
-    <div class="card shadow">
-        <div class="card-body">
-            <form method="POST" action="{{ url_for('views.sprzet_bulk_edit_confirm') }}">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="return_query" value="{{ return_query }}">
-                {% for sid in sprzet_ids %}
-                    <input type="hidden" name="sprzet_ids" value="{{ sid }}">
-                {% endfor %}
+        <div class="card shadow">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('views.sprzet_bulk_edit_confirm') }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="return_query" value="{{ return_query }}">
+                    {% for sid in sprzet_ids %}
+                        <input type="hidden" name="sprzet_ids" value="{{ sid }}">
+                    {% endfor %}
 
-                <p class="text-muted mb-3">
-                    Ustaw tylko pola, które chcesz zmienić. Puste wartości nie zmieniają bieżących danych.
-                </p>
+                    <p class="text-muted mb-3">
+                        Ustaw tylko pola, które chcesz zmienić. Puste wartości nie zmieniają bieżących danych.
+                    </p>
 
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label for="lokalizacja" class="form-label">Magazyn / Lokalizacja</label>
-                        <input type="text" name="lokalizacja" id="lokalizacja" class="form-control" placeholder="(bez zmian)">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="lokalizacja" class="form-label">Magazyn / Lokalizacja</label>
+                            <input type="text" name="lokalizacja" id="lokalizacja" class="form-control"
+                                   placeholder="(bez zmian)">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="category" class="form-label">Kategoria</label>
+                            <select name="category" id="category" class="form-select">
+                                <option value="">(bez zmian)</option>
+                                <option value="magazyn">MAGAZYN</option>
+                                <option value="polka_skrzynia">POLKA/SKRZYNIA</option>
+                                <option value="namiot">NAMIOT</option>
+                                <option value="przedmiot">PRZEDMIOT</option>
+                                <option value="zelastwo">ZELASTWO</option>
+                                <option value="kanadyjki">KANADYJKI</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="parent_id" class="form-label">Element nadrzędny</label>
+                            <input type="text" name="parent_id" id="parent_id" class="form-control"
+                                   list="parent_suggestions" placeholder="(bez zmian)">
+                            <datalist id="parent_suggestions">
+                                <option value="">(bez zmian)</option>
+                                <option value="none">Brak (Global)</option>
+                                {% for item in sprzet_all %}
+                                    <option value="{{ item.id }}">
+                                        [{{ item.category }}] {{ item.id }} - {{ item.nazwa or item.typ or '' }}
+                                    </option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="wodoszczelnosc" class="form-label">Wodoszczelność</label>
+                            <select name="wodoszczelnosc" id="wodoszczelnosc" class="form-select">
+                                <option value="">(bez zmian)</option>
+                                <option value="Nie cieknie">Nie cieknie</option>
+                                <option value="Cieknie">Cieknie</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="stan_ogolny" class="form-label">Stan ogólny</label>
+                            <input type="text" name="stan_ogolny" id="stan_ogolny" class="form-control"
+                                   placeholder="(bez zmian)">
+                        </div>
+
+                        <div class="col-12">
+                            <label for="uwagi" class="form-label">Uwagi konserwacyjne</label>
+                            <textarea name="uwagi" id="uwagi" class="form-control" rows="2"
+                                      placeholder="(bez zmian)"></textarea>
+                        </div>
                     </div>
 
-                    <div class="col-md-4">
-                        <label for="wodoszczelnosc" class="form-label">Wodoszczelność</label>
-                        <select name="wodoszczelnosc" id="wodoszczelnosc" class="form-select">
-                            <option value="">(bez zmian)</option>
-                            <option value="Nie cieknie">Nie cieknie</option>
-                            <option value="Cieknie">Cieknie</option>
-                            <option value="N/A">N/A</option>
-                        </select>
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Zapisz zmiany dla {{ sprzet_ids|length }} pozycji
+                        </button>
+                        <a href="{{ cancel_url }}" class="btn btn-secondary">Anuluj</a>
                     </div>
-
-                    <div class="col-md-4">
-                        <label for="stan_ogolny" class="form-label">Stan ogólny</label>
-                        <input type="text" name="stan_ogolny" id="stan_ogolny" class="form-control" placeholder="(bez zmian)">
-                    </div>
-
-                    <div class="col-12">
-                        <label for="uwagi" class="form-label">Uwagi konserwacyjne</label>
-                        <textarea name="uwagi" id="uwagi" class="form-control" rows="2" placeholder="(bez zmian)"></textarea>
-                    </div>
-                </div>
-
-                <div class="mt-4 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-save"></i> Zapisz zmiany dla {{ sprzet_ids|length }} pozycji
-                    </button>
-                    <a href="{{ cancel_url }}" class="btn btn-secondary">Anuluj</a>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
-</div>
 {% endblock %}
 

@@ -1,81 +1,91 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card shadow-lg mt-4">
-            <div class="card-header bg-danger text-white">
-                <h4 class="mb-0"><i class="bi bi-pencil"></i> Edytuj Użytkownika</h4>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email:</label>
-                        <input type="email" id="email" name="email" class="form-control" required
-                               value="{{ user.firebase_email }}" placeholder="user@example.com">
-                        <small class="form-text text-muted">
-                            Zmiana emaila zaktualizuje adres zarówno w Firebase Auth jak i Firestore.
-                        </small>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="first_name" class="form-label">Imię:</label>
-                            <input type="text" id="first_name" name="first_name" class="form-control" placeholder="Imię" value="{{ user.first_name or '' }}">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg mt-4">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="bi bi-pencil"></i> Edytuj Użytkownika</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email:</label>
+                            <input type="email" id="email" name="email" class="form-control" required
+                                   value="{{ user.firebase_email }}" placeholder="user@example.com">
+                            <small class="form-text text-muted">
+                                Zmiana emaila zaktualizuje adres zarówno w Firebase Auth jak i Firestore.
+                            </small>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="last_name" class="form-label">Nazwisko:</label>
-                            <input type="text" id="last_name" name="last_name" class="form-control" placeholder="Nazwisko" value="{{ user.last_name or '' }}">
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">Imię:</label>
+                                <input type="text" id="first_name" name="first_name" class="form-control"
+                                       placeholder="Imię" value="{{ user.first_name or '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">Nazwisko:</label>
+                                <input type="text" id="last_name" name="last_name" class="form-control"
+                                       placeholder="Nazwisko" value="{{ user.last_name or '' }}">
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="is_admin" name="is_admin" {% if user.is_admin %}checked{% endif %}>
-                        <label class="form-check-label" for="is_admin">
-                            Administrator (pełne uprawnienia)
-                        </label>
-                    </div>
+                        <div class="mb-3">
+                            <label for="role" class="form-label">Rola:</label>
+                            <select class="form-select" id="role" name="role" required>
+                                <option value="reporter" {% if user.role == 'reporter' %}selected{% endif %}>Zgłaszający
+                                    (Reporter)
+                                </option>
+                                <option value="quartermaster" {% if user.role == 'quartermaster' %}selected{% endif %}>
+                                    Kwatermistrz (Quartermaster)
+                                </option>
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrator
+                                </option>
+                            </select>
+                        </div>
 
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="active" name="active" {% if user.active %}checked{% endif %}>
-                        <label class="form-check-label" for="active">
-                            Konto aktywne
-                        </label>
-                    </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="active" name="active"
+                                   {% if user.active %}checked{% endif %}>
+                            <label class="form-check-label" for="active">
+                                Konto aktywne
+                            </label>
+                        </div>
 
-                    <hr>
+                        <hr>
 
-                    <div class="mb-3">
-                        <h6 class="text-muted">Powiązane konta OAuth</h6>
-                        <p class="mb-1">
-                            <i class="bi bi-google text-danger"></i> Google: 
-                            {% if user.google_id %}
-                                <span class="badge bg-success">Połączone</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Niepołączone</span>
-                            {% endif %}
-                        </p>
-                        <p class="mb-1">
-                            <i class="bi bi-microsoft text-primary"></i> Microsoft: 
-                            {% if user.microsoft_id %}
-                                <span class="badge bg-success">Połączone</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Niepołączone</span>
-                            {% endif %}
-                        </p>
-                    </div>
+                        <div class="mb-3">
+                            <h6 class="text-muted">Powiązane konta OAuth</h6>
+                            <p class="mb-1">
+                                <i class="bi bi-google text-danger"></i> Google:
+                                {% if user.google_id %}
+                                    <span class="badge bg-success">Połączone</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Niepołączone</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-1">
+                                <i class="bi bi-microsoft text-primary"></i> Microsoft:
+                                {% if user.microsoft_id %}
+                                    <span class="badge bg-success">Połączone</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Niepołączone</span>
+                                {% endif %}
+                            </p>
+                        </div>
 
-                    <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left"></i> Anuluj
-                        </a>
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle"></i> Zapisz Zmiany
-                        </button>
-                    </div>
-                </form>
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Anuluj
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> Zapisz Zmiany
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
 {% endblock %}

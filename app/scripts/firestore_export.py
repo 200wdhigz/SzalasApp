@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any, Iterable
 
 from src import get_firestore_client
+from src import _init_firebase_admin
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,8 @@ def export_collection(
 ) -> tuple[list[dict[str, Any]], int]:
     """Export one top-level collection using pagination."""
 
+    # Ensure Firebase Admin is initialized for firestore.client().
+    _init_firebase_admin()
     db = get_firestore_client()
     coll = db.collection(collection_name)
 
@@ -131,4 +134,3 @@ def export_many_collections(
         stats[name] = count
 
     return collections, ExportStats(collections=stats)
-

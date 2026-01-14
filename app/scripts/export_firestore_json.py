@@ -1,8 +1,10 @@
-"""Export Firestore collections to a single .json file.
+r"""Export Firestore collections to a single .json file.
 
 Usage (PowerShell, from the `app/` directory):
   $env:GOOGLE_APPLICATION_CREDENTIALS="..\credentials\service-account.json"
   python -m scripts.export_firestore_json --out ..\export\firestore_export.json
+
+(Recommended) If you run it as a file, make sure `app/` is on PYTHONPATH.
 
 By default exports the project's main top-level collections.
 """
@@ -17,7 +19,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from .firestore_export import export_many_collections
+try:
+    # When run as module: `python -m scripts.export_firestore_json`
+    from .firestore_export import export_many_collections
+except ImportError:  # pragma: no cover
+    # When run as file: `python scripts/export_firestore_json.py`
+    # (requires app/ on sys.path)
+    from scripts.firestore_export import export_many_collections
 
 
 DEFAULT_COLLECTIONS = ["sprzet", "usterki", "logs", "users"]
@@ -95,4 +103,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
