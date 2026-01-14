@@ -22,6 +22,9 @@
                             <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-primary btn-lg">
                                 <i class="bi bi-list-ul"></i> Lista Sprzętu
                             </a>
+                            <button onclick="startScanner()" class="btn btn-outline-primary btn-lg d-lg-none">
+                                <i class="bi bi-qr-code-scan"></i> Skanuj QR
+                            </button>
                             <a href="{{ url_for('views.usterki_list') }}" class="btn btn-outline-primary btn-lg">
                                 <i class="bi bi-tools"></i> Lista Usterek
                             </a>
@@ -205,7 +208,7 @@
     {% if not IS_LOGGED_IN %}
         <div class="row mb-5">
             <div class="col-12">
-                <div class="card bg-primary text-white shadow-lg">
+                <div class="card text-bg-primary shadow-lg">
                     <div class="card-body text-center py-5">
                         <h3 class="mb-3">Gotowy do rozpoczęcia?</h3>
                         <p class="lead mb-4">Zaloguj się, aby uzyskać dostęp do pełnej funkcjonalności systemu.</p>

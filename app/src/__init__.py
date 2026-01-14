@@ -74,7 +74,6 @@ def create_app():
     def inject_vars():
         user_role = session.get('user_role')
         return dict(
-            RECAPTCHA_KEY=os.getenv('RECAPTCHA_SITE_KEY'),
             is_debug=app.debug,
             IS_LOGGED_IN=('user_id' in session),
             IS_ADMIN=('user_id' in session and user_role == 'admin'),

@@ -7,6 +7,8 @@ Skrypt sprawdza użytkowników i ustawia domyślne wartości None dla nowych pó
 import os
 import sys
 
+from src.db_firestore import _warsaw_now
+
 # Dodaj ścieżkę do katalogu nadrzędnego, aby móc importować moduły z src
 app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, app_dir)
@@ -88,7 +90,7 @@ def migrate_user_names():
             update_data['last_name'] = None
 
         if update_data:
-            update_data['updated_at'] = firestore.SERVER_TIMESTAMP
+            update_data['updated_at'] = _warsaw_now()
             users_ref.document(user_id).update(update_data)
             print(f"✅ Zaktualizowano użytkownika: {email}")
             updated_count += 1

@@ -43,3 +43,18 @@
         </div>
     </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+    const userContactMap = {{ user_contact_map | tojson | safe }};
+    const przezKogoInput = document.getElementById('przez_kogo');
+    const kontaktInput = document.getElementById('kontakt');
+
+    przezKogoInput.addEventListener('input', function() {
+        const value = this.value;
+        if (userContactMap[value]) {
+            kontaktInput.value = userContactMap[value];
+        }
+    });
+</script>
+{% endblock %}

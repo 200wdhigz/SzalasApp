@@ -4,7 +4,7 @@
     <div class="row justify-content-center">
         <div class="col-md-10 col-lg-8">
             <div class="card shadow-lg mt-4 mb-5">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header text-bg-primary">
                     <h4 class="mb-0"><i class="bi bi-person-circle"></i> Moje Konto</h4>
                 </div>
                 <div class="card-body">
@@ -18,16 +18,16 @@
                             <p class="mb-1"><strong>Email:</strong> {{ user.email }}</p>
                             <p class="mb-1"><strong>Rola:</strong>
                                 {% if user.is_admin %}
-                                    <span class="badge bg-danger">Administrator</span>
+                                    <span class="badge text-bg-danger">Administrator</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">Użytkownik</span>
+                                    <span class="badge text-bg-secondary">Użytkownik</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3"><strong>Status:</strong>
                                 {% if user.active %}
-                                    <span class="badge bg-success">Aktywne</span>
+                                    <span class="badge text-bg-success">Aktywne</span>
                                 {% else %}
-                                    <span class="badge bg-warning">Nieaktywne</span>
+                                    <span class="badge text-bg-warning">Nieaktywne</span>
                                 {% endif %}
                             </p>
 
@@ -64,13 +64,13 @@
                                         <div class="d-flex w-100 justify-content-between">
                                             <h6 class="mb-1">
                                                 {% if log.action == 'add' %}
-                                                    <span class="badge bg-success">Dodano</span>
+                                                    <span class="badge text-bg-success">Dodano</span>
                                                 {% elif log.action == 'edit' %}
-                                                    <span class="badge bg-info">Edytowano</span>
+                                                    <span class="badge text-bg-info">Edytowano</span>
                                                 {% elif log.action == 'delete' %}
-                                                    <span class="badge bg-danger">Usunięto</span>
+                                                    <span class="badge text-bg-danger">Usunięto</span>
                                                 {% elif log.action == 'import' %}
-                                                    <span class="badge bg-primary">Import</span>
+                                                    <span class="badge text-bg-primary">Import</span>
                                                 {% endif %}
                                                 {{ log.target_type | capitalize }}: {{ log.target_id }}
                                             </h6>
@@ -104,9 +104,9 @@
                                 <i class="bi bi-google text-danger fs-4 me-2"></i>
                                 <strong>Google</strong>
                                 {% if user.google_id %}
-                                    <span class="badge bg-success ms-2">Połączone</span>
+                                    <span class="badge text-bg-success ms-2">Połączone</span>
                                 {% else %}
-                                    <span class="badge bg-secondary ms-2">Niepołączone</span>
+                                    <span class="badge text-bg-secondary ms-2">Niepołączone</span>
                                 {% endif %}
                             </div>
                             <div>
@@ -134,9 +134,9 @@
                                 <i class="bi bi-microsoft text-primary fs-4 me-2"></i>
                                 <strong>Microsoft (ZHP)</strong>
                                 {% if user.microsoft_id %}
-                                    <span class="badge bg-success ms-2">Połączone</span>
+                                    <span class="badge text-bg-success ms-2">Połączone</span>
                                 {% else %}
-                                    <span class="badge bg-secondary ms-2">Niepołączone</span>
+                                    <span class="badge text-bg-secondary ms-2">Niepołączone</span>
                                 {% endif %}
                             </div>
                             <div>

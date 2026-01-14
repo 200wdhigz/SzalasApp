@@ -12,14 +12,14 @@ from . import get_firestore_client
 from .auth import login_required, admin_required, quartermaster_required
 from .gcs_utils import list_equipment_photos, upload_blob_to_gcs, refresh_urls
 from .db_firestore import (
-    get_sprzet_item, get_usterki_for_sprzet, get_usterka_item, 
+    get_sprzet_item, get_usterki_for_sprzet, get_usterka_item,
     update_usterka, update_sprzet, get_all_sprzet, get_all_usterki, get_items_by_filters,
     COLLECTION_SPRZET, COLLECTION_USTERKI, COLLECTION_WYPOZYCZENIA, add_item, set_item,
     add_log, get_all_logs, update_item, delete_item, CATEGORIES, MAGAZYNY_NAMES,
-    add_loan, get_active_loans, get_loans_for_item, mark_loan_returned
+    add_loan, get_active_loans, get_loans_for_item, mark_loan_returned, _warsaw_now,
+    get_all_items, get_item
 )
 from .exports import export_to_csv, export_to_xlsx, export_to_docx, export_to_pdf
-from .recaptcha import verify_recaptcha
 from .id_utils import generate_unique_magazyn_id
 
 views_bp = Blueprint('views', __name__, url_prefix='/')
@@ -86,6 +86,80 @@ def build_user_map(users):
             user_map[user['id']] = user.get('email', user['id'])
     return user_map
 
+
+def _build_qty_suggestions(category_value: str, limit: int = 12) -> list[str]:
+    """Buduje krótką listę podpowiedzi ilości na podstawie istniejących elementów."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for s in get_all_sprzet():
+        if s.get('category') != category_value:
+            continue
+        val = s.get('ilosc')
+        if val is None:
+            continue
+        v = str(val).strip()
+        if not v:
+            continue
+        if v in seen:
+            continue
+        seen.add(v)
+        out.append(v)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _build_do_czego_suggestions() -> list[str]:
+    """Buduje listę podpowiedzi dla pola 'do_czego' (typ namiotu/kanadyjki)."""
+    seen: set[str] = set()
+    for s in get_all_sprzet():
+        cat = s.get('category')
+        if cat == CATEGORIES['NAMIOT']:
+            val = s.get('typ')
+            if val:
+                seen.add(str(val).strip())
+        elif cat == CATEGORIES['KANADYJKI']:
+            val = s.get('material')
+            if val:
+                seen.add(str(val).strip())
+    return sorted(list(seen))
+
+
+def _normalize_qty_fields(data: dict, category_value: str) -> None:
+    """Czyści/normalizuje pola ilości/jednostka w zależności od kategorii."""
+    ilosc = (data.get('ilosc') or '').strip() if isinstance(data.get('ilosc'), str) else data.get('ilosc')
+    jednostka = (data.get('jednostka') or '').strip() if isinstance(data.get('jednostka'), str) else data.get('jednostka')
+
+    # Usuń puste
+    if ilosc in (None, ''):
+        data.pop('ilosc', None)
+    if jednostka in (None, ''):
+        data.pop('jednostka', None)
+
+    # Walidacja jednostki dla żelastwo/kanadyjki (skróty)
+    if category_value == CATEGORIES['ZELASTWO']:
+        allowed = {'zest.', 'szt.'}
+        # domyślnie zest.
+        if 'jednostka' not in data:
+            data['jednostka'] = 'zest.'
+        elif data.get('jednostka') not in allowed:
+            data.pop('jednostka', None)
+            data['jednostka'] = 'zest.'
+    if category_value == CATEGORIES['KANADYJKI']:
+        # Kanadyjki tylko szt.
+        data['jednostka'] = 'szt.'
+
+    # Spróbuj zamienić ilość na int gdy wygląda na liczbę
+    if 'ilosc' in data:
+        try:
+            iv = int(str(data['ilosc']).strip())
+            if iv < 0:
+                data.pop('ilosc', None)
+            else:
+                data['ilosc'] = iv
+        except Exception:
+            # zostaw jako string jeśli ktoś wpisze nietypową wartość
+            pass
 
 # =======================================================================
 #               WIDOKI BAZOWE (Logowanie/Wylogowanie)
@@ -265,7 +339,7 @@ def sprzet_add():
         category = request.form.get('category')
 
         # Automatyczne generowanie ID dla wybranych kategorii
-        if category in [CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI']]:
+        if category in [CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI'], CATEGORIES['PRZEDMIOT']]:
             db = get_firestore_client()
             sprzet_id = db.collection(COLLECTION_SPRZET).document().id.upper()
         elif category == CATEGORIES['MAGAZYN']:
@@ -284,6 +358,15 @@ def sprzet_add():
             flash(f'Sprzęt o ID {sprzet_id} już istnieje!', 'danger')
         else:
             data = {k: v for k, v in request.form.items() if k != 'id'}
+            _normalize_qty_fields(data, category)
+
+            # Obsługa zdjęć także przy dodawaniu
+            urls, err = process_uploads(request.files.getlist('nowe_zdjecia'), 'sprzet', sprzet_id)
+            if err:
+                flash(err, 'warning')
+            if urls:
+                data['zdjecia'] = urls
+
             set_item(COLLECTION_SPRZET, sprzet_id, data)
             add_log(session.get('user_id'), 'add', 'sprzet', sprzet_id, after=data)
             flash(f'Sprzęt {sprzet_id} został dodany.', 'success')
@@ -292,11 +375,14 @@ def sprzet_add():
     # Filtrujemy potencjalnych rodziców: tylko Magazyny i Półki/Skrzynie
     potential_parents = [s for s in get_all_sprzet() if s.get('category') in [CATEGORIES['MAGAZYN'], CATEGORIES['POLKA']]]
 
-    return render_template('sprzet_edit.html', 
-                           sprzet=None, 
-                           categories=CATEGORIES, 
+    return render_template('sprzet_edit.html',
+                           sprzet=None,
+                           categories=CATEGORIES,
                            magazyny_names=MAGAZYNY_NAMES,
-                           all_items=potential_parents)
+                           all_items=potential_parents,
+                           qty_suggestions_zelastwo=_build_qty_suggestions(CATEGORIES['ZELASTWO']),
+                           qty_suggestions_kanadyjki=_build_qty_suggestions(CATEGORIES['KANADYJKI']),
+                           do_czego_suggestions=_build_do_czego_suggestions())
 
 @views_bp.route('/sprzet/import', methods=['GET', 'POST'])
 @quartermaster_required
@@ -390,6 +476,7 @@ def sprzet_edit(sprzet_id):
 
     if request.method == 'POST':
         data = {k: v for k, v in request.form.items() if k != 'id'}
+        _normalize_qty_fields(data, sprzet.get('category'))
 
         # Obsługa nowych zdjęć
         urls, err = process_uploads(request.files.getlist('nowe_zdjecia'), 'sprzet', sprzet_id)
@@ -428,11 +515,14 @@ def sprzet_edit(sprzet_id):
     # Filtrujemy potencjalnych rodziców: tylko Magazyny i Półki/Skrzynie
     potential_parents = [s for s in get_all_sprzet() if s.get('category') in [CATEGORIES['MAGAZYN'], CATEGORIES['POLKA']]]
 
-    return render_template('sprzet_edit.html', 
-                           sprzet=sprzet, 
-                           categories=CATEGORIES, 
+    return render_template('sprzet_edit.html',
+                           sprzet=sprzet,
+                           categories=CATEGORIES,
                            magazyny_names=MAGAZYNY_NAMES,
-                           all_items=potential_parents)
+                           all_items=potential_parents,
+                           qty_suggestions_zelastwo=_build_qty_suggestions(CATEGORIES['ZELASTWO']),
+                           qty_suggestions_kanadyjki=_build_qty_suggestions(CATEGORIES['KANADYJKI']),
+                           do_czego_suggestions=_build_do_czego_suggestions())
 
 @views_bp.route('/sprzet/delete/<sprzet_id>', methods=['POST'])
 @quartermaster_required
@@ -455,12 +545,9 @@ def sprzet_card(sprzet_id):
             return redirect(url_for('auth.login'))
 
         opis = request.form.get('opis_usterki')
-        recaptcha_token = request.form.get('g-recaptcha-response')
 
         if not opis:
             flash('Opis usterki nie może być pusty!', 'warning')
-        elif not verify_recaptcha(recaptcha_token, 'submit_defect'):
-            flash('Weryfikacja reCAPTCHA nie powiodła się.', 'danger')
         else:
             try:
                 db = get_firestore_client()
@@ -474,7 +561,7 @@ def sprzet_card(sprzet_id):
                         'opis': opis,
                         'zgloszono_przez': session.get('user_name', 'Anonim'),
                         'user_id': session.get('user_id'),
-                        'data_zgloszenia': firestore.SERVER_TIMESTAMP,
+                        'data_zgloszenia': _warsaw_now(),
                         'status': 'oczekuje',
                         'zdjecia': urls
                     }
@@ -496,7 +583,8 @@ def sprzet_card(sprzet_id):
     from .db_firestore import get_logs_by_target
     from .db_users import get_all_users
     
-    logs = get_logs_by_target(sprzet_id)
+    # Pobieramy tylko ostatnie 15 logów dla wydajności karty
+    logs = get_logs_by_target(sprzet_id, limit=15)
     users = get_all_users()
     user_map = build_user_map(users)
     
@@ -522,10 +610,38 @@ def sprzet_card(sprzet_id):
         if not sprzet_item.get('magazyn_display') and sprzet_item.get('lokalizacja'):
             sprzet_item['magazyn_display'] = sprzet_item['lokalizacja']
 
+    # Aktywne wypożyczenie
+    loans = get_loans_for_item(sprzet_id)
+    active_loan = next((l for l in loans if l.get('status') == 'active'), None)
+
     return render_template('sprzet_card.html', sprzet=sprzet_item,
                            usterki=get_usterki_for_sprzet(sprzet_id),
                            logs=logs,
-                           loans=get_loans_for_item(sprzet_id))
+                           loans=loans,
+                           active_loan=active_loan)
+
+
+@views_bp.route('/sprzet/<sprzet_id>/quick_photo', methods=['POST'])
+@quartermaster_required
+def quick_photo(sprzet_id):
+    """Szybkie dodawanie zdjęcia aparatem z poziomu karty sprzętu."""
+    sprzet = get_sprzet_item(sprzet_id)
+    if not sprzet:
+        flash("Nie znaleziono sprzętu", "danger")
+        return redirect(url_for('views.sprzet_list'))
+
+    if 'foto' in request.files:
+        urls, err = process_uploads([request.files['foto']], 'sprzet', sprzet_id)
+        if err:
+            flash(err, 'warning')
+        if urls:
+            aktualne_zdjecia = sprzet.get('zdjecia', [])
+            aktualne_zdjecia.extend(urls)
+            update_sprzet(sprzet_id, zdjecia=aktualne_zdjecia)
+            add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, details={'action': 'quick_photo_add'})
+            flash('Zdjęcie zostało dodane.', 'success')
+
+    return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
 
 
 @views_bp.route('/sprzet/<sprzet_id>/qrcode')
@@ -538,7 +654,7 @@ def generate_qr_code(sprzet_id):
         return "Sprzęt nie istnieje", 404
 
     # Generuj URL do strony sprzętu
-    target_url = f'https://200wdhigz.github.io/sprzet/{sprzet_id}'
+    target_url = url_for('views.sprzet_card', sprzet_id=sprzet_id, _external=True)
 
     # Sprawdź czy jest tryb debug
     is_debug = os.getenv('FLASK_ENV') == 'development' or os.getenv('DEBUG') == 'True'
@@ -643,7 +759,8 @@ def usterka_card(usterka_id):
     from .db_firestore import get_logs_by_target
     from .db_users import get_all_users
     
-    logs = get_logs_by_target(usterka_id)
+    # Pobieramy tylko ostatnie 15 logów dla wydajności karty
+    logs = get_logs_by_target(usterka_id, limit=15)
     users = get_all_users()
     user_map = build_user_map(users)
     
@@ -807,11 +924,16 @@ def sprzet_bulk_delete():
 @views_bp.route('/loans')
 @quartermaster_required
 def loans_list():
-    active_loans = get_active_loans()
+    show_history = request.args.get('history', '0') == '1'
+    if show_history:
+        loans = get_all_items(COLLECTION_WYPOZYCZENIA, order_by='timestamp')
+    else:
+        loans = get_active_loans()
+
     # Dodajemy informacje o sprzęcie do każdego wypożyczenia
-    for loan in active_loans:
+    for loan in loans:
         loan['item'] = get_sprzet_item(loan.get('item_id'))
-    return render_template('loans_list.html', loans=active_loans)
+    return render_template('loans_list.html', loans=loans, show_history=show_history)
 
 @views_bp.route('/loan/add/<item_id>', methods=['GET', 'POST'])
 @quartermaster_required
@@ -843,11 +965,43 @@ def loan_add(item_id):
     users = get_all_users()
     user_names = sorted(list(set(build_user_map(users).values())))
     
-    return render_template('loan_edit.html', item=item, user_names=user_names)
+    # Budujemy mapę użytkowników do auto-uzupełniania kontaktu
+    user_contact_map = {}
+    for user in users:
+        display_name = (f"{user.get('first_name', '')} {user.get('last_name', '')}").strip() or user.get('email', user['id'])
+        user_contact_map[display_name] = user.get('email', '')
+    
+    return render_template('loan_edit.html', 
+                           item=item, 
+                           user_names=user_names, 
+                           user_contact_map=user_contact_map)
 
 @views_bp.route('/loan/return/<loan_id>', methods=['POST'])
 @quartermaster_required
 def loan_return(loan_id):
+    loan = get_item(COLLECTION_WYPOZYCZENIA, loan_id)
+    if not loan:
+        flash('Nie znaleziono wypożyczenia.', 'danger')
+        return redirect(url_for('views.loans_list'))
+
+    # Sprawdzamy czy użytkownik nie zwraca własnego wypożyczenia
+    current_user_id = session.get('user_id')
+    from .db_users import get_user_by_uid
+    current_user = get_user_by_uid(current_user_id)
+    
+    if current_user:
+        # Budujemy nazwę aktualnego użytkownika do porównania
+        first_name = current_user.get('first_name', '')
+        last_name = current_user.get('last_name', '')
+        full_name = (f"{first_name} {last_name}").strip()
+        email = current_user.get('email', '')
+        
+        przez_kogo = loan.get('przez_kogo', '')
+        
+        if (full_name and przez_kogo == full_name) or (email and przez_kogo == email):
+            flash('Osoba która wypożyczała nie może sama sobie zwrócić wypożyczenia.', 'danger')
+            return redirect(url_for('views.loans_list'))
+
     mark_loan_returned(loan_id)
     flash('Przedmiot został zwrócony.', 'success')
     return redirect(url_for('views.loans_list'))
@@ -856,17 +1010,41 @@ def loan_return(loan_id):
 @quartermaster_required
 def logs_list():
     """Wyświetla listę wszystkich logów (QUARTERMASTER/ADMIN)."""
-    from .db_firestore import get_all_logs
+    from .db_firestore import get_all_logs, get_logs_count, get_logs_by_user, get_logs_by_target
     from .db_users import get_all_users
 
-    logs = get_all_logs()
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    offset = (page - 1) * per_page
+    
+    user_id_filter = request.args.get('user_id')
+    target_id_filter = request.args.get('target_id')
+
+    if user_id_filter:
+        logs = get_logs_by_user(user_id_filter, limit=per_page, offset=offset)
+        total_logs = get_logs_count(user_id=user_id_filter)
+    elif target_id_filter:
+        logs = get_logs_by_target(target_id_filter, limit=per_page, offset=offset)
+        total_logs = get_logs_count(target_id=target_id_filter)
+    else:
+        logs = get_all_logs(limit=per_page, offset=offset)
+        total_logs = get_logs_count()
+
     users = get_all_users()
     user_map = build_user_map(users)
 
     for log in logs:
         log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
 
-    return render_template('logs.html', logs=logs)
+    total_pages = (total_logs + per_page - 1) // per_page
+
+    return render_template('logs.html', 
+                           logs=logs, 
+                           page=page, 
+                           total_pages=total_pages,
+                           total_logs=total_logs,
+                           user_id_filter=user_id_filter,
+                           target_id_filter=target_id_filter)
 
 @views_bp.route('/user/<user_id>')
 @login_required
@@ -880,7 +1058,8 @@ def user_profile(user_id):
         flash('Nie znaleziono użytkownika.', 'danger')
         return redirect(url_for('views.sprzet_list'))
 
-    logs = get_logs_by_user(user_id)
+    # Pobieramy tylko ostatnie 15 logów dla wydajności profilu
+    logs = get_logs_by_user(user_id, limit=15)
 
     # Ustawiamy czytelną nazwę użytkownika dla logów
     user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('email', user_id)
@@ -1109,3 +1288,46 @@ def sprzet_bulk_edit_confirm():
 
     return_query = (request.form.get('return_query') or '').strip()
     return redirect(url_for('views.sprzet_list') + (f'?{return_query}' if return_query else ''))
+
+@views_bp.route('/usterki/bulk-delete', methods=['POST'])
+@admin_required
+def usterki_bulk_delete():
+    """Masowe usuwanie usterek (tylko ADMIN)."""
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF.', 'danger')
+        return redirect(url_for('views.usterki_list'))
+
+    usterka_ids = request.form.getlist('usterka_ids')
+    if not usterka_ids:
+        flash('Nie wybrano żadnych usterek.', 'warning')
+        return redirect(url_for('views.usterki_list'))
+
+    count = 0
+    errors = 0
+    error_details = []
+
+    for uid in usterka_ids:
+        try:
+            delete_item(COLLECTION_USTERKI, uid)
+            add_log(session.get('user_id'), 'delete', 'usterka', uid)
+            count += 1
+        except Exception as e:
+            errors += 1
+            error_msg = f"{uid}: {str(e)}"
+            error_details.append(error_msg)
+            current_app.logger.error(f"Bulk delete usterki error: {error_msg}", exc_info=True)
+
+    if count:
+        flash(f'Pomyślnie usunięto {count} usterek.', 'success')
+
+    if errors:
+        if errors <= MAX_DISPLAYED_ERRORS:
+            flash(f'Wystąpiły błędy przy usuwaniu {errors} usterek:', 'danger')
+        else:
+            flash(f'Wystąpiły błędy przy usuwaniu {errors} usterek. Pierwsze {MAX_DISPLAYED_ERRORS} błędów:', 'danger')
+
+        for err in error_details[:MAX_DISPLAYED_ERRORS]:
+            flash(err, 'danger')
+
+    return redirect(url_for('views.usterki_list'))

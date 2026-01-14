@@ -1,6 +1,8 @@
 from . import get_firestore_client
 from google.cloud import firestore
 
+from .db_firestore import _warsaw_now
+
 COLLECTION_USERS = 'users'
 
 def _get_doc_data(doc):
@@ -62,8 +64,8 @@ def create_user(uid: str, email: str, is_admin: bool = False, role: str = 'repor
         'last_name': last_name,
         'google_id': None,
         'microsoft_id': None,
-        'created_at': firestore.SERVER_TIMESTAMP,
-        'updated_at': firestore.SERVER_TIMESTAMP
+        'created_at': _warsaw_now(),
+        'updated_at': _warsaw_now()
     }
     db.collection(COLLECTION_USERS).document(uid).set(user_data)
     return uid
@@ -71,7 +73,7 @@ def create_user(uid: str, email: str, is_admin: bool = False, role: str = 'repor
 def update_user(uid: str, **kwargs):
     """Aktualizuje dane użytkownika."""
     db = get_firestore_client()
-    kwargs['updated_at'] = firestore.SERVER_TIMESTAMP
+    kwargs['updated_at'] = _warsaw_now()
     db.collection(COLLECTION_USERS).document(uid).update(kwargs)
 
 def link_google_account(uid: str, google_id: str):

@@ -1,0 +1,138 @@
+{% macro render_log_table(logs, show_user=True, show_target=True, IS_QUARTERMASTER=False, csrf_token=None, table_id="logs") %}
+<style>
+    /* Przyspieszenie otwierania szczegółów poprzez wyłączenie animacji dla dużych wierszy */
+    .log-details-row.collapsing {
+        transition: none !important;
+        display: none;
+    }
+</style>
+<div class="table-responsive shadow-sm rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-dark">
+        <tr>
+            <th style="width: 45px;"></th>
+            <th>Data</th>
+            {% if show_user %}<th>Użytkownik</th>{% endif %}
+            <th>Akcja</th>
+            {% if show_target %}<th>Element</th>{% endif %}
+            <th class="text-end" style="width: 120px;">Akcje</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for log in logs %}
+            {% set log_idx = table_id ~ "-" ~ loop.index %}
+            <tr class="log-row" style="cursor: pointer;" data-bs-target="#collapse-{{ log_idx }}">
+                <td>
+                    <i class="bi bi-chevron-down text-muted collapse-icon" id="icon-{{ log_idx }}"></i>
+                </td>
+                <td class="text-nowrap small">{{ log.timestamp }}</td>
+                {% if show_user %}
+                <td>
+                    <a href="{{ url_for('views.user_profile', user_id=log.user_id) }}" class="text-decoration-none">
+                        <i class="bi bi-person me-1"></i>{{ log.user_name or log.user_id }}
+                    </a>
+                </td>
+                {% endif %}
+                <td>
+                    {% if log.action == 'add' %}
+                        <span class="badge text-bg-success">Dodano</span>
+                    {% elif log.action == 'edit' %}
+                        <span class="badge text-bg-info">Edytowano</span>
+                    {% elif log.action == 'delete' %}
+                        <span class="badge text-bg-danger">Usunięto</span>
+                    {% elif log.action == 'bulk_edit' %}
+                        <span class="badge text-bg-info">Hurtowa edycja</span>
+                    {% elif log.action == 'restore' %}
+                        <span class="badge text-bg-warning">Przywrócono</span>
+                    {% elif log.action == 'restore_delete' %}
+                        <span class="badge text-bg-warning">Cofnięto dodanie</span>
+                    {% elif log.action == 'loan' %}
+                        <span class="badge text-bg-primary">Wypożyczenie</span>
+                    {% else %}
+                        <span class="badge text-bg-secondary">{{ log.action }}</span>
+                    {% endif %}
+                </td>
+                {% if show_target %}
+                <td>
+                    <small class="text-muted text-uppercase d-block" style="font-size: 0.7rem;">{{ log.target_type }}</small>
+                    {% if log.target_type == 'sprzet' %}
+                        <a href="{{ url_for('views.sprzet_card', sprzet_id=log.target_id) }}" class="fw-bold text-decoration-none">
+                            {{ log.target_id }}
+                        </a>
+                    {% elif log.target_type == 'usterka' %}
+                        <a href="{{ url_for('views.usterka_card', usterka_id=log.target_id) }}" class="fw-bold text-decoration-none">
+                            {{ log.target_id }}
+                        </a>
+                    {% else %}
+                        <span class="fw-bold">{{ log.target_id }}</span>
+                    {% endif %}
+                </td>
+                {% endif %}
+                <td class="text-end">
+                    {% if IS_QUARTERMASTER and log.before and log.action not in ['restore', 'restore_delete'] %}
+                        <form method="POST" action="{{ url_for('admin.log_restore', log_id=log.id) }}" style="display: inline;" 
+                              onsubmit="return confirm('Czy na pewno chcesz cofnąć tę zmianę?');">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm btn-outline-warning py-0" title="Cofnij zmianę">
+                                <i class="bi bi-arrow-counterclockwise"></i> Cofnij
+                            </button>
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr class="collapse log-details-row" id="collapse-{{ log_idx }}">
+                <td colspan="{% if show_user and show_target %}6{% elif show_user or show_target %}5{% else %}4{% endif %}" class="p-0 border-top-0">
+                    <div class="p-4 bg-body-tertiary border-start border-end">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-header py-2">
+                                        <h6 class="text-muted small fw-bold text-uppercase mb-0">Stan przed:</h6>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        {% if log.before %}
+                                            <pre class="m-0 p-3 small" style="max-height: 350px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"><code>{{ log.before | tojson(indent=2) }}</code></pre>
+                                        {% else %}
+                                            <div class="p-3 text-muted small"><em>Brak danych historycznych</em></div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-header py-2">
+                                        <h6 class="text-muted small fw-bold text-uppercase mb-0">Stan po:</h6>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        {% if log.after %}
+                                            <pre class="m-0 p-3 small" style="max-height: 350px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"><code>{{ log.after | tojson(indent=2) }}</code></pre>
+                                        {% else %}
+                                            <div class="p-3 text-muted small"><em>Brak danych końcowych</em></div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% if log.details %}
+                            <div class="mt-3">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header py-2">
+                                        <h6 class="text-muted small fw-bold text-uppercase mb-0">Dodatkowe szczegóły:</h6>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <pre class="m-0 p-3 small" style="white-space: pre-wrap; word-break: break-all;"><code>{{ log.details | tojson(indent=2) }}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                        <div class="mt-3 text-end">
+                            <small class="text-muted">ID Loga: <code>{{ log.id }}</code></small>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endmacro %}

@@ -25,8 +25,26 @@ MAGAZYNY_NAMES = [
     'Leśniczy/magazynek'
 ]
 
+def _warsaw_now():
+    """Zwraca bieżący czas lokalny dla Polski (Europe/Warsaw) jako datetime timezone-aware."""
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo  # py3.9+
+        tz = ZoneInfo('Europe/Warsaw')
+    except Exception:
+        # Fallback gdyby zoneinfo nie było dostępne
+        tz = None
+    if tz is None:
+        # lokalny czas systemu
+        return datetime.now().astimezone()
+    return datetime.now(tz)
+
 def add_log(user_id, action, target_type, target_id, details=None, before=None, after=None):
-    """Zapisuje log akcji użytkownika."""
+    """Zapisuje log akcji użytkownika.
+
+    Uwaga: zapisujemy czas lokalny (Warszawa) zamiast timestampu serwera Firestore,
+    żeby użytkownicy widzieli spójne godziny niezależnie od strefy serwera.
+    """
     db = get_firestore_client()
     log_data = {
         'user_id': user_id,
@@ -36,27 +54,51 @@ def add_log(user_id, action, target_type, target_id, details=None, before=None, 
         'details': details,
         'before': before,
         'after': after,
-        'timestamp': firestore.SERVER_TIMESTAMP
+        'timestamp': _warsaw_now(),
     }
     db.collection(COLLECTION_LOGS).add(log_data)
 
-def get_logs_by_user(user_id):
+def get_logs_by_user(user_id, limit=None, offset=None):
     """Pobiera logi dla konkretnego użytkownika."""
     db = get_firestore_client()
     query = db.collection(COLLECTION_LOGS).where(filter=firestore.FieldFilter('user_id', '==', user_id)).order_by('timestamp', direction=firestore.Query.DESCENDING)
+    if limit:
+        query = query.limit(limit)
+    if offset:
+        query = query.offset(offset)
     return [_get_doc_data(doc) for doc in query.stream()]
 
-def get_logs_by_target(target_id):
+def get_logs_by_target(target_id, limit=None, offset=None):
     """Pobiera logi dla konkretnego obiektu (sprzętu lub usterki)."""
     db = get_firestore_client()
     query = db.collection(COLLECTION_LOGS).where(filter=firestore.FieldFilter('target_id', '==', target_id)).order_by('timestamp', direction=firestore.Query.DESCENDING)
+    if limit:
+        query = query.limit(limit)
+    if offset:
+        query = query.offset(offset)
     return [_get_doc_data(doc) for doc in query.stream()]
 
-def get_all_logs():
+def get_all_logs(limit=None, offset=None):
     """Pobiera wszystkie logi (dla admina/zalogowanych)."""
     db = get_firestore_client()
     query = db.collection(COLLECTION_LOGS).order_by('timestamp', direction=firestore.Query.DESCENDING)
+    if limit:
+        query = query.limit(limit)
+    if offset:
+        query = query.offset(offset)
     return [_get_doc_data(doc) for doc in query.stream()]
+
+def get_logs_count(user_id=None, target_id=None):
+    """Zwraca liczbę logów, opcjonalnie filtrowaną."""
+    db = get_firestore_client()
+    query = db.collection(COLLECTION_LOGS)
+    if user_id:
+        query = query.where(filter=firestore.FieldFilter('user_id', '==', user_id))
+    if target_id:
+        query = query.where(filter=firestore.FieldFilter('target_id', '==', target_id))
+    
+    # Uwaga: count() w Firestore jest bardzo szybkie i tanie
+    return query.count().get()[0][0].value
 
 def get_log(log_id):
     """Pobiera pojedynczy log."""
@@ -203,7 +245,7 @@ def add_item(collection: str, data: dict):
     """Dodaje nowy dokument do kolekcji."""
     db = get_firestore_client()
     if collection == COLLECTION_USTERKI and 'data_zgloszenia' not in data:
-        data['data_zgloszenia'] = firestore.SERVER_TIMESTAMP
+        data['data_zgloszenia'] = _warsaw_now()
     
     _, doc_ref = db.collection(collection).add(data)
     return doc_ref.id
@@ -220,7 +262,7 @@ def delete_item(collection: str, item_id: str):
 def add_loan(data):
     """Dodaje nowe wypożyczenie."""
     data['status'] = 'active'
-    data['timestamp'] = firestore.SERVER_TIMESTAMP
+    data['timestamp'] = _warsaw_now()
     return add_item(COLLECTION_WYPOZYCZENIA, data)
 
 def get_active_loans():
@@ -233,4 +275,4 @@ def get_loans_for_item(item_id):
 
 def mark_loan_returned(loan_id):
     """Oznacza wypożyczenie jako zwrócone."""
-    update_item(COLLECTION_WYPOZYCZENIA, loan_id, status='returned', return_timestamp=firestore.SERVER_TIMESTAMP)
+    update_item(COLLECTION_WYPOZYCZENIA, loan_id, status='returned', return_timestamp=_warsaw_now())

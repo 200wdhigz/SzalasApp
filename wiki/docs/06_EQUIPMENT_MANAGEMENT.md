@@ -421,12 +421,12 @@ szalas-app/
 
 **Link docelowy:**
 ```
-https://200wdhigz.github.io/sprzet/{sprzet_id}
+https://[twoja-domena]/sprzet/{sprzet_id}
 ```
 
 Lub dla developmentu:
 ```
-https://200wdhigz.github.io/sprzet/{sprzet_id}?dev
+https://[twoja-domena]/sprzet/{sprzet_id}?dev
 ```
 
 ### Zastosowania
