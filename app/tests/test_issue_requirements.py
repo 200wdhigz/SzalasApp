@@ -71,7 +71,7 @@ def test_loan_return_self_block(client):
         # Attempt to return own loan
         response = client.post('/loan/return/loan123', follow_redirects=True)
         
-        assert b'Osoba kt\xc3\xb3ra wypo\xc5\xbcycza\xc5\x82a nie mo\xc5\xbce sama sobie zwr\xc3\xb3ci\xc4\x87 wypo\xc5\xbcyczenia.' in response.data
+        assert 'Osoba która wypożyczała nie może sama sobie zwrócić wypożyczenia.'.encode('utf-8') in response.data
         mock_mark_returned.assert_not_called()
 
 def test_loan_return_other_success(client):
@@ -102,5 +102,5 @@ def test_loan_return_other_success(client):
         # Attempt to return someone else's loan
         response = client.post('/loan/return/loan123', follow_redirects=True)
         
-        assert b'Przedmiot zosta\xc5\x82 zwr\xc3\xb3cony.' in response.data
+        assert 'Przedmiot został zwrócony.'.encode('utf-8') in response.data
         mock_mark_returned.assert_called_once_with('loan123')
