@@ -1,116 +1,413 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">{% if sprzet %}Edytuj Sprzęt: {{ sprzet.id }}{% else %}Dodaj Nowy Sprzęt{% endif %}</h2>
-    
-    <div class="card shadow">
-        <div class="card-body">
-            <form method="POST" enctype="multipart/form-data">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label for="id" class="form-label">ID (np. NA01)</label>
-                        <input type="text" name="id" id="id" class="form-control" value="{{ sprzet.id if sprzet else '' }}" {% if sprzet %}readonly{% endif %} required pattern="^[A-Z]{2}\d{2,}$" title="ID musi składać się z dwóch wielkich liter i co najmniej dwóch cyfr (np. NA01)">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="typ" class="form-label">Typ</label>
-                        <input type="text" name="typ" id="typ" class="form-control" value="{{ sprzet.typ if sprzet else '' }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="lokalizacja" class="form-label">Magazyn / Lokalizacja</label>
-                        <input type="text" name="lokalizacja" id="lokalizacja" class="form-control" value="{{ sprzet.lokalizacja if sprzet else '' }}">
-                    </div>
+    <div class="container mt-4">
+        <h2 class="mb-4">{% if sprzet %}Edytuj Sprzęt: {{ sprzet.id }}{% else %}Dodaj Nowy Sprzęt{% endif %}</h2>
 
-                    <div class="col-md-4">
-                        <label for="wodoszczelnosc" class="form-label">Wodoszczelność</label>
-                        <select name="wodoszczelnosc" id="wodoszczelnosc" class="form-select">
-                            <option value="Nie cieknie" {% if sprzet and sprzet.wodoszczelnosc == 'Nie cieknie' %}selected{% endif %}>Nie cieknie</option>
-                            <option value="Cieknie" {% if sprzet and sprzet.wodoszczelnosc == 'Cieknie' %}selected{% endif %}>Cieknie</option>
-                            <option value="N/A" {% if sprzet and sprzet.wodoszczelnosc == 'N/A' %}selected{% endif %}>N/A</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="stan_ogolny" class="form-label">Stan Ogólny</label>
-                        <input type="text" name="stan_ogolny" id="stan_ogolny" class="form-control" value="{{ sprzet.stan_ogolny if sprzet else '' }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="przeznaczenie" class="form-label">Przeznaczenie</label>
-                        <input type="text" name="przeznaczenie" id="przeznaczenie" class="form-control" value="{{ sprzet.przeznaczenie if sprzet else '' }}">
-                    </div>
+        <div class="card shadow">
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="row g-3">
+                        <div class="col-md-4" id="id_field_container">
+                            <label for="id" class="form-label">ID (np. MA01, PO01, SP01)</label>
+                            <input type="text" name="id" id="id" class="form-control"
+                                   value="{{ sprzet.id if sprzet else '' }}" {% if sprzet %}readonly{% endif %}
+                                   placeholder="Zostaw puste dla auto-ID (żelastwo/kanadyjki/przedmiot/magazyn)"
+                                   title="ID musi składać się z dwóch wielkich liter i co najmniej dwóch cyfr (np. NA01)">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="category" class="form-label">Kategoria</label>
+                            <select name="category" id="category" class="form-select" onchange="toggleFields()">
+                                {% for key, value in categories.items() %}
+                                    <option value="{{ value }}"
+                                            {% if sprzet and sprzet.category == value %}selected{% endif %}>{{ key }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4" id="parent_field">
+                            <label for="parent_id" class="form-label">Element nadrzędny</label>
+                            <input type="text" name="parent_id" id="parent_id" class="form-control"
+                                   list="parent_suggestions"
+                                   value="{{ sprzet.parent_id if sprzet else '' }}"
+                                   placeholder="Wyszukaj ID lub nazwę...">
+                            <datalist id="parent_suggestions">
+                                <option value="">Brak (Global)</option>
+                                {% for item in all_items %}
+                                    {% if not sprzet or item.id != sprzet.id %}
+                                        <option value="{{ item.id }}">
+                                            [{{ item.category }}] {{ item.id }} - {{ item.nazwa or item.typ or '' }}
+                                        </option>
+                                    {% endif %}
+                                {% endfor %}
+                            </datalist>
+                        </div>
 
-                    <div class="col-md-3">
-                        <label for="zakup" class="form-label">Data Zakupu</label>
-                        <input type="text" name="zakup" id="zakup" class="form-control" value="{{ sprzet.zakup if sprzet else '' }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="przejecie" class="form-label">Data Przejęcia</label>
-                        <input type="text" name="przejecie" id="przejecie" class="form-control" value="{{ sprzet.przejecie if sprzet else '' }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="kolor_dachu" class="form-label">Kolor dachu</label>
-                        <input type="text" name="kolor_dachu" id="kolor_dachu" class="form-control" value="{{ sprzet.kolor_dachu if sprzet else '' }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="kolor_bokow" class="form-label">Kolor boków</label>
-                        <input type="text" name="kolor_bokow" id="kolor_bokow" class="form-control" value="{{ sprzet.kolor_bokow if sprzet else '' }}">
-                    </div>
+                        <div class="col-md-12" id="magazyn_photo_field" style="display: none;">
+                            <label for="magazyn_photo" class="form-label">Zdjęcia Magazynu</label>
+                            <p class="text-muted small">Zdjęcia dla magazynu zarządza się tak samo jak dla zwykłego
+                                sprzętu (poniżej).</p>
+                        </div>
 
-                    <div class="col-md-6">
-                        <label for="znak_szczegolny" class="form-label">Znak szczególny</label>
-                        <input type="text" name="znak_szczegolny" id="znak_szczegolny" class="form-control" value="{{ sprzet.znak_szczegolny if sprzet else '' }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="zapalki" class="form-label">Zapałki</label>
-                        <input type="text" name="zapalki" id="zapalki" class="form-control" value="{{ sprzet.zapalki if sprzet else '' }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="czyWraca" class="form-label">Czy wraca do Wawy?</label>
-                        <input type="text" name="czyWraca" id="czyWraca" class="form-control" value="{{ sprzet.czyWraca if sprzet else '' }}">
-                    </div>
+                        <!-- Pola dla MAGAZYN -->
+                        <div class="col-md-4 category-field field-magazyn">
+                            <label for="nazwa_magazyn" class="form-label">Nazwa Magazynu</label>
+                            <input type="text" name="nazwa" id="nazwa_magazyn" class="form-control"
+                                   value="{{ sprzet.nazwa if sprzet else '' }}" list="magazyny_suggestions">
+                            <datalist id="magazyny_suggestions">
+                                {% for name in magazyny_names %}
+                                    <option value="{{ name }}">
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-md-4 category-field field-magazyn">
+                            <label for="gps_lat" class="form-label">GPS Latitude</label>
+                            <input type="text" name="gps_lat" id="gps_lat" class="form-control"
+                                   value="{{ sprzet.gps_lat if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-4 category-field field-magazyn">
+                            <label for="gps_lng" class="form-label">GPS Longitude</label>
+                            <input type="text" name="gps_lng" id="gps_lng" class="form-control"
+                                   value="{{ sprzet.gps_lng if sprzet else '' }}">
+                        </div>
 
-                    <div class="col-12">
-                        <label for="uwagi" class="form-label">Uwagi konserwacyjne</label>
-                        <textarea name="uwagi" id="uwagi" class="form-control" rows="2">{{ sprzet.uwagi if sprzet else '' }}</textarea>
-                    </div>
-                    <div class="col-12">
-                        <label for="historia" class="form-label">Historia</label>
-                        <textarea name="historia" id="historia" class="form-control" rows="2">{{ sprzet.historia if sprzet else '' }}</textarea>
-                    </div>
+                        <!-- Pola dla POLKA/SKRZYNIA -->
+                        <div class="col-md-4 category-field field-polka_skrzynia">
+                            <label for="nazwa_polka" class="form-label">Nazwa Półki/Skrzyni</label>
+                            <input type="text" name="nazwa" id="nazwa_polka" class="form-control"
+                                   value="{{ sprzet.nazwa if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-8 category-field field-polka_skrzynia">
+                            <label for="informacje" class="form-label">Dodatkowe informacje</label>
+                            <input type="text" name="informacje" id="informacje" class="form-control"
+                                   value="{{ sprzet.informacje if sprzet else '' }}">
+                        </div>
 
-                    {% if sprzet %}
-                    <div class="col-12 mt-4">
-                        <h5>Zarządzaj zdjęciami</h5>
-                        <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
-                            {% for photo_url in sprzet.zdjecia_lista_url %}
-                            <div class="col">
-                                <div class="card h-100 shadow-sm">
-                                    <img src="{{ photo_url }}" class="card-img-top" alt="Zdjęcie sprzętu" style="height: 150px; object-fit: cover;">
-                                    <div class="card-footer text-center">
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="checkbox" name="usun_zdjecia" value="{{ photo_url }}" id="del_{{ loop.index }}">
-                                            <label class="form-check-label text-danger" for="del_{{ loop.index }}">Usuń</label>
-                                        </div>
-                                    </div>
-                                </div>
+                        <!-- Pola dla NAMIOT (stare pola) -->
+                        <div class="col-md-4 category-field field-namiot">
+                            <label for="typ" class="form-label">Typ</label>
+                            <input type="text" name="typ" id="typ" class="form-control"
+                                   value="{{ sprzet.typ if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-4 category-field field-namiot">
+                            <label for="wodoszczelnosc" class="form-label">Wodoszczelność</label>
+                            <select name="wodoszczelnosc" id="wodoszczelnosc" class="form-select">
+                                <option value="Nie cieknie"
+                                        {% if sprzet and sprzet.wodoszczelnosc == 'Nie cieknie' %}selected{% endif %}>
+                                    Nie cieknie
+                                </option>
+                                <option value="Cieknie"
+                                        {% if sprzet and sprzet.wodoszczelnosc == 'Cieknie' %}selected{% endif %}>
+                                    Cieknie
+                                </option>
+                                <option value="N/A"
+                                        {% if sprzet and sprzet.wodoszczelnosc == 'N/A' %}selected{% endif %}>N/A
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 category-field field-namiot">
+                            <label for="stan_ogolny" class="form-label">Stan Ogólny</label>
+                            <input type="text" name="stan_ogolny" id="stan_ogolny" class="form-control"
+                                   value="{{ sprzet.stan_ogolny if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-4 category-field field-namiot">
+                            <label for="przeznaczenie" class="form-label">Przeznaczenie</label>
+                            <input type="text" name="przeznaczenie" id="przeznaczenie" class="form-control"
+                                   value="{{ sprzet.przeznaczenie if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-3 category-field field-namiot">
+                            <label for="zakup" class="form-label">Data Zakupu</label>
+                            <input type="date" name="zakup" id="zakup" class="form-control"
+                                   value="{{ sprzet.zakup if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-3 category-field field-namiot">
+                            <label for="przejecie" class="form-label">Data Przejęcia</label>
+                            <input type="date" name="przejecie" id="przejecie" class="form-control"
+                                   value="{{ sprzet.przejecie if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-3 category-field field-namiot">
+                            <label for="kolor_dachu" class="form-label">Kolor dachu</label>
+                            <input type="text" name="kolor_dachu" id="kolor_dachu" class="form-control"
+                                   value="{{ sprzet.kolor_dachu if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-3 category-field field-namiot">
+                            <label for="kolor_bokow" class="form-label">Kolor boków</label>
+                            <input type="text" name="kolor_bokow" id="kolor_bokow" class="form-control"
+                                   value="{{ sprzet.kolor_bokow if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-6 category-field field-namiot">
+                            <label for="znak_szczegolny" class="form-label">Znak szczególny</label>
+                            <input type="text" name="znak_szczegolny" id="znak_szczegolny" class="form-control"
+                                   value="{{ sprzet.znak_szczegolny if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-6 category-field field-namiot">
+                            <label for="zapalki" class="form-label">Zapałki</label>
+                            <select name="zapalki" id="zapalki" class="form-select">
+                                <option value="5" {% if sprzet and sprzet.zapalki == '5' %}selected{% endif %}>5</option>
+                                <option value="6" {% if sprzet and sprzet.zapalki == '6' %}selected{% endif %}>6</option>
+                            </select>
+                        </div>
+
+                        <!-- Pola dla PRZEDMIOT -->
+                        <div class="col-md-4 category-field field-przedmiot">
+                            <label for="nazwa_przedmiot" class="form-label">Nazwa Przedmiotu</label>
+                            <input type="text" name="nazwa" id="nazwa_przedmiot" class="form-control"
+                                   value="{{ sprzet.nazwa if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-4 category-field field-przedmiot">
+                            <label class="form-label">Ilość</label>
+                            <div class="input-group">
+                                <input type="text" name="ilosc" id="ilosc" class="form-control"
+                                       value="{{ sprzet.ilosc if sprzet else '' }}" placeholder="np. 10">
+                                <select name="jednostka" id="jednostka" class="form-select" style="max-width: 120px;">
+                                    <option value=".szt" {% if sprzet and sprzet.jednostka == '.szt' %}selected{% endif %}>
+                                        .szt
+                                    </option>
+                                    <option value=".m" {% if sprzet and sprzet.jednostka == '.m' %}selected{% endif %}>.m
+                                    </option>
+                                    <option value=".m×.m"
+                                            {% if sprzet and sprzet.jednostka == '.m×.m' %}selected{% endif %}>.m×.m
+                                    </option>
+                                </select>
                             </div>
-                            {% endfor %}
                         </div>
-                        <div class="mb-3">
-                            <label for="nowe_zdjecia" class="form-label">Dodaj nowe zdjęcia</label>
-                            <input type="file" name="nowe_zdjecia" id="nowe_zdjecia" class="form-control" multiple accept="image/*">
+
+                        <!-- Pola dla ZELASTWO -->
+                        <div class="col-md-4 category-field field-zelastwo">
+                            <label for="do_czego" class="form-label">Do czego</label>
+                            <input type="text" name="do_czego" id="do_czego" class="form-control"
+                                   list="do_czego_suggestions"
+                                   value="{{ sprzet.do_czego if sprzet else '' }}">
+                            <datalist id="do_czego_suggestions">
+                                {% for s in do_czego_suggestions or [] %}
+                                    <option value="{{ s }}">
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-md-4 category-field field-zelastwo">
+                            <label for="typ_zelastwa" class="form-label">Typ żelastwa</label>
+                            <select name="typ_zelastwa" id="typ_zelastwa" class="form-select">
+                                <option value="maszt"
+                                        {% if sprzet and sprzet.typ_zelastwa == 'maszt' %}selected{% endif %}>maszt
+                                </option>
+                                <option value="noga"
+                                        {% if sprzet and sprzet.typ_zelastwa == 'noga' %}selected{% endif %}>noga
+                                </option>
+                                <option value="zapałka"
+                                        {% if sprzet and sprzet.typ_zelastwa == 'zapałka' %}selected{% endif %}>zapałka
+                                </option>
+                                <option value="rozpórka"
+                                        {% if sprzet and sprzet.typ_zelastwa == 'rozpórka' %}selected{% endif %}>
+                                    rozpórka
+                                </option>
+                                <option value="poprzeczka"
+                                        {% if sprzet and sprzet.typ_zelastwa == 'poprzeczka' %}selected{% endif %}>
+                                    poprzeczka
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 category-field field-zelastwo">
+                            <label class="form-label">Ilość</label>
+                            <div class="input-group">
+                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_zelastwo" class="form-control"
+                                       list="qty_suggestions_zelastwo"
+                                       value="{{ sprzet.ilosc if sprzet else '' }}"
+                                       placeholder="np. 1">
+                                <datalist id="qty_suggestions_zelastwo">
+                                    {% for v in qty_suggestions_zelastwo or [] %}
+                                        <option value="{{ v }}"></option>
+                                    {% endfor %}
+                                </datalist>
+                                <select name="jednostka" id="jednostka_zelastwo" class="form-select" style="max-width: 110px;">
+                                    <option value="zest." {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'zest.' %}selected{% endif %}>zest.</option>
+                                    <option value="szt." {% if sprzet and sprzet.jednostka == 'szt.' %}selected{% endif %}>szt.</option>
+                                </select>
+                            </div>
+                            <div class="form-text">Domyślnie zestaw.</div>
+                        </div>
+
+                        <!-- Pola dla KANADYJKI -->
+                        <div class="col-md-4 category-field field-kanadyjki">
+                            <label for="material" class="form-label">Materiał</label>
+                            <select name="material" id="material" class="form-select">
+                                <option value="materiałowe"
+                                        {% if sprzet and sprzet.material == 'materiałowe' %}selected{% endif %}>
+                                    materiałowe
+                                </option>
+                                <option value="gumowe"
+                                        {% if sprzet and sprzet.material == 'gumowe' %}selected{% endif %}>gumowe
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 category-field field-kanadyjki">
+                            <label class="form-label">Ilość</label>
+                            <div class="input-group">
+                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_kanadyjki" class="form-control"
+                                       list="qty_suggestions_kanadyjki"
+                                       value="{{ sprzet.ilosc if sprzet else '' }}"
+                                       placeholder="np. 4">
+                                <datalist id="qty_suggestions_kanadyjki">
+                                    {% for v in qty_suggestions_kanadyjki or [] %}
+                                        <option value="{{ v }}"></option>
+                                    {% endfor %}
+                                </datalist>
+                                <select name="jednostka" id="jednostka_kanadyjki" class="form-select" style="max-width: 110px;">
+                                    <option value="szt." {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'szt.' %}selected{% endif %}>szt.</option>
+                                </select>
+                            </div>
+                            <div class="form-text">Dla kanadyjek dozwolone są tylko sztuki.</div>
+                        </div>
+
+                        <!-- Pola wspólne dla niskich poziomów -->
+                        <div class="col-md-3 common-fields">
+                            <label for="sprawny" class="form-label">Sprawny?</label>
+                            <select name="sprawny" id="sprawny" class="form-select">
+                                <option value="Tak" {% if sprzet and sprzet.sprawny == 'Tak' %}selected{% endif %}>Tak
+                                </option>
+                                <option value="Nie" {% if sprzet and sprzet.sprawny == 'Nie' %}selected{% endif %}>Nie
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 common-fields">
+                            <label for="czyWraca" class="form-label">Czy wraca do Wawy?</label>
+                            <select name="czyWraca" id="czyWraca" class="form-select">
+                                <option value="Tak" {% if sprzet and sprzet.czyWraca == 'Tak' %}selected{% endif %}>
+                                    Tak
+                                </option>
+                                <option value="Nie" {% if sprzet and sprzet.czyWraca == 'Nie' %}selected{% endif %}>
+                                    Nie
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="uwagi" class="form-label">Uwagi konserwacyjne</label>
+                            <textarea name="uwagi" id="uwagi" class="form-control"
+                                      rows="2">{{ sprzet.uwagi if sprzet else '' }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="historia" class="form-label">Historia</label>
+                            <textarea name="historia" id="historia" class="form-control"
+                                      rows="2">{{ sprzet.historia if sprzet else '' }}</textarea>
+                        </div>
+
+                        <div class="col-12 mt-4">
+                            <h5>Zarządzaj zdjęciami</h5>
+                            {% if sprzet %}
+                                <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+                                    {% for photo_url in sprzet.zdjecia_lista_url %}
+                                        <div class="col">
+                                            <div class="card h-100 shadow-sm">
+                                                <img src="{{ photo_url }}" class="card-img-top" alt="Zdjęcie sprzętu"
+                                                     style="height: 150px; object-fit: cover;">
+                                                <div class="card-footer text-center">
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox"
+                                                               name="usun_zdjecia" value="{{ photo_url }}"
+                                                               id="del_{{ loop.index }}">
+                                                        <label class="form-check-label text-danger"
+                                                               for="del_{{ loop.index }}">Usuń</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="mb-3">
+                                <label for="nowe_zdjecia" class="form-label">Dodaj nowe zdjęcia</label>
+                                <input type="file" name="nowe_zdjecia" id="nowe_zdjecia" class="form-control"
+                                       multiple accept="image/*">
+                            </div>
                         </div>
                     </div>
-                    {% endif %}
-                </div>
 
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-save"></i> {% if sprzet %}Zapisz Zmiany{% else %}Dodaj Sprzęt{% endif %}
-                    </button>
-                    <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">Anuluj</a>
-                </div>
-            </form>
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> {% if sprzet %}Zapisz Zmiany{% else %}Dodaj Sprzęt{% endif %}
+                        </button>
+                        <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">Anuluj</a>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
+{% endblock %}
+{% block scripts %}
+    <script>
+        function toggleFields() {
+            const category = document.getElementById('category').value;
+            const allFields = document.querySelectorAll('.category-field');
+            const commonFields = document.querySelectorAll('.common-fields');
+            const parentField = document.getElementById('parent_field');
+            const magPhotoField = document.getElementById('magazyn_photo_field');
+            const idInput = document.getElementById('id');
+            const isEdit = {{ 'true' if sprzet else 'false' }};
+
+            // Zarządzanie polem ID (tylko przy dodawaniu)
+            if (!isEdit) {
+                if (['zelastwo', 'kanadyjki', 'magazyn', 'przedmiot'].includes(category)) {
+                    idInput.disabled = true;
+                    idInput.value = '';
+                    idInput.placeholder = "ID zostanie wygenerowane automatycznie";
+                    idInput.required = false;
+                } else {
+                    idInput.disabled = false;
+                    idInput.placeholder = "np. NA01";
+                    idInput.required = true;
+                }
+            }
+
+            // Ukryj wszystkie specyficzne pola i wyłącz je, aby nie były przesyłane w formularzu
+            allFields.forEach(f => {
+                f.style.display = 'none';
+                const inputs = f.querySelectorAll('input, select, textarea');
+                inputs.forEach(i => i.disabled = true);
+            });
+            if (magPhotoField) magPhotoField.style.display = 'none';
+
+            // Pokaż pola dla wybranej kategorii i włącz je
+            const activeFields = document.querySelectorAll('.field-' + category);
+            activeFields.forEach(f => {
+                f.style.display = 'block';
+                const inputs = f.querySelectorAll('input, select, textarea');
+                inputs.forEach(i => i.disabled = false);
+            });
+
+            // Zarządzanie polami wspólnymi
+            if (category === 'magazyn') {
+                commonFields.forEach(f => {
+                    f.style.display = 'none';
+                    const inputs = f.querySelectorAll('input, select, textarea');
+                    inputs.forEach(i => i.disabled = true);
+                });
+                if (magPhotoField) magPhotoField.style.display = 'block';
+            } else if (category === 'polka_skrzynia') {
+                commonFields.forEach(f => {
+                    f.style.display = 'none';
+                    const inputs = f.querySelectorAll('input, select, textarea');
+                    inputs.forEach(i => i.disabled = true);
+                });
+            } else {
+                commonFields.forEach(f => {
+                    f.style.display = 'block';
+                    const inputs = f.querySelectorAll('input, select, textarea');
+                    inputs.forEach(i => i.disabled = false);
+                });
+            }
+
+            // Pole parent_id
+            if (category === 'magazyn') {
+                parentField.style.display = 'none';
+                const parentInput = parentField.querySelector('input');
+                if (parentInput) parentInput.disabled = true;
+            } else {
+                parentField.style.display = 'block';
+                const parentInput = parentField.querySelector('input');
+                if (parentInput) parentInput.disabled = false;
+            }
+        }
+
+        // Uruchom przy załadowaniu
+        document.addEventListener('DOMContentLoaded', toggleFields);
+    </script>
 {% endblock %}

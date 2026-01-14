@@ -1,73 +1,95 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-            <h3 class="mb-0">Zarządzanie Usterką: #{{ usterka.id }}</h3>
-        </div>
-        <div class="card-body">
+    <div class="container mt-5">
+        <div class="card shadow-sm">
+            <div class="card-header text-bg-primary">
+                <h3 class="mb-0">Zarządzanie Usterką: #{{ usterka.id }}</h3>
+            </div>
+            <div class="card-body">
 
-            <p><strong>ID Sprzętu:</strong>
-                <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}" class="text-primary">{{ usterka.sprzet_id }}</a>
-            </p>
-            <p><strong>Zgłoszono przez:</strong> {{ usterka.zgloszono_przez }}</p>
-            <p><strong>Data zgłoszenia:</strong> {{ usterka.data_zgloszenia }}</p>
-            <p class="alert alert-info"><strong>Opis:</strong> {{ usterka.opis }}</p>
+                <p><strong>ID Sprzętu:</strong>
+                    <a href="{{ url_for('views.sprzet_list', parent_id=usterka.sprzet_id) }}"
+                       class="text-primary">{{ usterka.sprzet_id }}</a>
+                </p>
+                <p><strong>Zgłoszono przez:</strong>
+                    {% if IS_QUARTERMASTER %}
+                        {{ usterka.zgloszono_przez }}
+                    {% else %}
+                        {{ usterka.zgloszono_przez if usterka.user_id == session.get('user_id') else 'Użytkownik systemu' }}
+                    {% endif %}
+                </p>
+                <p><strong>Data zgłoszenia:</strong> {{ usterka.data_zgloszenia }}</p>
+                <p class="alert alert-info"><strong>Opis:</strong> {{ usterka.opis }}</p>
 
-            <hr>
+                <hr>
 
-            <form method="POST" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label for="opis" class="form-label">Opis Usterki:</label>
-                    <textarea class="form-control" id="opis" name="opis" rows="3" required>{{ usterka.opis }}</textarea>
-                </div>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="opis" class="form-label">Opis Usterki:</label>
+                        <textarea class="form-control" id="opis" name="opis" rows="3"
+                                  required>{{ usterka.opis }}</textarea>
+                    </div>
 
-                <div class="mb-3">
-                    <label for="status" class="form-label">Nowy Status:</label>
-                    <select class="form-select" id="status" name="status" required>
-                        <option value="oczekuje" {% if usterka.status == 'oczekuje' %}selected{% endif %}>Oczekuje na akceptację</option>
-                        <option value="w trakcie" {% if usterka.status == 'w trakcie' %}selected{% endif %}>W trakcie naprawy</option>
-                        <option value="naprawiona" {% if usterka.status == 'naprawiona' %}selected{% endif %}>Naprawiona</option>
-                        <option value="odrzucona" {% if usterka.status == 'odrzucona' %}selected{% endif %}>Odrzucona (np. błędne zgłoszenie)</option>
-                    </select>
-                </div>
+                    {% if IS_QUARTERMASTER %}
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Nowy Status:</label>
+                            <select class="form-select" id="status" name="status" required>
+                                <option value="oczekuje" {% if usterka.status == 'oczekuje' %}selected{% endif %}>
+                                    Oczekuje na akceptację
+                                </option>
+                                <option value="w trakcie" {% if usterka.status == 'w trakcie' %}selected{% endif %}>W
+                                    trakcie naprawy
+                                </option>
+                                <option value="naprawiona" {% if usterka.status == 'naprawiona' %}selected{% endif %}>
+                                    Naprawiona
+                                </option>
+                                <option value="odrzucona" {% if usterka.status == 'odrzucona' %}selected{% endif %}>
+                                    Odrzucona (np. błędne zgłoszenie)
+                                </option>
+                            </select>
+                        </div>
 
-                <div class="mb-3">
-                    <label for="uwagi_admina" class="form-label">Uwagi Administratora (opcjonalnie):</label>
-                    <textarea class="form-control" id="uwagi_admina" name="uwagi_admina" rows="3">{{ usterka.uwagi_admina if usterka.uwagi_admina else '' }}</textarea>
-                </div>
+                        <div class="mb-3">
+                            <label for="uwagi_admina" class="form-label">Uwagi Administratora (opcjonalnie):</label>
+                            <textarea class="form-control" id="uwagi_admina" name="uwagi_admina"
+                                      rows="3">{{ usterka.uwagi_admina if usterka.uwagi_admina else '' }}</textarea>
+                        </div>
+                    {% endif %}
 
-                <div class="mb-3 mt-4">
-                    <h5>Zarządzaj zdjęciami</h5>
-                    <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
-                        {% for photo_url in usterka.zdjecia_lista_url %}
-                        <div class="col">
-                            <div class="card h-100 shadow-sm">
-                                <img src="{{ photo_url }}" class="card-img-top" alt="Zdjęcie usterki" style="height: 150px; object-fit: cover;">
-                                <div class="card-footer text-center">
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" name="usun_zdjecia" value="{{ photo_url }}" id="del_{{ loop.index }}">
-                                        <label class="form-check-label text-danger" for="del_{{ loop.index }}">Usuń</label>
+                    <div class="mb-3 mt-4">
+                        <h5>Zarządzaj zdjęciami</h5>
+                        <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+                            {% for photo_url in usterka.zdjecia_lista_url %}
+                                <div class="col">
+                                    <div class="card h-100 shadow-sm">
+                                        <img src="{{ photo_url }}" class="card-img-top" alt="Zdjęcie usterki"
+                                             style="height: 150px; object-fit: cover;">
+                                        <div class="card-footer text-center">
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="checkbox" name="usun_zdjecia"
+                                                       value="{{ photo_url }}" id="del_{{ loop.index }}">
+                                                <label class="form-check-label text-danger" for="del_{{ loop.index }}">Usuń</label>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
+                        <div class="mb-3">
+                            <label for="nowe_zdjecia" class="form-label">Dodaj nowe zdjęcia</label>
+                            <input type="file" name="nowe_zdjecia" id="nowe_zdjecia" class="form-control" multiple
+                                   accept="image/*">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="nowe_zdjecia" class="form-label">Dodaj nowe zdjęcia</label>
-                        <input type="file" name="nowe_zdjecia" id="nowe_zdjecia" class="form-control" multiple accept="image/*">
+
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-success">Zapisz Zmiany</button>
+                        <a href="{{ url_for('views.usterki_list') }}" class="btn btn-secondary">Anuluj i Wróć</a>
                     </div>
-                </div>
+                </form>
 
-                <div class="d-flex justify-content-between">
-                    <button type="submit" class="btn btn-success">Zapisz Zmiany</button>
-                    <a href="{{ url_for('views.usterki_list') }}" class="btn btn-secondary">Anuluj i Wróć</a>
-                </div>
-            </form>
-
+            </div>
         </div>
     </div>
-</div>
 {% endblock %}

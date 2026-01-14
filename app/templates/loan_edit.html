@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="container mt-4">
+        <h2 class="mb-4">Wypożycz: {{ item.id }}</h2>
+
+        <div class="card shadow">
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="przez_kogo" class="form-label">Osoba wypożyczająca (Imię i Nazwisko /
+                                Nick)</label>
+                            <input type="text" name="przez_kogo" id="przez_kogo" class="form-control"
+                                   list="user_suggestions" required>
+                            <datalist id="user_suggestions">
+                                {% for name in user_names %}
+                                    <option value="{{ name }}">
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="kontakt" class="form-label">Kontakt (np. telefon, email)</label>
+                            <input type="text" name="kontakt" id="kontakt" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="do_kiedy" class="form-label">Do kiedy (data)</label>
+                            <input type="date" name="do_kiedy" id="do_kiedy" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <label for="uwagi" class="form-label">Uwagi</label>
+                            <textarea name="uwagi" id="uwagi" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">Potwierdź Wypożyczenie</button>
+                        <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">Anuluj</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const userContactMap = {{ user_contact_map | tojson | safe }};
+    const przezKogoInput = document.getElementById('przez_kogo');
+    const kontaktInput = document.getElementById('kontakt');
+
+    przezKogoInput.addEventListener('input', function() {
+        const value = this.value;
+        if (userContactMap[value]) {
+            kontaktInput.value = userContactMap[value];
+        }
+    });
+</script>
+{% endblock %}

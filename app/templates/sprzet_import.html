@@ -1,86 +1,92 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Importuj Sprzęt z Pliku</h2>
-    
-    <div class="card shadow mb-4">
-        <div class="card-body">
-            <p>Wybierz plik .csv lub .xlsx. Nagłówki powinny odpowiadać polom w bazie (np. ID, Typ, Wodoszczelność, Lokalizacja itp.).</p>
-            <form method="POST" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label for="file" class="form-label">Plik danych</label>
-                    <input type="file" name="file" id="file" class="form-control" accept=".csv, .xlsx" required>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-upload"></i> Wgraj i porównaj
-                </button>
-            </form>
-        </div>
-    </div>
+    <div class="container mt-4">
+        <h2 class="mb-4">Importuj Sprzęt z Pliku</h2>
 
-    {% if diff_data %}
-    <form method="POST" action="{{ url_for('views.sprzet_import_confirm') }}">
-        <div class="card shadow">
-            <div class="card-header bg-warning text-dark">
-                <h4 class="mb-0">Różnice w danych</h4>
-            </div>
+        <div class="card shadow mb-4">
             <div class="card-body">
-                <p>Poniżej znajdują się pozycje, które różnią się od tych w systemie lub są nowe. Wybierz te, które chcesz zaktualizować/dodać.</p>
-                
-                <div class="table-responsive">
-                    <table class="table table-bordered table-sm">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Wybierz</th>
-                                <th>ID</th>
-                                <th>Pole</th>
-                                <th>Obecnie w systemie</th>
-                                <th>Nowa wartość z pliku</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in diff_data %}
-                                {% set row_count = item.diffs | length %}
-                                {% if row_count == 0 %}
-                                    <tr class="table-success">
-                                        <td>
-                                            <input type="checkbox" name="import_ids" value="{{ item.id }}" checked>
-                                        </td>
-                                        <td>{{ item.id }}</td>
-                                        <td colspan="3">Nowy sprzęt - wszystkie dane zostaną zaimportowane</td>
-                                        <input type="hidden" name="data_{{ item.id }}" value='{{ item.new_data | tojson }}'>
-                                    </tr>
-                                {% else %}
-                                    {% for field, values in item.diffs.items() %}
-                                    <tr class="table-warning">
-                                        {% if loop.first %}
-                                        <td rowspan="{{ row_count }}">
-                                            <input type="checkbox" name="import_ids" value="{{ item.id }}" checked>
-                                            <input type="hidden" name="data_{{ item.id }}" value='{{ item.new_data | tojson }}'>
-                                            <input type="hidden" name="before_{{ item.id }}" value='{{ item.before_data | tojson }}'>
-                                        </td>
-                                        <td rowspan="{{ row_count }}">{{ item.id }}</td>
-                                        {% endif %}
-                                        <td>{{ field }}</td>
-                                        <td class="text-danger">{{ values.old }}</td>
-                                        <td class="text-success">{{ values.new }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="mt-3">
-                    <button type="submit" class="btn btn-success btn-lg">
-                        <i class="bi bi-check-all"></i> Zapisz wybrane zmiany
+                <p>Wybierz plik .csv lub .xlsx. Nagłówki powinny odpowiadać polom w bazie (np. ID, Typ, Wodoszczelność,
+                    Lokalizacja itp.).</p>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Plik danych</label>
+                        <input type="file" name="file" id="file" class="form-control" accept=".csv, .xlsx" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Wgraj i porównaj
                     </button>
-                </div>
+                </form>
             </div>
         </div>
-    </form>
-    {% endif %}
-</div>
+
+        {% if diff_data %}
+            <form method="POST" action="{{ url_for('views.sprzet_import_confirm') }}">
+                <div class="card shadow">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">Różnice w danych</h4>
+                    </div>
+                    <div class="card-body">
+                        <p>Poniżej znajdują się pozycje, które różnią się od tych w systemie lub są nowe. Wybierz te,
+                            które chcesz zaktualizować/dodać.</p>
+
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead class="table-light">
+                                <tr>
+                                    <th>Wybierz</th>
+                                    <th>ID</th>
+                                    <th>Pole</th>
+                                    <th>Obecnie w systemie</th>
+                                    <th>Nowa wartość z pliku</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for item in diff_data %}
+                                    {% set row_count = item.diffs | length %}
+                                    {% if row_count == 0 %}
+                                        <tr class="table-success">
+                                            <td>
+                                                <input type="checkbox" name="import_ids" value="{{ item.id }}" checked>
+                                            </td>
+                                            <td>{{ item.id }}</td>
+                                            <td colspan="3">Nowy sprzęt - wszystkie dane zostaną zaimportowane</td>
+                                            <input type="hidden" name="data_{{ item.id }}"
+                                                   value='{{ item.new_data | tojson }}'>
+                                        </tr>
+                                    {% else %}
+                                        {% for field, values in item.diffs.items() %}
+                                            <tr class="table-warning">
+                                                {% if loop.first %}
+                                                    <td rowspan="{{ row_count }}">
+                                                        <input type="checkbox" name="import_ids" value="{{ item.id }}"
+                                                               checked>
+                                                        <input type="hidden" name="data_{{ item.id }}"
+                                                               value='{{ item.new_data | tojson }}'>
+                                                        <input type="hidden" name="before_{{ item.id }}"
+                                                               value='{{ item.before_data | tojson }}'>
+                                                    </td>
+                                                    <td rowspan="{{ row_count }}">{{ item.id }}</td>
+                                                {% endif %}
+                                                <td>{{ field }}</td>
+                                                <td class="text-danger">{{ values.old }}</td>
+                                                <td class="text-success">{{ values.new }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="bi bi-check-all"></i> Zapisz wybrane zmiany
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        {% endif %}
+    </div>
 {% endblock %}

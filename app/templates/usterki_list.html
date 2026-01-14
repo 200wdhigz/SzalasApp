@@ -1,115 +1,236 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1 class="mb-4">Panel Administracyjny - Zgłoszone Usterki</h1>
+    <div class="container mt-4">
+        <h2 class="mb-4">Zgłoszone Usterki</h2>
 
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" action="{{ url_for('views.usterki_list') }}" class="row g-3">
-                <div class="col-md-3">
-                    <label for="status" class="form-label">Status</label>
-                    <select name="status" id="status" class="form-select">
-                        <option value="">Wszystkie</option>
-                        {% for s in statuses %}
-                        <option value="{{ s }}" {% if selected_filters.status == s %}selected{% endif %}>{{ s | capitalize }}</option>
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('views.usterki_list') }}" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" id="status" class="form-select">
+                            <option value="">Wszystkie</option>
+                            {% for s in statuses %}
+                                <option value="{{ s }}"
+                                        {% if selected_filters.status == s %}selected{% endif %}>{{ s | capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="magazyn" class="form-label">Magazyn</label>
+                        <select name="magazyn" id="magazyn" class="form-select">
+                            <option value="">Wszystkie</option>
+                            {% for m in magazyny %}
+                                <option value="{{ m }}"
+                                        {% if selected_filters.magazyn == m %}selected{% endif %}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="sprzet_id" class="form-label">ID Sprzętu</label>
+                        <select name="sprzet_id" id="sprzet_id" class="form-select">
+                            <option value="">Wszystkie</option>
+                            {% for sid in ids_sprzetu %}
+                                <option value="{{ sid }}"
+                                        {% if selected_filters.sprzet_id == sid %}selected{% endif %}>{{ sid }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">Filtruj</button>
+                        <a href="{{ url_for('views.usterki_list') }}" class="btn btn-secondary">Resetuj</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+            <div class="dropdown">
+                <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                    <i class="bi bi-download"></i> Eksportuj
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item"
+                           href="{{ url_for('views.export_usterki', format='csv', **selected_filters) }}">CSV</a></li>
+                    <li><a class="dropdown-item"
+                           href="{{ url_for('views.export_usterki', format='xlsx', **selected_filters) }}">Excel
+                        (.xlsx)</a></li>
+                    <li><a class="dropdown-item"
+                           href="{{ url_for('views.export_usterki', format='docx', **selected_filters) }}">Word
+                        (.docx)</a></li>
+                    <li><a class="dropdown-item"
+                           href="{{ url_for('views.export_usterki', format='pdf', **selected_filters) }}">PDF</a></li>
+                </ul>
+            </div>
+        </div>
+
+        {% if usterki %}
+            <form method="POST" action="{{ url_for('views.usterki_bulk_edit') }}" id="bulkUsterkiForm">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+                {% if IS_QUARTERMASTER %}
+                    <div class="card mb-3 border-warning" id="bulkActionsCard" style="display: none;">
+                        <div class="card-body py-2 d-flex flex-wrap align-items-center gap-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold text-warning"><i
+                                        class="bi bi-pencil-square"></i> Edycja masowa (<span
+                                        id="selectedCount">0</span>):</span>
+                                <select name="status" class="form-select form-select-sm" style="width: auto;">
+                                    <option value="" disabled selected>Zmień status na...</option>
+                                    <option value="oczekuje">Oczekuje</option>
+                                    <option value="w trakcie">W trakcie</option>
+                                    <option value="naprawiona">Naprawiona</option>
+                                    <option value="odrzucona">Odrzucona</option>
+                                </select>
+                                <button type="submit" class="btn btn-warning btn-sm"
+                                        onclick="return confirm('Czy na pewno chcesz zmienić status zaznaczonych usterek?')">
+                                    Zastosuj
+                                </button>
+                            </div>
+                            {% if IS_ADMIN %}
+                                <div class="ms-auto">
+                                    <button type="submit" class="btn btn-danger btn-sm"
+                                            formaction="{{ url_for('views.usterki_bulk_delete') }}"
+                                            onclick="return confirm('Czy na pewno chcesz trwale usunąć zaznaczone usterki?')">
+                                        <i class="bi bi-trash"></i> Usuń zaznaczone
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                <div class="table-responsive shadow-sm rounded">
+                    <table class="table table-striped table-hover align-middle">
+                        <thead class="table-dark">
+                        <tr>
+                            {% if IS_QUARTERMASTER %}
+                                <th style="width: 40px;">
+                                    <input class="form-check-input" type="checkbox" id="selectAllUsterki">
+                                </th>
+                            {% endif %}
+                            <th>Sprzęt</th>
+                            <th>Opis Usterki</th>
+                            <th>Status</th>
+                            <th>Zgłaszający</th>
+                            <th>Data</th>
+                            <th>Magazyn</th>
+                            <th class="text-end">Akcje</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for usterka in usterki %}
+                            <tr>
+                                {% if IS_QUARTERMASTER %}
+                                    <td>
+                                        <input class="form-check-input usterka-checkbox" type="checkbox"
+                                               name="usterka_ids" value="{{ usterka.id }}">
+                                    </td>
+                                {% endif %}
+                                <td>
+                                    <a href="{{ url_for('views.sprzet_list', parent_id=usterka.sprzet_id) }}"
+                                       class="fw-bold text-decoration-none">
+                                        {{ usterka.sprzet_id }}
+                                    </a>
+                                    <br><small class="text-muted">{{ usterka.nazwa_sprzetu }}</small>
+                                </td>
+                                <td>{{ usterka.opis | truncate(100, True) }}</td>
+                                <td>
+                            <span class="badge
+                                {% if usterka.status == 'oczekuje' %} text-bg-warning
+                                {% elif usterka.status == 'w trakcie' %} text-bg-info
+                                {% elif usterka.status == 'naprawiona' %} text-bg-success
+                                {% elif usterka.status == 'odrzucona' %} text-bg-danger
+                                {% else %} text-bg-secondary
+                                {% endif %}
+                                ">
+                                {{ usterka.status | capitalize }}
+                            </span>
+                                </td>
+                                <td>
+                                    {% if IS_QUARTERMASTER %}
+                                        {{ usterka.zgloszono_przez }}
+                                    {% else %}
+                                        {% if usterka.user_id == session.get('user_id') %}
+                                            {{ usterka.zgloszono_przez | default('Ja', true) }}
+                                        {% else %}
+                                            Użytkownik systemu
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ usterka.data_zgloszenia }}</small></td>
+                                <td>{{ usterka.magazyn }}</td>
+                                <td class="text-end">
+                                    <div class="btn-group">
+                                        <a href="{{ url_for('views.usterka_card', usterka_id=usterka.id) }}"
+                                           class="btn btn-sm btn-outline-primary" title="Szczegóły">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        {% if IS_QUARTERMASTER or usterka.user_id == session.get('user_id') %}
+                                            <a href="{{ url_for('views.usterka_edit', usterka_id=usterka.id) }}"
+                                               class="btn btn-sm btn-outline-warning" title="Edytuj">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                        {% endif %}
+                                        {% if IS_ADMIN %}
+                                            <form method="POST"
+                                                  action="{{ url_for('views.usterka_delete', usterka_id=usterka.id) }}"
+                                                  style="display:inline;"
+                                                  onsubmit="return confirm('Czy na pewno chcesz usunąć tę usterkę?');">
+                                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                        title="Usuń">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
                         {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label for="magazyn" class="form-label">Magazyn</label>
-                    <select name="magazyn" id="magazyn" class="form-select">
-                        <option value="">Wszystkie</option>
-                        {% for m in magazyny %}
-                        <option value="{{ m }}" {% if selected_filters.magazyn == m %}selected{% endif %}>{{ m }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label for="sprzet_id" class="form-label">ID Sprzętu</label>
-                    <select name="sprzet_id" id="sprzet_id" class="form-select">
-                        <option value="">Wszystkie</option>
-                        {% for sid in ids_sprzetu %}
-                        <option value="{{ sid }}" {% if selected_filters.sprzet_id == sid %}selected{% endif %}>{{ sid }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary me-2">Filtruj</button>
-                    <a href="{{ url_for('views.usterki_list') }}" class="btn btn-secondary">Resetuj</a>
+                        </tbody>
+                    </table>
                 </div>
             </form>
-        </div>
+        {% else %}
+            <div class="alert alert-success d-flex align-items-center" role="alert">
+                <i class="bi bi-check-circle-fill me-2 fs-4"></i>
+                <div>🎉 Gratulacje! Obecnie nie ma żadnych zgłoszonych usterek.</div>
+            </div>
+        {% endif %}
     </div>
+{% endblock %}
 
-    <div class="mb-3">
-        <div class="dropdown d-inline-block">
-            <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-download"></i> Eksportuj
-            </button>
-            <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="{{ url_for('views.export_usterki', format='csv', **selected_filters) }}">CSV</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('views.export_usterki', format='xlsx', **selected_filters) }}">Excel (.xlsx)</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('views.export_usterki', format='docx', **selected_filters) }}">Word (.docx)</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('views.export_usterki', format='pdf', **selected_filters) }}">PDF</a></li>
-            </ul>
-        </div>
-    </div>
+{% block scripts %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const selectAll = document.getElementById('selectAllUsterki');
+            const checkboxes = document.querySelectorAll('.usterka-checkbox');
+            const bulkCard = document.getElementById('bulkActionsCard');
+            const selectedCountSpan = document.getElementById('selectedCount');
 
-    {% if usterki %}
-    <table class="table table-striped table-hover">
-        <thead class="table-dark">
-            <tr>
-                <th>ID Sprzętu</th>
-                <th>Nazwa Sprzętu</th>
-                <th>Opis Usterki</th>
-                <th>Status</th>
-                <th>Zgłoszono przez</th>
-                <th>Data Zgłoszenia</th>
-                <th>Magazyn</th>
-                <th>Akcje</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for usterka in usterki %}
-            <tr>
-                <td>
-                    <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}">
-                        {{ usterka.sprzet_id }}
-                    </a>
-                </td>
-                <td>{{ usterka.nazwa_sprzetu }}</td>
-                <td>{{ usterka.opis | truncate(80, True) }}</td>
+            function updateBulkActions() {
+                const checkedCount = document.querySelectorAll('.usterka-checkbox:checked').length;
+                if (bulkCard) {
+                    bulkCard.style.display = checkedCount > 0 ? 'block' : 'none';
+                }
+                if (selectedCountSpan) {
+                    selectedCountSpan.textContent = checkedCount;
+                }
+            }
 
-                <td>
-                    <span class="badge
-                        {% if usterka.status == 'oczekuje' %} bg-warning text-dark
-                        {% elif usterka.status == 'w trakcie' %} bg-info text-dark
-                        {% elif usterka.status == 'naprawiona' %} bg-success
-                        {% elif usterka.status == 'odrzucona' %} bg-danger
-                        {% else %} bg-secondary
-                        {% endif %}
-                        ">
-                        {{ usterka.status | capitalize }}
-                    </span>
-                </td>
+            if (selectAll) {
+                selectAll.addEventListener('change', function () {
+                    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+                    updateBulkActions();
+                });
+            }
 
-                <td>{{ usterka.zgloszono_przez }}</td>
-                <td>{{ usterka.data_zgloszenia }}</td>
-                <td>{{ usterka.magazyn }}</td>
-                <td>
-                    <a href="{{ url_for('views.usterka_card', usterka_id=usterka.id) }}" class="btn btn-sm btn-primary">
-                        Zarządzaj
-                    </a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <div class="alert alert-success" role="alert">
-        🎉 Gratulacje! Obecnie nie ma żadnych zgłoszonych usterek.
-    </div>
-    {% endif %}
-</div>
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', updateBulkActions);
+            });
+        });
+    </script>
 {% endblock %}

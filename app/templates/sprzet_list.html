@@ -1,169 +1,505 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h2 class="mb-4">Pełny Katalog Sprzętu</h2>
+    <h2 class="mb-4">
+        {% if parent_item %}
+            {{ parent_item.nazwa or parent_item.id }} - Zawartość
+        {% else %}
+            Pełny Katalog Sprzętu
+        {% endif %}
+    </h2>
+
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('views.sprzet_list') }}">Global (Wyszukiwanie)</a></li>
+            {% if parent_item %}
+                {# Tu można by dodać rekurencyjne breadcrumbs, ale na razie uproszczone #}
+                <li class="breadcrumb-item active" aria-current="page">{{ parent_item.id }}</li>
+            {% endif %}
+        </ol>
+    </nav>
 
     <div class="card mb-4">
         <div class="card-body">
             <form method="GET" action="{{ url_for('views.sprzet_list') }}" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-md-4">
+                    <label for="search" class="form-label">Wyszukiwanie Globalne</label>
+                    <div class="input-group">
+                        <input type="text" name="search" id="search" class="form-control"
+                               placeholder="ID, nazwa, typ, uwagi..." value="{{ selected_filters.search or '' }}">
+                        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label for="category" class="form-label">Kategoria</label>
+                    <select name="category" id="category" class="form-select">
+                        <option value="">Wszystkie</option>
+                        {% for k, v in kategorie.items() %}
+                            <option value="{{ v }}"
+                                    {% if selected_filters.category == v %}selected{% endif %}>{{ k }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label for="typ" class="form-label">Typ</label>
                     <select name="typ" id="typ" class="form-select">
                         <option value="">Wszystkie</option>
                         {% for t in typy %}
-                        <option value="{{ t }}" {% if selected_filters.typ == t %}selected{% endif %}>{{ t }}</option>
+                            <option value="{{ t }}"
+                                    {% if selected_filters.typ == t %}selected{% endif %}>{{ t }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label for="wodoszczelnosc" class="form-label">Wodoszczelność</label>
-                    <select name="wodoszczelnosc" id="wodoszczelnosc" class="form-select">
-                        <option value="">Wszystkie</option>
-                        {% for w in wodoszczelnosci %}
-                        <option value="{{ w }}" {% if selected_filters.wodoszczelnosc == w %}selected{% endif %}>{{ w }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label for="lokalizacja" class="form-label">Magazyn</label>
-                    <select name="lokalizacja" id="lokalizacja" class="form-select">
-                        <option value="">Wszystkie</option>
-                        {% for l in lokalizacje %}
-                        <option value="{{ l }}" {% if selected_filters.lokalizacja == l %}selected{% endif %}>{{ l }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
+                <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">Filtruj</button>
+                    <button type="button" onclick="startScanner()" class="btn btn-outline-primary me-2 d-lg-none">
+                        <i class="bi bi-qr-code-scan"></i> Skanuj
+                    </button>
                     <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-secondary">Resetuj</a>
                 </div>
+                <input type="hidden" name="parent_id" value="{{ selected_filters.parent_id or '' }}">
             </form>
         </div>
     </div>
 
     <div class="mb-3">
         <div class="dropdown d-inline-block">
-            <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown"
+                    aria-expanded="false">
                 <i class="bi bi-download"></i> Eksportuj
             </button>
             <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='csv', **selected_filters) }}">CSV</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='xlsx', **selected_filters) }}">Excel (.xlsx)</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='docx', **selected_filters) }}">Word (.docx)</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='pdf', **selected_filters) }}">PDF</a></li>
+                <li><a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='csv', **selected_filters) }}">CSV</a></li>
+                <li><a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='xlsx', **selected_filters) }}">Excel (.xlsx)</a>
+                </li>
+                <li><a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='docx', **selected_filters) }}">Word (.docx)</a>
+                </li>
+                <li><a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='pdf', **selected_filters) }}">PDF</a></li>
             </ul>
         </div>
-        {% if IS_ADMIN %}
-        <a href="{{ url_for('views.sprzet_add') }}" class="btn btn-outline-primary ms-2">
-            <i class="bi bi-plus-circle"></i> Dodaj Sprzęt
-        </a>
-        <a href="{{ url_for('views.sprzet_import') }}" class="btn btn-outline-info ms-2">
-            <i class="bi bi-file-earmark-arrow-up"></i> Importuj
-        </a>
+        {% if IS_QUARTERMASTER %}
+            <a href="{{ url_for('views.sprzet_add') }}" class="btn btn-outline-primary ms-2">
+                <i class="bi bi-plus-circle"></i> Dodaj Sprzęt
+            </a>
+            <a href="{{ url_for('views.sprzet_import') }}" class="btn btn-outline-info ms-2">
+                <i class="bi bi-file-earmark-arrow-up"></i> Importuj
+            </a>
         {% endif %}
+        <div class="dropdown d-inline-block ms-2">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown"
+                    aria-expanded="false">
+                <i class="bi bi-layout-three-columns"></i> Kolumny
+            </button>
+            <ul class="dropdown-menu p-3" id="columnToggleMenu" style="min-width: 250px;">
+                <h6 class="dropdown-header px-0">Widoczność i Kolejność</h6>
+                <div id="columnSettingsList" class="list-group list-group-flush">
+                    {# Generowane dynamicznie przez JS #}
+                </div>
+                <hr>
+                <li>
+                    <button class="btn btn-sm btn-outline-secondary w-100" id="resetColumnsBtn">
+                        Przywróć domyślne
+                    </button>
+                </li>
+            </ul>
+        </div>
     </div>
 
     {% if sprzet_list %}
 
-    {# Admin-only: bulk edit controls + selection form #}
-    {% if IS_ADMIN %}
-    <form method="POST" action="{{ url_for('views.sprzet_bulk_edit') }}" class="mb-2">
-        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        {# Keep current filters so we can return back to same view after saving #}
-        <input type="hidden" name="return_query" value="{{ request.query_string.decode('utf-8') }}">
+        {% if IS_QUARTERMASTER %}
+            <div class="mb-2">
+                <form id="bulkEditForm" method="POST" action="{{ url_for('views.sprzet_bulk_edit') }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    {# Keep current filters so we can return back to same view after saving #}
+                    <input type="hidden" name="return_query" value="{{ request.query_string.decode('utf-8') }}">
 
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-            <button type="submit" class="btn btn-warning" id="bulkEditBtn" disabled>
-                <i class="bi bi-pencil-square"></i> Edytuj zaznaczone
-            </button>
-            <span class="text-muted small" id="bulkSelectedInfo">Zaznacz pozycje z listy, aby edytować hurtowo.</span>
-        </div>
-    {% endif %}
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <button type="submit" class="btn btn-warning" id="bulkEditBtn" disabled>
+                            <i class="bi bi-pencil-square"></i> Edytuj zaznaczone
+                        </button>
+                        <button type="submit" class="btn btn-danger" id="bulkDeleteBtn" disabled
+                                formaction="{{ url_for('views.sprzet_bulk_delete') }}"
+                                onclick="return confirm('Czy na pewno chcesz usunąć zaznaczone elementy?')">
+                            <i class="bi bi-trash"></i> Usuń zaznaczone
+                        </button>
+                        <span class="text-muted small" id="bulkSelectedInfo">Zaznacz pozycje z listy, aby edytować hurtowo.</span>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
 
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead class="table-dark">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
                 <tr>
-                    {% if IS_ADMIN %}
-                    <th style="width: 1%; white-space: nowrap;">
-                        <input class="form-check-input" type="checkbox" id="selectAllSprzet" title="Zaznacz wszystko">
-                    </th>
+                    {% if IS_QUARTERMASTER %}
+                        <th style="width: 1%; white-space: nowrap;">
+                            <input class="form-check-input" type="checkbox" id="selectAllSprzet"
+                                   title="Zaznacz wszystko">
+                        </th>
                     {% endif %}
-                    <th>ID</th>
-                    <th>Typ</th>
-                    <th>Stan (Szczelność)</th>
-                    <th>Stan Ogólny</th>
-                    <th>Magazyn</th>
-                    <th>Karta (QR)</th>
+                    <th data-column="id">ID</th>
+                    <th data-column="category">Kategoria</th>
+                    <th data-column="name">Nazwa / Typ</th>
+                    <th data-column="info">Informacje / Stan</th>
+                    <th data-column="location">Lokalizacja</th>
+                    <th data-column="destination">Przeznaczenie</th>
+                    <th data-column="condition">Stan ogólny</th>
+                    <th>Akcje</th>
                 </tr>
-            </thead>
-            <tbody>
+                </thead>
+                <tbody>
                 {% for item in sprzet_list %}
-                <tr>
-                    {% if IS_ADMIN %}
-                    <td>
-                        <input class="form-check-input sprzet-select" type="checkbox" name="sprzet_ids" value="{{ item.id }}">
-                    </td>
-                    {% endif %}
-                    <td class="fw-bold">{{ item.id }}</td>
-                    <td>{{ item.typ }}</td>
-                    <td>
-                        {% if item.wodoszczelnosc|lower == 'cieknie' %}
-                            <span class="badge text-bg-danger">{{ item.wodoszczelnosc }}</span>
-                        {% elif item.wodoszczelnosc|lower == 'nie cieknie' %}
-                            <span class="badge text-bg-success">{{ item.wodoszczelnosc }}</span>
-                        {% else %}
-                            <span class="badge text-bg-secondary">N/A</span>
+                    <tr id="row-{{ item.id }}">
+                        {% if IS_QUARTERMASTER %}
+                            <td>
+                                {% if not item.is_group %}
+                                    <input class="form-check-input sprzet-select" type="checkbox" name="sprzet_ids"
+                                           value="{{ item.id }}" form="bulkEditForm">
+                                {% endif %}
+                            </td>
                         {% endif %}
-                    </td>
-                    <td>{{ item.stan_ogolny or 'Brak danych' }}</td>
-                    <td>{{ item.lokalizacja or 'N/A' }}</td>
-                    <td>
-                        <a href="{{ url_for('views.sprzet_card', sprzet_id=item.id) }}" class="btn btn-info btn-sm">Podgląd / Zgłoś</a>
-                    </td>
-                </tr>
+                        <td class="fw-bold" data-column="id">{{ item.id }}</td>
+                        <td data-column="category">
+                            <span class="badge text-bg-secondary">{{ item.category|upper }}</span>
+                        </td>
+                        <td data-column="name">
+                            {% if item.category == 'magazyn' %}
+                                <i class="bi bi-house"></i>
+                            {% elif item.category == 'polka_skrzynia' %}
+                                <i class="bi bi-box"></i>
+                            {% else %}
+                                <i class="bi bi-tools"></i>
+                            {% endif %}
+                            {% if item.is_group %}
+                                <span class="text-primary fw-bold">{{ item.nazwa }}</span>
+                                <small class="text-muted">(Suma: {{ item.group_ids|length }})</small>
+                            {% else %}
+                                <a href="{{ url_for('views.sprzet_list', parent_id=item.id) }}"
+                                   class="text-decoration-none">
+                                    {{ item.nazwa or item.typ or 'Bez nazwy' }}
+                                </a>
+                            {% endif %}
+                        </td>
+                        <td data-column="info">
+                            {% if item.category == 'magazyn' %}
+                                {% if item.gps_lat and item.gps_lng %}
+                                    <a href="https://www.google.com/maps/dir/?api=1&destination={{ item.gps_lat }},{{ item.gps_lng }}"
+                                       target="_blank" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-geo-alt"></i> Trasa
+                                    </a>
+                                {% else %}
+                                    Brak współrzędnych
+                                {% endif %}
+                            {% elif item.category == 'namiot' %}
+                                {{ item.wodoszczelnosc or '' }} | {{ item.stan_ogolny or '' }}
+                            {% elif item.category == 'przedmiot' %}
+                                {{ item.ilosc }} {{ item.jednostka }} |
+                                {{ 'Sprawny' if item.sprawny == 'Tak' else 'Niesprawne' }}
+                            {% else %}
+                                {{ item.informacje or item.typ_zelastwa or '' }}
+                            {% endif %}
+
+                            {% if not IS_QUARTERMASTER and item.is_loaned %}
+                                <br><span class="badge text-bg-danger">Wypożyczone</span>
+                            {% endif %}
+                        </td>
+                        <td data-column="location">
+                            {% if item.magazyn_id %}
+                                <a href="{{ url_for('views.sprzet_list', parent_id=item.magazyn_id) }}">{{ item.magazyn_display }}</a>
+                            {% else %}
+                                {{ item.magazyn_display }}
+                            {% endif %}
+                        </td>
+                        <td data-column="destination">{{ item.przeznaczenie or '' }}</td>
+                        <td data-column="condition">{{ item.stan_ogolny or '' }}</td>
+                        <td>
+                            <div class="btn-group">
+                                {% if item.is_group %}
+                                    {# Dla grupy nie pokazujemy bezpośrednich akcji edycji #}
+                                    <span class="badge text-bg-light">Grupowe</span>
+                                {% else %}
+                                    <a href="{{ url_for('views.sprzet_card', sprzet_id=item.id) }}"
+                                       class="btn btn-info btn-sm" title="Karta">
+                                        <i class="bi bi-card-list"></i>
+                                    </a>
+                                    {% if IS_QUARTERMASTER %}
+                                        <a href="{{ url_for('views.sprzet_edit', sprzet_id=item.id) }}"
+                                           class="btn btn-warning btn-sm" title="Edytuj">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form method="POST"
+                                              action="{{ url_for('views.sprzet_delete', sprzet_id=item.id) }}"
+                                              style="display:inline;"
+                                              onsubmit="return confirm('Czy na pewno chcesz usunąć ten element?');">
+                                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-danger btn-sm" title="Usuń">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                    <button type="button" class="btn btn-outline-secondary btn-sm btn-qr"
+                                            data-bs-toggle="modal" data-bs-target="#qrModal"
+                                            data-sprzet-id="{{ item.id }}" title="QR">
+                                        <i class="bi bi-qr-code"></i>
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
+                </tbody>
+            </table>
+        </div>
 
-    {% if IS_ADMIN %}
-    </form>
+        {% if IS_QUARTERMASTER %}
+            <script>
+                (function () {
+                    const selectAll = document.getElementById('selectAllSprzet');
+                    const checkboxes = Array.from(document.querySelectorAll('.sprzet-select'));
+                    const bulkBtn = document.getElementById('bulkEditBtn');
+                    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+                    const info = document.getElementById('bulkSelectedInfo');
 
-    <script>
-        (function () {
-            const selectAll = document.getElementById('selectAllSprzet');
-            const checkboxes = Array.from(document.querySelectorAll('.sprzet-select'));
-            const bulkBtn = document.getElementById('bulkEditBtn');
-            const info = document.getElementById('bulkSelectedInfo');
+                    function updateState() {
+                        const selected = checkboxes.filter(cb => cb.checked).length;
+                        if (bulkBtn) bulkBtn.disabled = selected === 0;
+                        if (bulkDeleteBtn) bulkDeleteBtn.disabled = selected === 0;
+                        if (info) info.textContent = selected === 0
+                            ? 'Zaznacz pozycje z listy, aby edytować hurtowo.'
+                            : `Zaznaczono: ${selected}`;
 
-            function updateState() {
-                const selected = checkboxes.filter(cb => cb.checked).length;
-                if (bulkBtn) bulkBtn.disabled = selected === 0;
-                if (info) info.textContent = selected === 0
-                    ? 'Zaznacz pozycje z listy, aby edytować hurtowo.'
-                    : `Zaznaczono: ${selected}`;
+                        if (selectAll) {
+                            selectAll.checked = selected > 0 && selected === checkboxes.length;
+                            selectAll.indeterminate = selected > 0 && selected < checkboxes.length;
+                        }
+                    }
 
-                if (selectAll) {
-                    selectAll.checked = selected > 0 && selected === checkboxes.length;
-                    selectAll.indeterminate = selected > 0 && selected < checkboxes.length;
-                }
-            }
+                    if (selectAll) {
+                        selectAll.addEventListener('change', function () {
+                            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+                            updateState();
+                        });
+                    }
 
-            if (selectAll) {
-                selectAll.addEventListener('change', function () {
-                    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+                    checkboxes.forEach(cb => cb.addEventListener('change', updateState));
                     updateState();
-                });
-            }
 
-            checkboxes.forEach(cb => cb.addEventListener('change', updateState));
-            updateState();
-        })();
-    </script>
-    {% endif %}
+                    // Column visibility and order logic
+                    const STORAGE_KEY_CONFIG = 'sprzet_list_column_config_v2';
+                    const table = document.querySelector('table');
+                    const theadRow = table.querySelector('thead tr');
+                    const tbody = table.querySelector('tbody');
+                    const settingsList = document.getElementById('columnSettingsList');
+                    const resetBtn = document.getElementById('resetColumnsBtn');
+
+                    const DEFAULT_CONFIG = [
+                        {id: 'id', name: 'ID', visible: true},
+                        {id: 'category', name: 'Kategoria', visible: true},
+                        {id: 'name', name: 'Nazwa / Typ', visible: true},
+                        {id: 'info', name: 'Informacje / Stan', visible: true},
+                        {id: 'location', name: 'Lokalizacja', visible: true},
+                        {id: 'destination', name: 'Przeznaczenie', visible: false},
+                        {id: 'condition', name: 'Stan ogólny', visible: false}
+                    ];
+
+                    function getConfig() {
+                        const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
+                        if (saved) return JSON.parse(saved);
+                        return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+                    }
+
+                    function saveConfig(config) {
+                        localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
+                    }
+
+                    function renderSettings() {
+                        const config = getConfig();
+                        settingsList.innerHTML = '';
+                        config.forEach((col, index) => {
+                            const item = document.createElement('div');
+                            item.className = 'list-group-item d-flex align-items-center justify-content-between p-2';
+                            item.innerHTML = `
+                        <div class="form-check mb-0">
+                            <input class="form-check-input col-visible-toggle" type="checkbox" value="${col.id}" id="chk_${col.id}" ${col.visible ? 'checked' : ''}>
+                            <label class="form-check-label small" for="chk_${col.id}">${col.name}</label>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-light py-0 move-up" data-index="${index}" ${index === 0 ? 'disabled' : ''}><i class="bi bi-chevron-up"></i></button>
+                            <button class="btn btn-sm btn-light py-0 move-down" data-index="${index}" ${index === config.length - 1 ? 'disabled' : ''}><i class="bi bi-chevron-down"></i></button>
+                        </div>
+                    `;
+                            settingsList.appendChild(item);
+                        });
+
+                        // Attach events
+                        settingsList.querySelectorAll('.col-visible-toggle').forEach(chk => {
+                            chk.addEventListener('change', function () {
+                                const conf = getConfig();
+                                const c = conf.find(x => x.id === this.value);
+                                if (c) c.visible = this.checked;
+                                saveConfig(conf);
+                                applyConfig();
+                            });
+                        });
+
+                        settingsList.querySelectorAll('.move-up').forEach(btn => {
+                            btn.addEventListener('click', function (e) {
+                                e.stopPropagation();
+                                const idx = parseInt(this.getAttribute('data-index'));
+                                const conf = getConfig();
+                                [conf[idx], conf[idx - 1]] = [conf[idx - 1], conf[idx]];
+                                saveConfig(conf);
+                                applyConfig();
+                            });
+                        });
+
+                        settingsList.querySelectorAll('.move-down').forEach(btn => {
+                            btn.addEventListener('click', function (e) {
+                                e.stopPropagation();
+                                const idx = parseInt(this.getAttribute('data-index'));
+                                const conf = getConfig();
+                                [conf[idx], conf[idx + 1]] = [conf[idx + 1], conf[idx]];
+                                saveConfig(conf);
+                                applyConfig();
+                            });
+                        });
+                    }
+
+                    function applyConfig() {
+                        const config = getConfig();
+                        const ths = Array.from(theadRow.querySelectorAll('th[data-column]'));
+                        const staticThsBefore = Array.from(theadRow.querySelectorAll('th')).filter(th => th.querySelector('#selectAllSprzet') || th.cellIndex === 0 && th.querySelector('input'));
+                        const staticThsAfter = Array.from(theadRow.querySelectorAll('th')).filter(th => th.textContent.trim() === 'Akcje');
+
+                        const thMap = {};
+                        ths.forEach(th => thMap[th.getAttribute('data-column')] = th);
+
+                        // Rebuild Header
+                        theadRow.innerHTML = '';
+                        staticThsBefore.forEach(th => theadRow.appendChild(th));
+                        config.forEach(c => {
+                            const th = thMap[c.id];
+                            if (th) {
+                                th.style.display = c.visible ? '' : 'none';
+                                theadRow.appendChild(th);
+                            }
+                        });
+                        staticThsAfter.forEach(th => theadRow.appendChild(th));
+
+                        // Rebuild Body Rows
+                        Array.from(tbody.querySelectorAll('tr')).forEach(row => {
+                            const tds = Array.from(row.querySelectorAll('td[data-column]'));
+                            const staticTdsBefore = Array.from(row.querySelectorAll('td')).filter(td => td.querySelector('.sprzet-select'));
+                            const staticTdsAfter = Array.from(row.querySelectorAll('td')).filter(td => (td.querySelector('.btn-group') || td.querySelector('.badge')) && !td.hasAttribute('data-column'));
+
+                            const tdMap = {};
+                            tds.forEach(td => tdMap[td.getAttribute('data-column')] = td);
+
+                            row.innerHTML = '';
+                            staticTdsBefore.forEach(td => row.appendChild(td));
+                            config.forEach(c => {
+                                const td = tdMap[c.id];
+                                if (td) {
+                                    td.style.display = c.visible ? '' : 'none';
+                                    row.appendChild(td);
+                                }
+                            });
+                            staticTdsAfter.forEach(td => row.appendChild(td));
+                        });
+
+                        renderSettings();
+                    }
+
+                    if (resetBtn) {
+                        resetBtn.addEventListener('click', function () {
+                            localStorage.removeItem(STORAGE_KEY_CONFIG);
+                            applyConfig();
+                        });
+                    }
+
+                    const columnToggleMenu = document.getElementById('columnToggleMenu');
+                    if (columnToggleMenu) {
+                        columnToggleMenu.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                        });
+                    }
+
+                    applyConfig();
+                })();
+            </script>
+        {% endif %}
+
+        <script>
+            (function () {
+                // QR Modal logic
+                const qrModal = document.getElementById('qrModal');
+                if (qrModal) {
+                    qrModal.addEventListener('show.bs.modal', function (event) {
+                        const button = event.relatedTarget;
+                        if (!button) return;
+
+                        // Pobieramy ID sprzętu z ID rzędu tabeli lub z atrybutu buttona
+                        const row = button.closest('tr');
+                        const sprzetId = row && row.id ? row.id.replace('row-', '') : button.getAttribute('data-sprzet-id');
+
+                        const isDebug = {{ 'true' if is_debug else 'false' }};
+
+                        const title = document.getElementById('qrModalTitle');
+                        const img = document.getElementById('qrImage');
+                        const openLink = document.getElementById('qrOpenLink');
+                        const downloadBtn = document.getElementById('qrDownloadBtn');
+                        const targetText = document.getElementById('qrTargetText');
+
+                        title.textContent = 'QR: ' + sprzetId;
+
+                        let target = window.location.origin + '/sprzet/' + sprzetId;
+                        if (isDebug) {
+                            target += (target.indexOf('?') === -1 ? '?' : '&') + 'dev';
+                        }
+
+                        // Budujemy URL do endpointu QR (zgodnie z sugestią użytkownika)
+                        const qrSrc = `/sprzet/${sprzetId}/qrcode`;
+
+                        img.src = qrSrc;
+                        img.alt = 'QR for ' + target;
+                        openLink.href = target;
+                        downloadBtn.href = qrSrc + '?download=1';
+                        downloadBtn.download = 'QR_' + sprzetId + '.png';
+                        targetText.textContent = target;
+                    });
+                }
+            })();
+        </script>
 
     {% else %}
         <p>Brak sprzętu do wyświetlenia. Skontaktuj się z administratorem.</p>
     {% endif %}
+
+    <div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="qrModalTitle">QR Kod</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="qrImage" src="" alt="QR code" class="img-fluid mb-2"/>
+                    <p class="small" id="qrTargetText"></p>
+                </div>
+                <div class="modal-footer">
+                    <a id="qrOpenLink" class="btn btn-primary" target="_blank" rel="noopener">Otwórz stronę</a>
+                    <a id="qrDownloadBtn" class="btn btn-success" download="QR.png">
+                        <i class="bi bi-download"></i> Pobierz QR
+                    </a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}

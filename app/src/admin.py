@@ -4,7 +4,7 @@ import secrets
 import string
 import os
 
-from .auth import admin_required
+from .auth import admin_required, quartermaster_required
 from .db_firestore import (
     get_all_logs, add_log, restore_item
 )
@@ -60,7 +60,8 @@ def user_new():
         password = request.form.get('password', '').strip()
         first_name = request.form.get('first_name', '').strip()
         last_name = request.form.get('last_name', '').strip()
-        is_admin = request.form.get('is_admin') == 'on'
+        role = request.form.get('role', 'reporter')
+        is_admin = role == 'admin'
         
         if not email or not password:
             flash('Email i hasło są wymagane.', 'danger')
@@ -77,9 +78,11 @@ def user_new():
             # Ustaw custom claims dla admina
             if is_admin:
                 firebase_auth.set_custom_user_claims(fb_user.uid, {'admin': True})
+            else:
+                firebase_auth.set_custom_user_claims(fb_user.uid, {'admin': False})
             
             # Utwórz dokument użytkownika w Firestore
-            create_user(fb_user.uid, email, is_admin=is_admin, active=True,
+            create_user(fb_user.uid, email, is_admin=is_admin, role=role, active=True,
                        first_name=first_name or None, last_name=last_name or None)
 
             flash(f'Użytkownik {email} został pomyślnie utworzony.', 'success')
@@ -115,7 +118,8 @@ def user_edit(user_id):
         return redirect(url_for('admin.users_list'))
     
     if request.method == 'POST':
-        is_admin = request.form.get('is_admin') == 'on'
+        role = request.form.get('role', 'reporter')
+        is_admin = role == 'admin'
         active = request.form.get('active') == 'on'
         first_name = request.form.get('first_name', '').strip()
         last_name = request.form.get('last_name', '').strip()
@@ -148,7 +152,7 @@ def user_edit(user_id):
                 flash(f'Email użytkownika został zmieniony na {new_email}.', 'success')
 
             # Aktualizuj pozostałe dane w Firestore
-            update_user(user_id, is_admin=is_admin, active=active,
+            update_user(user_id, is_admin=is_admin, role=role, active=active,
                        first_name=first_name or None, last_name=last_name or None)
 
             # Aktualizuj custom claims w Firebase Auth
@@ -361,7 +365,7 @@ def user_delete(user_id):
     return redirect(url_for('admin.users_list'))
 
 @admin_bp.route('/restore/<log_id>', methods=['POST'])
-@admin_required
+@quartermaster_required
 def log_restore(log_id):
     """Przywraca stan obiektu z loga."""
     if not validate_csrf_token():

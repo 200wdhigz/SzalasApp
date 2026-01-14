@@ -1,151 +1,88 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="mb-3">
-        <a href="javascript:history.back()" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Wróć
-        </a>
-    </div>
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card shadow mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0"><i class="bi bi-person-circle"></i> Profil Użytkownika</h4>
+    <div class="container mt-4">
+        <div class="mb-3">
+            <a href="javascript:history.back()" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Wróć
+            </a>
+        </div>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card shadow mb-4">
+                    <div class="card-header text-bg-primary">
+                        <h4 class="mb-0"><i class="bi bi-person-circle"></i> Profil Użytkownika</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-3">
+                            <div class="display-1 text-muted">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">
+                                <strong>Imię:</strong> {{ user_info.first_name or '---' }}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>Nazwisko:</strong> {{ user_info.last_name or '---' }}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>Email:</strong> {{ user_info.email }}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>Status:</strong>
+                                {% if user_info.active %}
+                                    <span class="badge text-bg-success">Aktywny</span>
+                                {% else %}
+                                    <span class="badge text-bg-warning">Nieaktywny</span>
+                                {% endif %}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>Rola:</strong>
+                                {% if user_info.is_admin %}
+                                    <span class="badge text-bg-danger">Administrator</span>
+                                {% else %}
+                                    <span class="badge text-bg-secondary">Użytkownik</span>
+                                {% endif %}
+                            </li>
+                        </ul>
+                        {% if user_info.id == session.get('user_id') %}
+                            <div class="mt-3 text-center">
+                                <a href="{{ url_for('oauth.account') }}" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-gear"></i> Ustawienia konta
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="text-center mb-3">
-                        <div class="display-1 text-muted">
-                            <i class="bi bi-person-fill"></i>
+            </div>
+
+            <div class="col-md-8">
+                {% if IS_QUARTERMASTER %}
+                    <div class="card shadow">
+                        <div class="card-header text-bg-dark d-flex justify-content-between align-items-center">
+                            <h4 class="mb-0"><i class="bi bi-journal-text"></i> Historia Edycji</h4>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if logs %}
+                                {% from 'macros.html' import render_log_table %}
+                                {{ render_log_table(logs, show_user=False, show_target=True, IS_QUARTERMASTER=IS_QUARTERMASTER, csrf_token=csrf_token(), table_id="user_logs") }}
+                                <div class="text-center p-3 border-top">
+                                    <a href="{{ url_for('views.logs_list', user_id=user_info.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-list-ul"></i> Zobacz pełną historię
+                                    </a>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4 text-muted">Brak historii aktywności.</div>
+                            {% endif %}
                         </div>
                     </div>
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item">
-                            <strong>Imię:</strong> {{ user_info.first_name or '---' }}
-                        </li>
-                        <li class="list-group-item">
-                            <strong>Nazwisko:</strong> {{ user_info.last_name or '---' }}
-                        </li>
-                        <li class="list-group-item">
-                            <strong>Email:</strong> {{ user_info.email }}
-                        </li>
-                        <li class="list-group-item">
-                            <strong>Status:</strong> 
-                            {% if user_info.active %}
-                                <span class="badge bg-success">Aktywny</span>
-                            {% else %}
-                                <span class="badge bg-warning">Nieaktywny</span>
-                            {% endif %}
-                        </li>
-                        <li class="list-group-item">
-                            <strong>Rola:</strong> 
-                            {% if user_info.is_admin %}
-                                <span class="badge bg-danger">Administrator</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Użytkownik</span>
-                            {% endif %}
-                        </li>
-                    </ul>
-                    {% if user_info.id == session.get('user_id') %}
-                    <div class="mt-3 text-center">
-                        <a href="{{ url_for('oauth.account') }}" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-gear"></i> Ustawienia konta
-                        </a>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Tylko kwatermistrz może przeglądać historię edycji.
                     </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-8">
-            <div class="card shadow">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0"><i class="bi bi-journal-text"></i> Historia Edycji</h4>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Akcja</th>
-                                    <th>Typ</th>
-                                    <th>ID Obiektu</th>
-                                    <th>Szczegóły</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for log in logs %}
-                                <tr>
-                                    <td>{{ log.timestamp }}</td>
-                                    <td>
-                                        {% if log.action == 'add' %}
-                                            <span class="badge bg-success">Dodano</span>
-                                        {% elif log.action == 'edit' %}
-                                            <span class="badge bg-info">Edytowano</span>
-                                        {% elif log.action == 'delete' %}
-                                            <span class="badge bg-danger">Usunięto</span>
-                                        {% elif log.action == 'import' %}
-                                            <span class="badge bg-primary">Import</span>
-                                        {% elif log.action == 'restore' %}
-                                            <span class="badge bg-warning text-dark">Przywrócono</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ log.target_type | capitalize }}</td>
-                                    <td>
-                                        {% if log.target_type == 'sprzet' %}
-                                            <a href="{{ url_for('views.sprzet_card', sprzet_id=log.target_id) }}">{{ log.target_id }}</a>
-                                        {% elif log.target_type == 'usterka' %}
-                                            <a href="{{ url_for('views.usterka_card', usterka_id=log.target_id) }}">{{ log.target_id }}</a>
-                                        {% else %}
-                                            {{ log.target_id }}
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="d-flex gap-2">
-                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#details_{{ loop.index }}">
-                                                Pokaż
-                                            </button>
-                                            {% if IS_ADMIN and log.before and log.action != 'restore' %}
-                                                <form method="POST" action="{{ url_for('admin.log_restore', log_id=log.id) }}" style="display: inline;" onsubmit="return confirm('Czy na pewno chcesz przywrócić tę wersję?');">
-                                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Przywróć tę wersję">
-                                                        <i class="bi bi-arrow-counterclockwise"></i>
-                                                    </button>
-                                                </form>
-                                            {% endif %}
-                                        </div>
-                                        <div class="collapse mt-2" id="details_{{ loop.index }}">
-                                            {% if log.before or log.after %}
-                                                <div class="mb-2">
-                                                    {% if log.before %}
-                                                        <small class="text-muted fw-bold">Przed:</small>
-                                                        <pre class="small p-2 rounded bg-body-tertiary border" style="max-height: 150px; overflow-y: auto;"><code>{{ log.before | tojson(indent=2) }}</code></pre>
-                                                    {% endif %}
-                                                    {% if log.after %}
-                                                        <small class="text-muted fw-bold">Po:</small>
-                                                        <pre class="small p-2 rounded bg-body-tertiary border" style="max-height: 150px; overflow-y: auto;"><code>{{ log.after | tojson(indent=2) }}</code></pre>
-                                                    {% endif %}
-                                                </div>
-                                            {% endif %}
-                                            {% if log.details %}
-                                                <small class="text-muted fw-bold">Szczegóły:</small>
-                                                <pre class="small p-2 rounded bg-body-tertiary border"><code>{{ log.details | tojson(indent=2) }}</code></pre>
-                                            {% endif %}
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="5" class="text-center py-4 text-muted">Brak historii aktywności.</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                {% endif %}
             </div>
         </div>
     </div>
-</div>
 {% endblock %}

@@ -161,6 +161,7 @@ def google_callback():
             # Zaloguj użytkownika
             session['user_id'] = user['id']
             session['is_admin'] = user.get('is_admin', False)
+            session['user_role'] = user.get('role', 'admin' if session['is_admin'] else 'reporter')
             session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('email')
             flash('Pomyślnie zalogowano przez Google!', 'success')
             return redirect(url_for('views.sprzet_list'))
@@ -293,6 +294,7 @@ def microsoft_callback():
             # Zaloguj użytkownika
             session['user_id'] = user['id']
             session['is_admin'] = user.get('is_admin', False)
+            session['user_role'] = user.get('role', 'admin' if session['is_admin'] else 'reporter')
             session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('email')
             flash('Pomyślnie zalogowano przez Microsoft!', 'success')
             return redirect(url_for('views.sprzet_list'))

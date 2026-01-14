@@ -1,6 +1,8 @@
 from . import get_firestore_client
 from google.cloud import firestore
 
+from .db_firestore import _warsaw_now
+
 COLLECTION_USERS = 'users'
 
 def _get_doc_data(doc):
@@ -50,19 +52,20 @@ def get_all_users():
     query = db.collection(COLLECTION_USERS).order_by('email', direction=firestore.Query.ASCENDING)
     return [_get_doc_data(doc) for doc in query.stream()]
 
-def create_user(uid: str, email: str, is_admin: bool = False, active: bool = True, first_name: str = None, last_name: str = None):
+def create_user(uid: str, email: str, is_admin: bool = False, role: str = 'reporter', active: bool = True, first_name: str = None, last_name: str = None):
     """Tworzy nowy dokument użytkownika w Firestore."""
     db = get_firestore_client()
     user_data = {
         'email': email,
         'is_admin': is_admin,
+        'role': role,
         'active': active,
         'first_name': first_name,
         'last_name': last_name,
         'google_id': None,
         'microsoft_id': None,
-        'created_at': firestore.SERVER_TIMESTAMP,
-        'updated_at': firestore.SERVER_TIMESTAMP
+        'created_at': _warsaw_now(),
+        'updated_at': _warsaw_now()
     }
     db.collection(COLLECTION_USERS).document(uid).set(user_data)
     return uid
@@ -70,7 +73,7 @@ def create_user(uid: str, email: str, is_admin: bool = False, active: bool = Tru
 def update_user(uid: str, **kwargs):
     """Aktualizuje dane użytkownika."""
     db = get_firestore_client()
-    kwargs['updated_at'] = firestore.SERVER_TIMESTAMP
+    kwargs['updated_at'] = _warsaw_now()
     db.collection(COLLECTION_USERS).document(uid).update(kwargs)
 
 def link_google_account(uid: str, google_id: str):
@@ -150,7 +153,8 @@ def sync_users_from_firebase_auth():
             # Sprawdź custom claims dla is_admin
             user_record = firebase_auth.get_user(uid)
             is_admin = user_record.custom_claims.get('admin', False) if user_record.custom_claims else False
-            create_user(uid, fb_user.email, is_admin=is_admin, active=not fb_user.disabled)
+            role = 'admin' if is_admin else 'reporter'
+            create_user(uid, fb_user.email, is_admin=is_admin, role=role, active=not fb_user.disabled)
             added_count += 1
 
     return deleted_count, added_count

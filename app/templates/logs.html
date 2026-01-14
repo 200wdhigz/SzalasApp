@@ -1,110 +1,54 @@
 {% extends 'base.html' %}
+{% from 'macros.html' import render_log_table %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-journal-text"></i> Logi Aktywności</h2>
-    </div>
-
-    <div class="card shadow">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Data</th>
-                            <th>Użytkownik</th>
-                            <th>Akcja</th>
-                            <th>Typ</th>
-                            <th>ID Obiektu</th>
-                            <th>Szczegóły</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for log in logs %}
-                        <tr>
-                            <td>{{ log.timestamp }}</td>
-                            <td>
-                                <a href="{{ url_for('views.user_profile', user_id=log.user_id) }}" class="text-decoration-none">
-                                    <i class="bi bi-person"></i> {{ log.user_name }}
-                                </a>
-                            </td>
-                            <td>
-                                {% if log.action == 'add' %}
-                                    <span class="badge bg-success">Dodano</span>
-                                {% elif log.action == 'edit' %}
-                                    <span class="badge bg-info">Edytowano</span>
-                                {% elif log.action == 'delete' %}
-                                    <span class="badge bg-danger">Usunięto</span>
-                                {% elif log.action == 'import' %}
-                                    <span class="badge bg-primary">Import</span>
-                                {% elif log.action == 'restore' %}
-                                    <span class="badge bg-warning text-dark">Przywrócono</span>
-                                {% elif log.action == 'bulk_edit' %}
-                                    <span class="badge bg-secondary">Edycja masowa</span>
-
-                                {% endif %}
-                            </td>
-                            <td>{{ log.target_type | capitalize }}</td>
-                            <td>
-                                {% if log.target_type == 'sprzet' %}
-                                    <a href="{{ url_for('views.sprzet_card', sprzet_id=log.target_id) }}">{{ log.target_id }}</a>
-                                {% elif log.target_type == 'usterka' %}
-                                    <a href="{{ url_for('views.usterka_card', usterka_id=log.target_id) }}">{{ log.target_id }}</a>
-                                {% else %}
-                                    {{ log.target_id }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#details_{{ loop.index }}">
-                                        Pokaż
-                                    </button>
-                                    {% if IS_ADMIN and log.before and log.action != 'restore' %}
-                                        <form method="POST" action="{{ url_for('admin.log_restore', log_id=log.id) }}" style="display: inline;" onsubmit="return confirm('Czy na pewno chcesz przywrócić tę wersję?');">
-                                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Przywróć tę wersję">
-                                                <i class="bi bi-arrow-counterclockwise"></i> Przywróć
-                                            </button>
-                                        </form>
-                                    {% endif %}
-                                </div>
-                                <div class="collapse mt-2" id="details_{{ loop.index }}">
-                                    {% if log.before or log.after %}
-                                        <div class="row">
-                                            {% if log.before %}
-                                            <div class="col-md-6">
-                                                <small class="text-muted fw-bold">Przed:</small>
-                                                <pre class="small p-2 rounded bg-body-tertiary border" style="max-height: 200px; overflow-y: auto;"><code>{{ log.before | tojson(indent=2) }}</code></pre>
-                                            </div>
-                                            {% endif %}
-                                            {% if log.after %}
-                                            <div class="col-md-6">
-                                                <small class="text-muted fw-bold">Po:</small>
-                                                <pre class="small p-2 rounded bg-body-tertiary border" style="max-height: 200px; overflow-y: auto;"><code>{{ log.after | tojson(indent=2) }}</code></pre>
-                                            </div>
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-                                    {% if log.details %}
-                                        <small class="text-muted fw-bold">Szczegóły dodatkowe:</small>
-                                        <pre class="small p-2 rounded bg-body-tertiary border"><code>{{ log.details | tojson(indent=2) }}</code></pre>
-                                    {% endif %}
-                                    {% if not log.before and not log.after and not log.details %}
-                                        <p class="small text-muted">Brak szczegółów.</p>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="6" class="text-center py-4 text-muted">Brak logów do wyświetlenia.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    <div class="container mt-4">
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <h2 class="mb-0"><i class="bi bi-journal-text me-2"></i>Logi Systemowe</h2>
+            <span class="badge text-bg-secondary">{{ total_logs }} wpisów</span>
         </div>
+
+        {% if logs %}
+            {{ render_log_table(logs, show_user=True, show_target=True, IS_QUARTERMASTER=IS_QUARTERMASTER, csrf_token=csrf_token(), table_id="logs") }}
+
+            {% if total_pages > 1 %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('views.logs_list', page=(page - 1), user_id=user_id_filter, target_id=target_id_filter) }}" tabindex="-1">Poprzednia</a>
+                        </li>
+                        
+                        {% set start_page = [1, page - 2] | max %}
+                        {% set end_page = [total_pages, start_page + 4] | min %}
+                        {% set start_page = [1, end_page - 4] | max %}
+
+                        {% if start_page > 1 %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('views.logs_list', page=1, user_id=user_id_filter, target_id=target_id_filter) }}">1</a></li>
+                            {% if start_page > 2 %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}
+                        {% endif %}
+
+                        {% for p in range(start_page, end_page + 1) %}
+                            <li class="page-item {% if p == page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('views.logs_list', page=p, user_id=user_id_filter, target_id=target_id_filter) }}">{{ p }}</a>
+                            </li>
+                        {% endfor %}
+
+                        {% if end_page < total_pages %}
+                            {% if end_page < total_pages - 1 %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('views.logs_list', page=total_pages, user_id=user_id_filter, target_id=target_id_filter) }}">{{ total_pages }}</a></li>
+                        {% endif %}
+
+                        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('views.logs_list', page=(page + 1), user_id=user_id_filter, target_id=target_id_filter) }}">Następna</a>
+                        </li>
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info shadow-sm">
+                <i class="bi bi-info-circle me-2"></i>Brak logów w systemie.
+            </div>
+        {% endif %}
     </div>
-</div>
 {% endblock %}
+

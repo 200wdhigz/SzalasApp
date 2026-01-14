@@ -118,7 +118,7 @@ Planowane: Przycisk "Nowa Usterka" z wyborem sprzętu z listy.
 ┌──────────────┬────────────────────┬──────────┬────────────┬────────────┬────────┐
 │ Sprzęt       │ Opis               │ Status   │ Przez      │ Data       │ Akcje  │
 ├──────────────┼────────────────────┼──────────┼────────────┼────────────┼────────┤
-│ NAMIOT_01    │ Dziura przy wejściu│ Oczekuje │ Jan K.     │ 2026-01-01 │ Detalе │
+│ NAMIOT_01    │ Dziura przy wejściu│ Oczekuje │ Jan K.     │ 2026-01-01 │ Detale │
 │ (Namiot)     │                    │          │            │            │        │
 ├──────────────┼────────────────────┼──────────┼────────────┼────────────┼────────┤
 │ PLANDEKA_02  │ Brak śledzi        │ W trakcie│ Anna W.    │ 2026-01-02 │ Detale │

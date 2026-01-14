@@ -59,7 +59,16 @@ def export_to_pdf(data, filename, title):
         keys = list(data[0].keys())
         table_data = [[str(k).capitalize() for k in keys]]
         for item in data:
-            table_data.append([str(item.get(k, '')) for k in keys])
+            row = []
+            for k in keys:
+                val = str(item.get(k, ''))
+                if k == 'QR_Link' and val.startswith('http'):
+                    # Tworzymy klikalny link w PDF (uproszczone, bo reportlab Table nie obsługuje łatwo linków wprost)
+                    # Ale możemy użyć Paragraph wewnątrz komórki
+                    row.append(Paragraph(f'<a href="{val}" color="blue">Link</a>', styles['Normal']))
+                else:
+                    row.append(val)
+            table_data.append(row)
             
         t = Table(table_data)
         t.setStyle(TableStyle([

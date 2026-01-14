@@ -24,8 +24,21 @@ def admin_required(f):
         if 'user_id' not in session:
             flash('Musisz się zalogować, aby uzyskać dostęp.', 'danger')
             return redirect(url_for('auth.login'))
-        if not session.get('is_admin'):
-            flash('Nie masz uprawnień do dostępu do tej strony.', 'danger')
+        if session.get('user_role') != 'admin':
+            flash('Nie masz uprawnień administratora.', 'danger')
+            return redirect(url_for('views.sprzet_list'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def quartermaster_required(f):
+    """Dekorator do sprawdzania, czy użytkownik jest zalogowany i czy jest kwatermistrzem lub adminem."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Musisz się zalogować, aby uzyskać dostęp.', 'danger')
+            return redirect(url_for('auth.login'))
+        if session.get('user_role') not in ['quartermaster', 'admin']:
+            flash('Ta strona wymaga uprawnień kwatermistrza.', 'danger')
             return redirect(url_for('views.sprzet_list'))
         return f(*args, **kwargs)
     return decorated_function
@@ -82,6 +95,7 @@ def login():
 
             session['user_id'] = uid
             session['is_admin'] = bool(user.get('is_admin', is_admin))
+            session['user_role'] = user.get('role', 'admin' if session['is_admin'] else 'reporter')
             session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or email
 
             flash('Pomyślnie zalogowano!', 'success')
@@ -121,6 +135,7 @@ def login():
 def logout():
     session.pop('user_id', None)
     session.pop('is_admin', None)
+    session.pop('user_role', None)
     session.pop('user_name', None)
     flash('Wylogowano pomyślnie.', 'info')
     return redirect(url_for('views.sprzet_list'))
