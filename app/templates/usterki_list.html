@@ -139,11 +139,11 @@
                                 <td>{{ usterka.opis | truncate(100, True) }}</td>
                                 <td>
                             <span class="badge
-                                {% if usterka.status == 'oczekuje' %} text-bg-warning
-                                {% elif usterka.status == 'w trakcie' %} text-bg-info
-                                {% elif usterka.status == 'naprawiona' %} text-bg-success
-                                {% elif usterka.status == 'odrzucona' %} text-bg-danger
-                                {% else %} text-bg-secondary
+                                {% if usterka.status == 'oczekuje' %} bg-warning text-dark
+                                {% elif usterka.status == 'w trakcie' %} bg-info text-dark
+                                {% elif usterka.status == 'naprawiona' %} bg-success
+                                {% elif usterka.status == 'odrzucona' %} bg-danger
+                                {% else %} bg-secondary
                                 {% endif %}
                                 ">
                                 {{ usterka.status | capitalize }}

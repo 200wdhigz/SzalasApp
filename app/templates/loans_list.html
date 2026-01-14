@@ -2,16 +2,7 @@
 
 {% block content %}
     <div class="container mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>{% if show_history %}Historia Wypożyczeń{% else %}Aktywne Wypożyczenia{% endif %}</h2>
-            <div>
-                {% if show_history %}
-                    <a href="{{ url_for('views.loans_list') }}" class="btn btn-outline-primary">Pokaż tylko aktywne</a>
-                {% else %}
-                    <a href="{{ url_for('views.loans_list', history=1) }}" class="btn btn-outline-secondary">Pokaż historię</a>
-                {% endif %}
-            </div>
-        </div>
+        <h2 class="mb-4">Aktywne Wypożyczenia</h2>
 
         <div class="table-responsive">
             <table class="table table-striped table-hover">
@@ -21,13 +12,13 @@
                     <th>Przez kogo</th>
                     <th>Kontakt</th>
                     <th>Do kiedy</th>
-                    <th>Status</th>
+                    <th>Uwagi</th>
                     <th>Akcje</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for loan in loans %}
-                    <tr {% if loan.status == 'returned' %}class="table-secondary text-muted"{% endif %}>
+                    <tr>
                         <td>
                             <a href="{{ url_for('views.sprzet_card', sprzet_id=loan.item_id) }}">
                                 [{{ loan.item.id }}] {{ loan.item.nazwa or loan.item.typ or '' }}
@@ -36,25 +27,13 @@
                         <td>{{ loan.przez_kogo }}</td>
                         <td>{{ loan.kontakt or 'N/A' }}</td>
                         <td>{{ loan.do_kiedy or 'N/A' }}</td>
+                        <td>{{ loan.uwagi or '' }}</td>
                         <td>
-                            {% if loan.status == 'active' %}
-                                <span class="badge bg-success">Aktywne</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Zwrócone</span>
-                                <div class="small">Data zwrotu: {{ loan.return_timestamp }}</div>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if loan.status == 'active' %}
-                                <form method="POST" action="{{ url_for('views.loan_return', loan_id=loan.id) }}"
-                                      style="display:inline;"
-                                      onsubmit="return confirm('Czy na pewno chcesz oznaczyć jako zwrócone?');">
-                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-success btn-sm">Zwróć</button>
-                                </form>
-                            {% else %}
-                                -
-                            {% endif %}
+                            <form method="POST" action="{{ url_for('views.loan_return', loan_id=loan.id) }}"
+                                  style="display:inline;">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-success btn-sm">Zwróć</button>
+                            </form>
                         </td>
                     </tr>
                 {% endfor %}
@@ -62,7 +41,7 @@
             </table>
         </div>
         {% if not loans %}
-            <p>Brak wypożyczeń do wyświetlenia.</p>
+            <p>Brak aktywnych wypożyczeń.</p>
         {% endif %}
     </div>
 {% endblock %}

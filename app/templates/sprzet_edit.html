@@ -12,7 +12,7 @@
                             <label for="id" class="form-label">ID (np. MA01, PO01, SP01)</label>
                             <input type="text" name="id" id="id" class="form-control"
                                    value="{{ sprzet.id if sprzet else '' }}" {% if sprzet %}readonly{% endif %}
-                                   placeholder="Zostaw puste dla auto-ID (żelastwo/kanadyjki/przedmiot/magazyn)"
+                                   placeholder="Zostaw puste dla auto-ID (żelastwo/kanadyjki/magazyn)"
                                    title="ID musi składać się z dwóch wielkich liter i co najmniej dwóch cyfr (np. NA01)">
                         </div>
                         <div class="col-md-4">
@@ -141,10 +141,8 @@
                         </div>
                         <div class="col-md-6 category-field field-namiot">
                             <label for="zapalki" class="form-label">Zapałki</label>
-                            <select name="zapalki" id="zapalki" class="form-select">
-                                <option value="5" {% if sprzet and sprzet.zapalki == '5' %}selected{% endif %}>5</option>
-                                <option value="6" {% if sprzet and sprzet.zapalki == '6' %}selected{% endif %}>6</option>
-                            </select>
+                            <input type="text" name="zapalki" id="zapalki" class="form-control"
+                                   value="{{ sprzet.zapalki if sprzet else '' }}">
                         </div>
 
                         <!-- Pola dla PRZEDMIOT -->
@@ -153,35 +151,30 @@
                             <input type="text" name="nazwa" id="nazwa_przedmiot" class="form-control"
                                    value="{{ sprzet.nazwa if sprzet else '' }}">
                         </div>
-                        <div class="col-md-4 category-field field-przedmiot">
-                            <label class="form-label">Ilość</label>
-                            <div class="input-group">
-                                <input type="text" name="ilosc" id="ilosc" class="form-control"
-                                       value="{{ sprzet.ilosc if sprzet else '' }}" placeholder="np. 10">
-                                <select name="jednostka" id="jednostka" class="form-select" style="max-width: 120px;">
-                                    <option value=".szt" {% if sprzet and sprzet.jednostka == '.szt' %}selected{% endif %}>
-                                        .szt
-                                    </option>
-                                    <option value=".m" {% if sprzet and sprzet.jednostka == '.m' %}selected{% endif %}>.m
-                                    </option>
-                                    <option value=".m×.m"
-                                            {% if sprzet and sprzet.jednostka == '.m×.m' %}selected{% endif %}>.m×.m
-                                    </option>
-                                </select>
-                            </div>
+                        <div class="col-md-2 category-field field-przedmiot">
+                            <label for="ilosc" class="form-label">Ilość</label>
+                            <input type="text" name="ilosc" id="ilosc" class="form-control"
+                                   value="{{ sprzet.ilosc if sprzet else '' }}">
+                        </div>
+                        <div class="col-md-2 category-field field-przedmiot">
+                            <label for="jednostka" class="form-label">Jednostka</label>
+                            <select name="jednostka" id="jednostka" class="form-select">
+                                <option value=".szt" {% if sprzet and sprzet.jednostka == '.szt' %}selected{% endif %}>
+                                    .szt
+                                </option>
+                                <option value=".m" {% if sprzet and sprzet.jednostka == '.m' %}selected{% endif %}>.m
+                                </option>
+                                <option value=".m×.m"
+                                        {% if sprzet and sprzet.jednostka == '.m×.m' %}selected{% endif %}>.m×.m
+                                </option>
+                            </select>
                         </div>
 
                         <!-- Pola dla ZELASTWO -->
                         <div class="col-md-4 category-field field-zelastwo">
                             <label for="do_czego" class="form-label">Do czego</label>
                             <input type="text" name="do_czego" id="do_czego" class="form-control"
-                                   list="do_czego_suggestions"
                                    value="{{ sprzet.do_czego if sprzet else '' }}">
-                            <datalist id="do_czego_suggestions">
-                                {% for s in do_czego_suggestions or [] %}
-                                    <option value="{{ s }}">
-                                {% endfor %}
-                            </datalist>
                         </div>
                         <div class="col-md-4 category-field field-zelastwo">
                             <label for="typ_zelastwa" class="form-label">Typ żelastwa</label>
@@ -205,25 +198,6 @@
                                 </option>
                             </select>
                         </div>
-                        <div class="col-md-4 category-field field-zelastwo">
-                            <label class="form-label">Ilość</label>
-                            <div class="input-group">
-                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_zelastwo" class="form-control"
-                                       list="qty_suggestions_zelastwo"
-                                       value="{{ sprzet.ilosc if sprzet else '' }}"
-                                       placeholder="np. 1">
-                                <datalist id="qty_suggestions_zelastwo">
-                                    {% for v in qty_suggestions_zelastwo or [] %}
-                                        <option value="{{ v }}"></option>
-                                    {% endfor %}
-                                </datalist>
-                                <select name="jednostka" id="jednostka_zelastwo" class="form-select" style="max-width: 110px;">
-                                    <option value="zest." {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'zest.' %}selected{% endif %}>zest.</option>
-                                    <option value="szt." {% if sprzet and sprzet.jednostka == 'szt.' %}selected{% endif %}>szt.</option>
-                                </select>
-                            </div>
-                            <div class="form-text">Domyślnie zestaw.</div>
-                        </div>
 
                         <!-- Pola dla KANADYJKI -->
                         <div class="col-md-4 category-field field-kanadyjki">
@@ -237,24 +211,6 @@
                                         {% if sprzet and sprzet.material == 'gumowe' %}selected{% endif %}>gumowe
                                 </option>
                             </select>
-                        </div>
-                        <div class="col-md-4 category-field field-kanadyjki">
-                            <label class="form-label">Ilość</label>
-                            <div class="input-group">
-                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_kanadyjki" class="form-control"
-                                       list="qty_suggestions_kanadyjki"
-                                       value="{{ sprzet.ilosc if sprzet else '' }}"
-                                       placeholder="np. 4">
-                                <datalist id="qty_suggestions_kanadyjki">
-                                    {% for v in qty_suggestions_kanadyjki or [] %}
-                                        <option value="{{ v }}"></option>
-                                    {% endfor %}
-                                </datalist>
-                                <select name="jednostka" id="jednostka_kanadyjki" class="form-select" style="max-width: 110px;">
-                                    <option value="szt." {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'szt.' %}selected{% endif %}>szt.</option>
-                                </select>
-                            </div>
-                            <div class="form-text">Dla kanadyjek dozwolone są tylko sztuki.</div>
                         </div>
 
                         <!-- Pola wspólne dla niskich poziomów -->
@@ -290,9 +246,9 @@
                                       rows="2">{{ sprzet.historia if sprzet else '' }}</textarea>
                         </div>
 
-                        <div class="col-12 mt-4">
-                            <h5>Zarządzaj zdjęciami</h5>
-                            {% if sprzet %}
+                        {% if sprzet %}
+                            <div class="col-12 mt-4">
+                                <h5>Zarządzaj zdjęciami</h5>
                                 <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
                                     {% for photo_url in sprzet.zdjecia_lista_url %}
                                         <div class="col">
@@ -312,13 +268,13 @@
                                         </div>
                                     {% endfor %}
                                 </div>
-                            {% endif %}
-                            <div class="mb-3">
-                                <label for="nowe_zdjecia" class="form-label">Dodaj nowe zdjęcia</label>
-                                <input type="file" name="nowe_zdjecia" id="nowe_zdjecia" class="form-control"
-                                       multiple accept="image/*">
+                                <div class="mb-3">
+                                    <label for="nowe_zdjecia" class="form-label">Dodaj nowe zdjęcia</label>
+                                    <input type="file" name="nowe_zdjecia" id="nowe_zdjecia" class="form-control"
+                                           multiple accept="image/*">
+                                </div>
                             </div>
-                        </div>
+                        {% endif %}
                     </div>
 
                     <div class="mt-4">
@@ -345,7 +301,7 @@
 
             // Zarządzanie polem ID (tylko przy dodawaniu)
             if (!isEdit) {
-                if (['zelastwo', 'kanadyjki', 'magazyn', 'przedmiot'].includes(category)) {
+                if (['zelastwo', 'kanadyjki', 'magazyn'].includes(category)) {
                     idInput.disabled = true;
                     idInput.value = '';
                     idInput.placeholder = "ID zostanie wygenerowane automatycznie";

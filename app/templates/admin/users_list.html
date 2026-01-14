@@ -4,7 +4,7 @@
     <div class="row">
         <div class="col-12">
             <div class="card shadow-lg mt-4">
-                <div class="card-header text-bg-danger d-flex justify-content-between align-items-center">
+                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
                     <h4 class="mb-0"><i class="bi bi-people"></i> Zarządzanie Użytkownikami</h4>
                     <div class="btn-group">
                         <form method="POST" action="{{ url_for('admin.users_sync') }}" style="display: inline;"
@@ -77,18 +77,18 @@
                                         </td>
                                         <td>
                                             {% if user.role == 'admin' %}
-                                                <span class="badge text-bg-danger">Administrator</span>
+                                                <span class="badge bg-danger">Administrator</span>
                                             {% elif user.role == 'quartermaster' %}
-                                                <span class="badge text-bg-primary">Kwatermistrz</span>
+                                                <span class="badge bg-primary">Kwatermistrz</span>
                                             {% else %}
-                                                <span class="badge text-bg-secondary">Zgłaszający</span>
+                                                <span class="badge bg-secondary">Zgłaszający</span>
                                             {% endif %}
                                         </td>
                                         <td>
                                             {% if user.active and not user.firebase_disabled %}
-                                                <span class="badge text-bg-success">Aktywny</span>
+                                                <span class="badge bg-success">Aktywny</span>
                                             {% else %}
-                                                <span class="badge text-bg-warning">Nieaktywny</span>
+                                                <span class="badge bg-warning">Nieaktywny</span>
                                             {% endif %}
                                         </td>
                                         <td>
