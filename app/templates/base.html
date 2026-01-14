@@ -235,19 +235,39 @@
 
         html5QrCode = new Html5Qrcode("reader");
         const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-            // Przekieruj na zeskanowany URL
+            // Przetwarzanie zeskanowanego URL w sposób bezpieczny
             stopScanner();
             const modalEl = document.getElementById('qrScannerModal');
             const modalInstance = bootstrap.Modal.getInstance(modalEl);
             modalInstance.hide();
-            
-            // Sprawdź czy to nasz URL (bezpieczeństwo)
-            if (decodedText.includes(window.location.hostname) || decodedText.startsWith('/')) {
-                window.location.href = decodedText;
-            } else {
-                if (confirm("Zeskanowano zewnętrzny URL: " + decodedText + "\nCzy chcesz go otworzyć?")) {
-                    window.location.href = decodedText;
+
+            const rawText = (decodedText || "").trim();
+
+            // Zezwalaj tylko na adresy względne lub adresy z tego samego hosta (http/https)
+            if (!rawText) {
+                alert("Zeskanowano pusty lub nieprawidłowy kod QR.");
+                return;
+            }
+
+            // Adres względny w obrębie aplikacji
+            if (rawText.startsWith('/')) {
+                window.location.href = rawText;
+                return;
+            }
+
+            try {
+                // Traktuj zeskanowany tekst jako URL w oparciu o bieżący origin
+                const url = new URL(rawText, window.location.origin);
+                const allowedProtocols = ['http:', 'https:'];
+
+                // Zezwalaj tylko na ten sam host i bezpieczne protokoły
+                if (allowedProtocols.includes(url.protocol) && url.hostname === window.location.hostname) {
+                    window.location.href = url.href;
+                } else {
+                    alert("Zeskanowano zewnętrzny lub nieobsługiwany adres URL. Przekierowanie zostało zablokowane:\n" + rawText);
                 }
+            } catch (e) {
+                alert("Zeskanowano nieprawidłowy adres URL. Przekierowanie zostało zablokowane:\n" + rawText);
             }
         };
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
