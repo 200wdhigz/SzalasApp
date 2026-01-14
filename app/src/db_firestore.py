@@ -29,10 +29,10 @@ def _warsaw_now():
     """Zwraca bieżący czas lokalny dla Polski (Europe/Warsaw) jako datetime timezone-aware."""
     from datetime import datetime
     try:
-        from zoneinfo import ZoneInfo  # py3.9+
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError  # py3.9+
         tz = ZoneInfo('Europe/Warsaw')
-    except Exception:
-        # Fallback gdyby zoneinfo nie było dostępne
+    except (ImportError, ZoneInfoNotFoundError):
+        # Fallback gdyby zoneinfo nie było dostępne lub strefa czasowa nie została znaleziona
         tz = None
     if tz is None:
         # lokalny czas systemu

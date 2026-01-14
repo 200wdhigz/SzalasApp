@@ -16,6 +16,7 @@ Example:
 from __future__ import annotations
 
 import re
+import time
 import unicodedata
 
 
@@ -49,8 +50,8 @@ def slugify_id(text: str) -> str:
 def generate_magazyn_id_base(name: str) -> str:
     slug = slugify_id(name)
     if not slug:
-        # Safe fallback
-        return "MAG"
+        # Safe fallback with timestamp to prevent collisions
+        return f"MAG_{int(time.time())}"
     return f"MAG_{slug}".upper()
 
 

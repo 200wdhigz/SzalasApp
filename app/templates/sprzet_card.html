@@ -1,20 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    {% macro render_field(label, value, link=None, is_full=False) %}
-        <div class="col-{{ '12' if is_full else 'md-6' }}">
-            <div class="d-flex justify-content-between border-bottom pb-1 h-100 align-items-center">
-                <span class="text-muted small pe-2">{{ label }}:</span>
-                <span class="fw-bold text-end">
-                    {% if link %}
-                        <a href="{{ link }}" class="text-decoration-none">{{ value }}</a>
-                    {% else %}
-                        {{ value }}
-                    {% endif %}
-                </span>
-            </div>
-        </div>
-    {% endmacro %}
+    {% from 'macros.html' import render_field %}
 
     <style>
         /* Wymuszanie proporcji 16:9 dla kontenera karuzeli */
