@@ -19,3 +19,27 @@ def test_generate_unique_magazyn_id_base():
 def test_generate_unique_magazyn_id_suffix_increment():
     existing = {"MAG_MAGAZYNW", "MAG_MAGAZYNW_2"}
     assert generate_unique_magazyn_id("Magazyn Warszawa", existing) == "MAG_MAGAZYNW_3"
+
+
+def test_generate_unique_magazyn_id_empty_name_has_timestamp():
+    """Test that empty or invalid names get a timestamp suffix to prevent collisions."""
+    # Generate IDs for empty names
+    id1 = generate_unique_magazyn_id("", set())
+    id2 = generate_unique_magazyn_id("   ", set())
+    id3 = generate_unique_magazyn_id("!!!", set())
+    
+    # All should start with MAG_ and have a timestamp suffix
+    assert id1.startswith("MAG_")
+    assert id2.startswith("MAG_")
+    assert id3.startswith("MAG_")
+    
+    # The suffix should be numeric (timestamp)
+    assert id1.split("_")[1].isdigit()
+    assert id2.split("_")[1].isdigit()
+    assert id3.split("_")[1].isdigit()
+    
+    # IDs should be unique (timestamps may differ if generated at different times)
+    # But at minimum, they should not be just "MAG"
+    assert id1 != "MAG"
+    assert id2 != "MAG"
+    assert id3 != "MAG"
