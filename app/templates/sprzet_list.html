@@ -1,6 +1,29 @@
 {% extends 'base.html' %}
 
 {% block content %}
+    {% from 'macros.html' import render_field %}
+    
+    <style>
+        .parent-card-img {
+            height: 100%;
+            min-height: 150px;
+            object-fit: cover;
+        }
+        
+        .placeholder-dark {
+            display: none;
+        }
+        .placeholder-light {
+            display: block;
+        }
+        html[data-bs-theme="dark"] .placeholder-dark {
+            display: block;
+        }
+        html[data-bs-theme="dark"] .placeholder-light {
+            display: none;
+        }
+    </style>
+
     <h2 class="mb-4">
         {% if parent_item %}
             {{ parent_item.nazwa or parent_item.id }} - Zawartość
@@ -61,6 +84,77 @@
             </form>
         </div>
     </div>
+
+    {% if parent_item %}
+        <div class="card mb-4 shadow-sm overflow-hidden">
+            <div class="row g-0">
+                <div class="col-md-3 col-lg-2">
+                    {% if parent_item.zdjecia_lista_url %}
+                        <img src="{{ parent_item.zdjecia_lista_url[0] }}" class="img-fluid rounded-start parent-card-img w-100" alt="{{ parent_item.id }}">
+                    {% else %}
+                        {% set cat = parent_item.category or 'default' %}
+                        <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_' ~ cat ~ '_light.png') }}"
+                             onerror="this.src='{{ url_for('static', filename='assets/img/sprzet/placeholder_light.png') }}'"
+                             class="img-fluid rounded-start parent-card-img w-100 placeholder-light"
+                             alt="Brak zdjęcia">
+
+                        <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_' ~ cat ~ '_dark.png') }}"
+                             onerror="this.src='{{ url_for('static', filename='assets/img/sprzet/placeholder_dark.png') }}'"
+                             class="img-fluid rounded-start parent-card-img w-100 placeholder-dark"
+                             alt="Brak zdjęcia">
+                    {% endif %}
+                </div>
+                <div class="col-md-9 col-lg-10">
+                    <div class="card-body py-2 h-100 d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h5 class="card-title mb-0 text-primary">
+                                    <span class="badge text-bg-primary me-2">{{ parent_item.id | upper }}</span>
+                                    {{ parent_item.nazwa or parent_item.typ or (parent_item.category | upper) }}
+                                </h5>
+                                <small class="text-muted">{{ parent_item.category | upper }}</small>
+                            </div>
+                            <a href="{{ url_for('views.sprzet_card', sprzet_id=parent_item.id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> Pełna karta
+                            </a>
+                        </div>
+                        
+                        <div class="row g-2 flex-grow-1">
+                            {% if parent_item.category == 'magazyn' %}
+                                {{ render_field('GPS Lat', parent_item.gps_lat) }}
+                                {{ render_field('GPS Lng', parent_item.gps_lng) }}
+                                {% if parent_item.lokalizacja %}
+                                    {{ render_field('Lokalizacja', parent_item.lokalizacja) }}
+                                {% endif %}
+                            {% elif parent_item.category == 'polka_skrzynia' %}
+                                {{ render_field('Informacje', parent_item.informacje, is_full=True) }}
+                            {% elif parent_item.category == 'namiot' %}
+                                {{ render_field('Typ', parent_item.typ) }}
+                                {{ render_field('Wodoszczelność', parent_item.wodoszczelnosc) }}
+                                {{ render_field('Stan', parent_item.stan_ogolny) }}
+                                {{ render_field('Zapałki', parent_item.zapalki) }}
+                            {% else %}
+                                {% if parent_item.typ %}
+                                    {{ render_field('Typ', parent_item.typ) }}
+                                {% endif %}
+                                {% if parent_item.ilosc %}
+                                    {{ render_field('Ilość', (parent_item.ilosc | string) ~ ' ' ~ (parent_item.jednostka or '')) }}
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% if parent_item.uwagi %}
+                                <div class="col-12 mt-auto">
+                                    <div class="bg-body-tertiary p-1 rounded border small">
+                                        <span class="text-muted pe-1">Uwagi:</span> {{ parent_item.uwagi | truncate(150) }}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
 
     <div class="mb-3">
         <div class="dropdown d-inline-block">
@@ -180,10 +274,17 @@
                                 <span class="text-primary fw-bold">{{ item.nazwa }}</span>
                                 <small class="text-muted">(Suma: {{ item.group_ids|length }})</small>
                             {% else %}
-                                <a href="{{ url_for('views.sprzet_list', parent_id=item.id) }}"
-                                   class="text-decoration-none">
-                                    {{ item.nazwa or item.typ or 'Bez nazwy' }}
-                                </a>
+                                {% if item.fast_card and not item.has_children %}
+                                    <a href="{{ url_for('views.sprzet_card', sprzet_id=item.id) }}"
+                                       class="text-decoration-none">
+                                        {{ item.nazwa or item.typ or 'Bez nazwy' }}
+                                    </a>
+                                {% else %}
+                                    <a href="{{ url_for('views.sprzet_list', parent_id=item.id) }}"
+                                       class="text-decoration-none">
+                                        {{ item.nazwa or item.typ or 'Bez nazwy' }}
+                                    </a>
+                                {% endif %}
                             {% endif %}
                         </td>
                         <td data-column="info">

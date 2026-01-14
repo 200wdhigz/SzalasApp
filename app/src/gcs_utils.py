@@ -123,3 +123,18 @@ def upload_defect_photos(defect_id: str, files: list) -> list:
         except Exception as e:
             print(f"Failed to upload {blob_name}: {e}")
     return uploaded_urls
+
+def delete_blob_from_gcs(blob_name: str) -> bool:
+    """Usuwa obiekt z GCS."""
+    if not GOOGLE_CLOUD_STORAGE_BUCKET_NAME or not blob_name:
+        return False
+
+    try:
+        client = get_storage_client()
+        bucket = client.bucket(GOOGLE_CLOUD_STORAGE_BUCKET_NAME)
+        blob = bucket.blob(blob_name)
+        blob.delete()
+        return True
+    except Exception as e:
+        print(f"Error deleting blob {blob_name}: {e}")
+        return False

@@ -17,7 +17,7 @@ from .db_firestore import (
     COLLECTION_SPRZET, COLLECTION_USTERKI, COLLECTION_WYPOZYCZENIA, add_item, set_item,
     add_log, get_all_logs, update_item, delete_item, CATEGORIES, MAGAZYNY_NAMES,
     add_loan, get_active_loans, get_loans_for_item, mark_loan_returned, _warsaw_now,
-    get_all_items, get_item
+    get_all_items, get_item, get_items_by_parent
 )
 from .exports import export_to_csv, export_to_xlsx, export_to_docx, export_to_pdf
 from .id_utils import generate_unique_magazyn_id
@@ -199,22 +199,43 @@ def sprzet_list():
         items = get_items_by_filters(COLLECTION_SPRZET, filters, order_by='__name__', direction=firestore.Query.ASCENDING)
     else:
         # Jeśli nie ma filtrów ani parent_id, a nie jest to wyszukiwanie, pokaż tylko Magazyny
-        if not search_query:
-            items = get_all_sprzet(category=CATEGORIES['MAGAZYN'])
-        else:
-            items = get_all_sprzet()
+        items = get_all_sprzet(category=CATEGORIES['MAGAZYN']) if not search_query else get_all_sprzet()
 
     # Wyszukiwanie lokalne (Firestore nie wspiera łatwo full-text search bez zewnętrznych usług)
     if search_query:
-        s = search_query.lower()
-        items = [
-            i for i in items 
-            if s in str(i.get('id', '')).lower() or 
-               s in str(i.get('nazwa', '')).lower() or 
-               s in str(i.get('typ', '')).lower() or 
-               s in str(i.get('uwagi', '')).lower() or
-               s in str(i.get('informacje', '')).lower()
+        s = search_query.lower().strip()
+
+        # Lista pól, po których chcemy szukać (dużo danych jest opcjonalnych, więc wszystko przez str()).
+        # Celowo obejmujemy pola ogólne + specyficzne dla kategorii.
+        searchable_fields = [
+            'id', 'nazwa', 'typ',
+            'przeznaczenie',
+            'lokalizacja', 'magazyn_display',
+            'informacje', 'uwagi',
+            'stan_ogolny',
+            'wodoszczelnosc',
+            'ilosc', 'jednostka',
+            # namioty
+            'zapalki', 'kolor_dachu', 'kolor_bokow',
+            # żelastwo
+            'typ_zelastwa', 'do_czego',
+            # kanadyjki
+            'material',
+            # kompatybilność wsteczna/importy
+            'historia',
         ]
+
+        def _matches(item: dict) -> bool:
+            for key in searchable_fields:
+                try:
+                    if s in str(item.get(key, '')).lower():
+                        return True
+                except Exception:
+                    # W razie nietypowych typów danych w polach – pomiń.
+                    continue
+            return False
+
+        items = [i for i in items if _matches(i)]
 
     # Pobieramy unikalne wartości do filtrów
     all_items = get_all_sprzet()
@@ -316,7 +337,44 @@ def sprzet_list():
         grouped_items.extend(other_items)
         items = grouped_items
 
+    # Fast-card: jeśli jesteśmy w folderze (parent_id) -> policz które elementy mają dzieci.
+    # Dotyczy: namiot/przedmiot/żelastwo/kanadyjki.
+    if parent_id and items:
+        children = get_items_by_parent(parent_id)
+        parent_ids_with_children = {c.get('parent_id') for c in children if c.get('parent_id')}
+        fast_card_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI']}
+        for it in items:
+            it['has_children'] = (it.get('id') in parent_ids_with_children)
+            it['fast_card'] = (it.get('category') in fast_card_cats)
+
+    # Fast-card: ustaw flagi dla namiot/przedmiot/żelastwo/kanadyjki, żeby UI mógł
+    # przekierować klik w nazwę prosto na kartę, jeśli element nie ma dzieci.
+    if items:
+        fast_card_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI']}
+        # Minimalnie: sprawdzamy dzieci tylko dla elementów, które mogą używać fast-card.
+        candidate_parent_ids = [it.get('id') for it in items if it.get('id') and it.get('category') in fast_card_cats]
+        parent_ids_with_children: set[str] = set()
+        for pid in candidate_parent_ids:
+            try:
+                children = get_items_by_parent(pid)
+            except Exception:
+                children = []
+            if children:
+                parent_ids_with_children.add(pid)
+
+        for it in items:
+            it['fast_card'] = (it.get('category') in fast_card_cats)
+            # default False; tylko dla kandydatów liczymy realnie
+            it['has_children'] = (it.get('id') in parent_ids_with_children)
+
     parent_item = get_sprzet_item(parent_id) if parent_id else None
+    if parent_item:
+        from .gcs_utils import list_equipment_photos, refresh_urls
+        zdjecia_z_bazy = parent_item.get('zdjecia')
+        if zdjecia_z_bazy is not None:
+            parent_item['zdjecia_lista_url'] = refresh_urls(zdjecia_z_bazy)
+        else:
+            parent_item['zdjecia_lista_url'] = list_equipment_photos(parent_id)
 
     return render_template('sprzet_list.html', 
                            sprzet_list=items, 
@@ -484,11 +542,25 @@ def sprzet_edit(sprzet_id):
             flash(err, 'warning')
 
         # Obsługa usuwania zdjęć - porównujemy blob_name zamiast pełnych URL
-        from .gcs_utils import extract_blob_name
+        from .gcs_utils import extract_blob_name, list_equipment_photos, delete_blob_from_gcs
         zdjecia_do_usuniecia = request.form.getlist('usun_zdjecia')
-        blob_names_do_usuniecia = [extract_blob_name(url) for url in zdjecia_do_usuniecia]
+        blob_names_do_usuniecia = []
+        for url in zdjecia_do_usuniecia:
+            bn = extract_blob_name(url)
+            if bn:
+                blob_names_do_usuniecia.append(bn)
+                # Fizycznie usuwamy plik z GCS, aby uniknąć fallbacku i osieroconych plików
+                delete_blob_from_gcs(bn)
 
-        aktualne_zdjecia = sprzet.get('zdjecia', [])
+        # Priorytet dla zdjęć w bazie danych, jeśli brak - sprawdzamy fallback (GCS)
+        aktualne_zdjecia = sprzet.get('zdjecia')
+        if aktualne_zdjecia is None:
+            # Jeśli w bazie nie ma listy, pobierz ją z GCS (tak jak widzi to użytkownik na karcie)
+            # Uwaga: list_equipment_photos zwraca Signed URLs, które extract_blob_name potrafi obsłużyć.
+            aktualne_zdjecia = list_equipment_photos(sprzet_id)
+
+        # Usuwamy z listy te zdjęcia, które użytkownik zaznaczył do usunięcia.
+        # Porównujemy blob_name, aby uniknąć problemów z wygasającymi tokenami w Signed URLs.
         nowa_lista_zdjec = [
             z for z in aktualne_zdjecia
             if extract_blob_name(z) not in blob_names_do_usuniecia
@@ -507,10 +579,12 @@ def sprzet_edit(sprzet_id):
         return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
 
     # Priorytet dla zdjęć zapisanych w bazie danych (odświeżamy linki), fallback do listowania GCS
-    if sprzet.get('zdjecia'):
-        sprzet['zdjecia_lista_url'] = refresh_urls(sprzet['zdjecia'])
+    from .gcs_utils import list_equipment_photos
+    zdjecia_z_bazy = sprzet.get('zdjecia')
+    if zdjecia_z_bazy is not None:
+        sprzet['zdjecia_lista_url'] = refresh_urls(zdjecia_z_bazy)
     else:
-        sprzet['zdjecia_lista_url'] = []
+        sprzet['zdjecia_lista_url'] = list_equipment_photos(sprzet_id)
 
     # Filtrujemy potencjalnych rodziców: tylko Magazyny i Półki/Skrzynie
     potential_parents = [s for s in get_all_sprzet() if s.get('category') in [CATEGORIES['MAGAZYN'], CATEGORIES['POLKA']]]
@@ -574,9 +648,11 @@ def sprzet_card(sprzet_id):
 
     # Priorytet dla zdjęć zapisanych w bazie danych, fallback do listowania GCS
     zdjecia_z_bazy = sprzet_item.get('zdjecia')
-    if zdjecia_z_bazy:
+    # Używamy jawnego sprawdzenia is not None, aby [] (pusta lista) nie wyzwalała fallbacku
+    if zdjecia_z_bazy is not None:
         sprzet_item['zdjecia_lista_url'] = refresh_urls(zdjecia_z_bazy)
     else:
+        # Fallback tylko jeśli pole 'zdjecia' w ogóle nie istnieje w dokumencie
         sprzet_item['zdjecia_lista_url'] = list_equipment_photos(sprzet_id)
 
     # Pobieranie logów aktywności dla tego sprzętu
@@ -759,7 +835,7 @@ def usterka_card(usterka_id):
     from .db_firestore import get_logs_by_target
     from .db_users import get_all_users
     
-    # Pobieramy tylko ostatnie 15 logów dla wydajności karty
+    # Pobieramy tylko ostatnie 15 logów dla wydajności profilu
     logs = get_logs_by_target(usterka_id, limit=15)
     users = get_all_users()
     user_map = build_user_map(users)
@@ -793,9 +869,14 @@ def usterka_edit(usterka_id):
             flash(err, 'warning')
 
         # Obsługa usuwania zdjęć - porównujemy blob_name zamiast pełnych URL
-        from .gcs_utils import extract_blob_name
+        from .gcs_utils import extract_blob_name, delete_blob_from_gcs
         zdjecia_do_usuniecia = request.form.getlist('usun_zdjecia')
-        blob_names_do_usuniecia = [extract_blob_name(url) for url in zdjecia_do_usuniecia]
+        blob_names_do_usuniecia = []
+        for url in zdjecia_do_usuniecia:
+            bn = extract_blob_name(url)
+            if bn:
+                blob_names_do_usuniecia.append(bn)
+                delete_blob_from_gcs(bn)
 
         aktualne_zdjecia = usterka.get('zdjecia', [])
         nowa_lista_zdjec = [
