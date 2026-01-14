@@ -33,10 +33,10 @@ def test_generate_unique_magazyn_id_empty_name_has_timestamp():
     assert id2.startswith("MAG_")
     assert id3.startswith("MAG_")
     
-    # The suffix should be numeric (timestamp)
-    assert id1.split("_")[1].isdigit()
-    assert id2.split("_")[1].isdigit()
-    assert id3.split("_")[1].isdigit()
+    # The suffix should be numeric (timestamp) and format should be MAG_<timestamp>
+    assert len(id1.split("_")) == 2 and id1.split("_")[1].isdigit()
+    assert len(id2.split("_")) == 2 and id2.split("_")[1].isdigit()
+    assert len(id3.split("_")) == 2 and id3.split("_")[1].isdigit()
     
     # IDs should be unique (timestamps may differ if generated at different times)
     # But at minimum, they should not be just "MAG"
