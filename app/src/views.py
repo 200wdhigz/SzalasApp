@@ -1526,6 +1526,9 @@ def export_sprzet(format):
         return export_to_docx(export_rows, filename, title, columns=columns)
     if fmt == 'qr':
         qr_url = os.getenv('QR_URL')
+        if not qr_url:
+            flash('Eksport QR jest niedostępny: brak konfiguracji QR_URL.', 'warning')
+            return export_to_pdf(export_rows, filename, title, columns=columns)
         return export_qr_codes_pdf(export_rows, filename, qr_url)
     return export_to_pdf(export_rows, filename, title, columns=columns)
 
