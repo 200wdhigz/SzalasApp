@@ -2,26 +2,23 @@
 
 {% block content %}
     {% from 'macros.html' import render_field %}
-
+    
     <style>
         .parent-card-img {
             height: 100%;
             min-height: 150px;
             object-fit: cover;
         }
-
+        
         .placeholder-dark {
             display: none;
         }
-
         .placeholder-light {
             display: block;
         }
-
         html[data-bs-theme="dark"] .placeholder-dark {
             display: block;
         }
-
         html[data-bs-theme="dark"] .placeholder-light {
             display: none;
         }
@@ -80,12 +77,8 @@
                     <label for="oficjalna_ewidencja" class="form-label">Oficjalna ewidencja</label>
                     <select name="oficjalna_ewidencja" id="oficjalna_ewidencja" class="form-select">
                         <option value="">Wszystkie</option>
-                        <option value="Tak" {% if selected_filters.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>
-                            Tak
-                        </option>
-                        <option value="Nie" {% if selected_filters.oficjalna_ewidencja == 'Nie' %}selected{% endif %}>
-                            Nie
-                        </option>
+                        <option value="Tak" {% if selected_filters.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>Tak</option>
+                        <option value="Nie" {% if selected_filters.oficjalna_ewidencja == 'Nie' %}selected{% endif %}>Nie</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -105,8 +98,7 @@
             <div class="row g-0">
                 <div class="col-md-3 col-lg-2">
                     {% if parent_item.zdjecia_lista_url %}
-                        <img src="{{ parent_item.zdjecia_lista_url[0] }}"
-                             class="img-fluid rounded-start parent-card-img w-100" alt="{{ parent_item.id }}">
+                        <img src="{{ parent_item.zdjecia_lista_url[0] }}" class="img-fluid rounded-start parent-card-img w-100" alt="{{ parent_item.id }}">
                     {% else %}
                         {% set cat = parent_item.category or 'default' %}
                         <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_' ~ cat ~ '_light.png') }}"
@@ -130,8 +122,7 @@
                                 </h5>
                                 <small class="text-muted">{{ parent_item.category | upper }}</small>
                             </div>
-                            <a href="{{ url_for('views.sprzet_card', sprzet_id=parent_item.id) }}"
-                               class="btn btn-sm btn-outline-primary">
+                            <a href="{{ url_for('views.sprzet_card', sprzet_id=parent_item.id) }}" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-eye"></i> Pełna karta
                             </a>
                         </div>
@@ -180,26 +171,16 @@
                 <i class="bi bi-download"></i> Eksportuj
             </button>
             <ul class="dropdown-menu">
-                <li>
-                    <button class="dropdown-item" onclick="submitExport('csv')">CSV</button>
+                <li><a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='csv', **selected_filters) }}">CSV</a></li>
+                <li><a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='xlsx', **selected_filters) }}">Excel (.xlsx)</a>
                 </li>
-                <li>
-                    <button class="dropdown-item" onclick="submitExport('xlsx')">Excel (.xlsx)</button>
+                <li><a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='docx', **selected_filters) }}">Word (.docx)</a>
                 </li>
-                <li>
-                    <button class="dropdown-item" onclick="submitExport('docx')">Word (.docx)</button>
-                </li>
-                <li>
-                    <button class="dropdown-item" onclick="submitExport('pdf')">PDF</button>
-                </li>
-                <li>
-                    <hr class="dropdown-divider">
-                </li>
-                <li>
-                    <button class="dropdown-item" onclick="submitExport('qr')"><i class="bi bi-qr-code"></i> Drukuj Kody
-                        QR (PDF)
-                    </button>
-                </li>
+                <li><a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='pdf', **selected_filters) }}">PDF</a></li>
             </ul>
         </div>
         <script>
