@@ -183,7 +183,7 @@ def export_qr_codes_pdf(data, filename, base_url):
     Dodaje linie cięcia i zachowuje safe space.
     """
     # Validate base_url to prevent invalid QR data
-    if not base_url or not isinstance(base_url, str) or not base_url.strip():
+    if not isinstance(base_url, str) or not base_url or not base_url.strip():
         raise ValueError("base_url must be a non-empty string")
     
     output = BytesIO()
