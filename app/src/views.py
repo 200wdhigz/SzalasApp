@@ -1300,7 +1300,7 @@ def sprzet_zestawienie():
                 target = z.get('do_czego', 'Nieokreślone')
                 qty = z.get('ilosc', 0)
                 try: qty = int(qty)
-                except: qty = 0
+                except (ValueError, TypeError): qty = 0
                 zelastwo_stats[target] = zelastwo_stats.get(target, 0) + qty
                 
             summary = {
@@ -1425,7 +1425,7 @@ def export_sprzet(format):
                     t = z.get('do_czego', 'Nieokreślone')
                     q = z.get('ilosc', 0)
                     try: q = int(q)
-                    except: q = 0
+                    except (ValueError, TypeError): q = 0
                     z_stats[t] = z_stats.get(t, 0) + q
                 all_t = sorted(list(set(n_stats.keys()) | set(z_stats.keys())))
                 for t in all_t:

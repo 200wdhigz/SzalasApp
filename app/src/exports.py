@@ -2,7 +2,7 @@ import pandas as pd
 from io import BytesIO
 from docx import Document
 from reportlab.lib.pagesizes import letter, landscape, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.units import mm
 import qrcode
 from reportlab.lib import colors
@@ -18,7 +18,7 @@ PDF_FONT = 'Helvetica'
 PDF_FONT_BOLD = 'Helvetica-Bold'
 
 
-def _try_register_font(font_name: str, font_path: str, bold_name: str | None = None, bold_path: str | None = None) -> bool:
+def _try_register_font(font_name: str, font_path: str, bold_name: str = None, bold_path: str = None) -> bool:
     try:
         if os.path.exists(font_path):
             pdfmetrics.registerFont(TTFont(font_name, font_path))
@@ -128,6 +128,7 @@ def export_to_pdf(data, filename, title, columns=None):
         styles['Normal'].fontName = PDF_FONT
         styles['Title'].fontName = PDF_FONT_BOLD if PDF_FONT_BOLD != 'Helvetica-Bold' else PDF_FONT
     except Exception:
+        # Jeśli nie uda się ustawić niestandardowej czcionki, użyj domyślnej bez przerywania generowania PDF.
         pass
 
     # Nagłówek ZHP
@@ -198,6 +199,7 @@ def export_qr_codes_pdf(data, filename, base_url):
     try:
         styles['Normal'].fontName = PDF_FONT
     except Exception:
+        # Jeśli nie uda się ustawić niestandardowej czcionki, użyj domyślnej bez przerywania generowania PDF.
         pass
 
     if not data:
@@ -208,10 +210,15 @@ def export_qr_codes_pdf(data, filename, base_url):
         rows_per_page = 4
         items_per_page = cols * rows_per_page
         
-        id_style = styles['Normal']
-        id_style.alignment = 1  # Center
-        id_style.fontSize = 10
-        id_style.fontName = PDF_FONT_BOLD
+        # Create a new style to avoid modifying the shared style object
+        from reportlab.lib.styles import ParagraphStyle
+        id_style = ParagraphStyle(
+            'IDStyle',
+            parent=styles['Normal'],
+            alignment=1,  # Center
+            fontSize=10,
+            fontName=PDF_FONT_BOLD
+        )
 
         def chunk_data(data, size):
             for i in range(0, len(data), size):

@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch
+
 import sys
 import os
 
@@ -31,7 +31,7 @@ class TestZestawienieLogic(unittest.TestCase):
             t = z.get('do_czego', 'Nieokreślone')
             q = z.get('ilosc', 0)
             try: q = int(q)
-            except: q = 0
+            except (ValueError, TypeError): q = 0
             z_stats[t] = z_stats.get(t, 0) + q
             
         self.assertEqual(n_stats['NS'], 2)
