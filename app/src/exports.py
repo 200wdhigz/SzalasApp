@@ -232,7 +232,7 @@ def export_qr_codes_pdf(data, filename, base_url):
                 qr_data = f"{base_url}/sprzet/{item_id}"
 
                 # Generowanie QR do BytesIO
-                qr = qrcode.QRCode(version=1, box_size=10, border=2) # border=2 to quiet space
+                qr = qrcode.QRCode(version=1, box_size=10, border=2)  # border=2 for quiet zone (required blank border)
                 qr.add_data(qr_data)
                 qr.make(fit=True)
                 qr_img = qr.make_image(fill_color="black", back_color="white")
