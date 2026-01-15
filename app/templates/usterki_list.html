@@ -6,8 +6,8 @@
 
         <div class="card mb-4">
             <div class="card-body">
-                <form method="GET" action="{{ url_for('views.usterki_list') }}" class="row g-3">
-                    <div class="col-md-3">
+                <form method="GET" action="{{ url_for('views.usterki_list') }}" class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-5">
+                    <div class="col">
                         <label for="status" class="form-label">Status</label>
                         <select name="status" id="status" class="form-select">
                             <option value="">Wszystkie</option>
@@ -17,7 +17,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col">
                         <label for="magazyn" class="form-label">Magazyn</label>
                         <select name="magazyn" id="magazyn" class="form-select">
                             <option value="">Wszystkie</option>
@@ -27,7 +27,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col">
                         <label for="sprzet_id" class="form-label">ID Sprzętu</label>
                         <select name="sprzet_id" id="sprzet_id" class="form-select">
                             <option value="">Wszystkie</option>
@@ -37,7 +37,15 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-3 d-flex align-items-end">
+                    <div class="col">
+                        <label for="oficjalna_ewidencja" class="form-label">Oficjalna ewidencja</label>
+                        <select name="oficjalna_ewidencja" id="oficjalna_ewidencja" class="form-select">
+                            <option value="">Wszystkie</option>
+                            <option value="Tak" {% if selected_filters.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>Tak</option>
+                            <option value="Nie" {% if selected_filters.oficjalna_ewidencja == 'Nie' %}selected{% endif %}>Nie</option>
+                        </select>
+                    </div>
+                    <div class="col d-flex align-items-end">
                         <button type="submit" class="btn btn-primary me-2">Filtruj</button>
                         <a href="{{ url_for('views.usterki_list') }}" class="btn btn-secondary">Resetuj</a>
                     </div>
@@ -117,6 +125,7 @@
                             <th>Zgłaszający</th>
                             <th>Data</th>
                             <th>Magazyn</th>
+                            <th>Ewid.</th>
                             <th class="text-end">Akcje</th>
                         </tr>
                         </thead>
@@ -162,6 +171,13 @@
                                 </td>
                                 <td><small>{{ usterka.data_zgloszenia }}</small></td>
                                 <td>{{ usterka.magazyn }}</td>
+                                <td>
+                                    {% if usterka.oficjalna_ewidencja == 'Tak' %}
+                                        <span class="badge text-bg-success" title="W oficjalnej ewidencji">Tak</span>
+                                    {% else %}
+                                        <span class="badge text-bg-light text-muted" title="Brak w oficjalnej ewidencji">Nie</span>
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">
                                     <div class="btn-group">
                                         <a href="{{ url_for('views.usterka_card', usterka_id=usterka.id) }}"

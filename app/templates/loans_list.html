@@ -21,6 +21,7 @@
                     <th>Przez kogo</th>
                     <th>Kontakt</th>
                     <th>Do kiedy</th>
+                    <th>Ewid.</th>
                     <th>Status</th>
                     <th>Akcje</th>
                 </tr>
@@ -36,6 +37,13 @@
                         <td>{{ loan.przez_kogo }}</td>
                         <td>{{ loan.kontakt or 'N/A' }}</td>
                         <td>{{ loan.do_kiedy or 'N/A' }}</td>
+                        <td>
+                            {% if loan.item and loan.item.oficjalna_ewidencja == 'Tak' %}
+                                <span class="badge text-bg-success" title="W oficjalnej ewidencji">Tak</span>
+                            {% else %}
+                                <span class="badge text-bg-light text-muted" title="Brak w oficjalnej ewidencji">Nie</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if loan.status == 'active' %}
                                 <span class="badge bg-success">Aktywne</span>

@@ -73,6 +73,14 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="col-md-2">
+                    <label for="oficjalna_ewidencja" class="form-label">Oficjalna ewidencja</label>
+                    <select name="oficjalna_ewidencja" id="oficjalna_ewidencja" class="form-select">
+                        <option value="">Wszystkie</option>
+                        <option value="Tak" {% if selected_filters.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>Tak</option>
+                        <option value="Nie" {% if selected_filters.oficjalna_ewidencja == 'Nie' %}selected{% endif %}>Nie</option>
+                    </select>
+                </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">Filtruj</button>
                     <button type="button" onclick="startScanner()" class="btn btn-outline-primary me-2 d-lg-none">
@@ -163,18 +171,49 @@
                 <i class="bi bi-download"></i> Eksportuj
             </button>
             <ul class="dropdown-menu">
-                <li><a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='csv', **selected_filters) }}">CSV</a></li>
-                <li><a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='xlsx', **selected_filters) }}">Excel (.xlsx)</a>
-                </li>
-                <li><a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='docx', **selected_filters) }}">Word (.docx)</a>
-                </li>
-                <li><a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='pdf', **selected_filters) }}">PDF</a></li>
+                <li><button class="dropdown-item" onclick="submitExport('csv')">CSV</button></li>
+                <li><button class="dropdown-item" onclick="submitExport('xlsx')">Excel (.xlsx)</button></li>
+                <li><button class="dropdown-item" onclick="submitExport('docx')">Word (.docx)</button></li>
+                <li><button class="dropdown-item" onclick="submitExport('pdf')">PDF</button></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><button class="dropdown-item" onclick="submitExport('qr')"><i class="bi bi-qr-code"></i> Drukuj Kody QR (PDF)</button></li>
             </ul>
         </div>
+        <script>
+            function submitExport(format) {
+                const form = document.createElement('form');
+                form.method = 'GET';
+                form.action = "{{ url_for('views.export_sprzet', format='FORMAT') }}".replace('FORMAT', format);
+                
+                // Kopiuj wszystkie filtry z URL
+                const urlParams = new URLSearchParams(window.location.search);
+                urlParams.forEach((value, key) => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    form.appendChild(input);
+                });
+
+                // Dodaj zaznaczone kolumny z ustawień tabeli
+                const config = JSON.parse(localStorage.getItem('szalas_sprzet_cols_v1') || '[]');
+                if (config.length > 0) {
+                    config.forEach(c => {
+                        if (c.visible) {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'columns';
+                            input.value = c.id;
+                            form.appendChild(input);
+                        }
+                    });
+                }
+
+                document.body.appendChild(form);
+                form.submit();
+                document.body.removeChild(form);
+            }
+        </script>
         {% if IS_QUARTERMASTER %}
             <a href="{{ url_for('views.sprzet_add') }}" class="btn btn-outline-primary ms-2">
                 <i class="bi bi-plus-circle"></i> Dodaj Sprzęt
@@ -241,9 +280,12 @@
                     <th data-column="category">Kategoria</th>
                     <th data-column="name">Nazwa / Typ</th>
                     <th data-column="info">Informacje / Stan</th>
+                    <th data-column="qty">Ilość</th>
+                    <th data-column="unit">Jedn.</th>
                     <th data-column="location">Lokalizacja</th>
                     <th data-column="destination">Przeznaczenie</th>
                     <th data-column="condition">Stan ogólny</th>
+                    <th data-column="ewidencja">Ewid.</th>
                     <th>Akcje</th>
                 </tr>
                 </thead>
@@ -274,15 +316,35 @@
                                 <span class="text-primary fw-bold">{{ item.nazwa }}</span>
                                 <small class="text-muted">(Suma: {{ item.group_ids|length }})</small>
                             {% else %}
+                                {# Dla kanadyjek: jeśli nie ma nazwy, pokaż sam rodzaj (material) zamiast 'Bez nazwy' #}
+                                {% if item.category == 'kanadyjki' %}
+                                    {% if item.nazwa %}
+                                        {% set display_name = item.nazwa %}
+                                    {% elif item.typ %}
+                                        {% set display_name = item.typ %}
+                                    {% elif item.material %}
+                                        {% set display_name = item.material %}
+                                    {% else %}
+                                        {% set display_name = 'Kanadyjka' %}
+                                    {% endif %}
+
+                                    {# Jeśli jest nazwa i material, dopisz material w nawiasie #}
+                                    {% if item.material and display_name != item.material %}
+                                        {% set display_name = display_name ~ ' (' ~ item.material ~ ')' %}
+                                    {% endif %}
+                                {% else %}
+                                    {% set display_name = (item.nazwa or item.typ or 'Bez nazwy') %}
+                                {% endif %}
+
                                 {% if item.fast_card and not item.has_children %}
                                     <a href="{{ url_for('views.sprzet_card', sprzet_id=item.id) }}"
                                        class="text-decoration-none">
-                                        {{ item.nazwa or item.typ or 'Bez nazwy' }}
+                                        {{ display_name }}
                                     </a>
                                 {% else %}
                                     <a href="{{ url_for('views.sprzet_list', parent_id=item.id) }}"
                                        class="text-decoration-none">
-                                        {{ item.nazwa or item.typ or 'Bez nazwy' }}
+                                        {{ display_name }}
                                     </a>
                                 {% endif %}
                             {% endif %}
@@ -302,6 +364,9 @@
                             {% elif item.category == 'przedmiot' %}
                                 {{ item.ilosc }} {{ item.jednostka }} |
                                 {{ 'Sprawny' if item.sprawny == 'Tak' else 'Niesprawne' }}
+                            {% elif item.category == 'kanadyjki' %}
+                                {{ item.material or '' }} |
+                                {{ 'Sprawna' if item.sprawny == 'Tak' else 'Niesprawna' }}
                             {% else %}
                                 {{ item.informacje or item.typ_zelastwa or '' }}
                             {% endif %}
@@ -317,8 +382,17 @@
                                 {{ item.magazyn_display }}
                             {% endif %}
                         </td>
+                        <td data-column="qty">{{ item.ilosc if item.ilosc is not none else '' }}</td>
+                        <td data-column="unit">{{ item.jednostka or '' }}</td>
                         <td data-column="destination">{{ item.przeznaczenie or '' }}</td>
                         <td data-column="condition">{{ item.stan_ogolny or '' }}</td>
+                        <td data-column="ewidencja">
+                            {% if item.oficjalna_ewidencja == 'Tak' %}
+                                <span class="badge text-bg-success" title="W oficjalnej ewidencji">Tak</span>
+                            {% else %}
+                                <span class="badge text-bg-secondary" title="Brak w oficjalnej ewidencji">Nie</span>
+                            {% endif %}
+                        </td>
                         <td>
                             <div class="btn-group">
                                 {% if item.is_group %}
@@ -344,9 +418,10 @@
                                             </button>
                                         </form>
                                     {% endif %}
-                                    <button type="button" class="btn btn-outline-secondary btn-sm btn-qr"
-                                            data-bs-toggle="modal" data-bs-target="#qrModal"
-                                            data-sprzet-id="{{ item.id }}" title="QR">
+                                    <button type="button"
+                                            class="btn btn-outline-secondary btn-sm js-qr-open"
+                                            data-qr-id="{{ item.id }}"
+                                            title="QR">
                                         <i class="bi bi-qr-code"></i>
                                     </button>
                                 {% endif %}
@@ -373,7 +448,7 @@
                         if (bulkDeleteBtn) bulkDeleteBtn.disabled = selected === 0;
                         if (info) info.textContent = selected === 0
                             ? 'Zaznacz pozycje z listy, aby edytować hurtowo.'
-                            : `Zaznaczono: ${selected}`;
+                            : `Zaznaczone: ${selected}`;
 
                         if (selectAll) {
                             selectAll.checked = selected > 0 && selected === checkboxes.length;
@@ -392,7 +467,8 @@
                     updateState();
 
                     // Column visibility and order logic
-                    const STORAGE_KEY_CONFIG = 'sprzet_list_column_config_v2';
+                    // Zmieniamy wersję klucza, żeby użytkownikom nie "zniknęły" nowe kolumny przez starą konfigurację.
+                    const STORAGE_KEY_CONFIG = 'sprzet_list_column_config_v3';
                     const table = document.querySelector('table');
                     const theadRow = table.querySelector('thead tr');
                     const tbody = table.querySelector('tbody');
@@ -404,15 +480,35 @@
                         {id: 'category', name: 'Kategoria', visible: true},
                         {id: 'name', name: 'Nazwa / Typ', visible: true},
                         {id: 'info', name: 'Informacje / Stan', visible: true},
+                        {id: 'qty', name: 'Ilość', visible: false},
+                        {id: 'unit', name: 'Jedn.', visible: false},
                         {id: 'location', name: 'Lokalizacja', visible: true},
                         {id: 'destination', name: 'Przeznaczenie', visible: false},
-                        {id: 'condition', name: 'Stan ogólny', visible: false}
+                        {id: 'condition', name: 'Stan ogólny', visible: false},
+                        {id: 'ewidencja', name: 'Ewid.', visible: false}
                     ];
 
                     function getConfig() {
                         const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
-                        if (saved) return JSON.parse(saved);
-                        return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+                        let conf;
+                        if (saved) {
+                            try {
+                                conf = JSON.parse(saved);
+                            } catch (e) {
+                                conf = null;
+                            }
+                        }
+                        if (!Array.isArray(conf)) {
+                            conf = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+                        }
+
+                        // Kompatybilność wstecz: dopisz brakujące kolumny (np. nowo dodana 'ewidencja')
+                        const byId = new Set(conf.map(c => c.id));
+                        DEFAULT_CONFIG.forEach(c => {
+                            if (!byId.has(c.id)) conf.push({id: c.id, name: c.name, visible: c.visible});
+                        });
+
+                        return conf;
                     }
 
                     function saveConfig(config) {
@@ -538,42 +634,120 @@
 
         <script>
             (function () {
-                // QR Modal logic
-                const qrModal = document.getElementById('qrModal');
-                if (qrModal) {
-                    qrModal.addEventListener('show.bs.modal', function (event) {
-                        const button = event.relatedTarget;
-                        if (!button) return;
-
-                        // Pobieramy ID sprzętu z ID rzędu tabeli lub z atrybutu buttona
-                        const row = button.closest('tr');
-                        const sprzetId = row && row.id ? row.id.replace('row-', '') : button.getAttribute('data-sprzet-id');
-
-                        const isDebug = {{ 'true' if is_debug else 'false' }};
-
-                        const title = document.getElementById('qrModalTitle');
-                        const img = document.getElementById('qrImage');
-                        const openLink = document.getElementById('qrOpenLink');
-                        const downloadBtn = document.getElementById('qrDownloadBtn');
-                        const targetText = document.getElementById('qrTargetText');
-
-                        title.textContent = 'QR: ' + sprzetId;
-
-                        let target = window.location.origin + '/sprzet/' + sprzetId;
-                        if (isDebug) {
-                            target += (target.indexOf('?') === -1 ? '?' : '&') + 'dev';
+                function initQrPanel(){
+                    try {
+                        // QR Panel logic (bez Bootstrapa)
+                        const overlay = document.getElementById('qrOverlay');
+                        if (!overlay) {
+                            // Jeśli użytkownik kliknie QR a overlay nie istnieje, zobaczy informację.
+                            document.addEventListener('click', function(e){
+                                const btn = e.target && e.target.closest ? e.target.closest('.js-qr-open') : null;
+                                if (btn) {
+                                    e.preventDefault();
+                                    alert('Błąd UI: nie znaleziono panelu QR (qrOverlay). Odśwież stronę.');
+                                }
+                            });
+                            return;
                         }
 
-                        // Budujemy URL do endpointu QR (zgodnie z sugestią użytkownika)
-                        const qrSrc = `/sprzet/${sprzetId}/qrcode`;
+                        const idEl = document.getElementById('qrPanelId');
+                        const imgEl = document.getElementById('qrPanelImg');
+                        const errEl = document.getElementById('qrPanelError');
+                        const cardLink = document.getElementById('qrPanelCardLink');
+                        const dlLink = document.getElementById('qrPanelDownloadLink');
+                        const targetUrlEl = document.getElementById('qrPanelTargetUrl');
 
-                        img.src = qrSrc;
-                        img.alt = 'QR for ' + target;
-                        openLink.href = target;
-                        downloadBtn.href = qrSrc + '?download=1';
-                        downloadBtn.download = 'QR_' + sprzetId + '.png';
-                        targetText.textContent = target;
-                    });
+                        function openOverlay() {
+                            overlay.hidden = false;
+                            document.body.style.overflow = 'hidden';
+                        }
+                        function closeOverlay() {
+                            overlay.hidden = true;
+                            document.body.style.overflow = '';
+                            if (imgEl) imgEl.removeAttribute('src');
+                            if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
+                        }
+
+                        function setError(msg){
+                            if (!errEl) return;
+                            errEl.textContent = msg;
+                            errEl.classList.remove('d-none');
+                        }
+
+                        function loadForId(sprzetId){
+                            if (!sprzetId) return;
+                            if (idEl) idEl.textContent = sprzetId;
+
+                            const cardUrl = '/sprzet/' + encodeURIComponent(sprzetId);
+                            if (cardLink) cardLink.href = cardUrl;
+
+                            // Uzupełnij widoczny link docelowy
+                            if (targetUrlEl) {
+                                targetUrlEl.href = cardUrl;
+                                targetUrlEl.textContent = window.location.origin + cardUrl;
+                            }
+
+                            const qrUrl = '/sprzet/' + encodeURIComponent(sprzetId) + '/qrcode';
+                            if (dlLink) dlLink.href = qrUrl + '?download=1';
+
+                            if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
+
+                            if (!imgEl) {
+                                setError('Błąd UI: brak elementu img dla QR.');
+                                return;
+                            }
+
+                            imgEl.onload = function(){
+                                if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
+                            };
+                            imgEl.onerror = function(){
+                                setError('Nie udało się wygenerować QR dla tego elementu.');
+                            };
+                            imgEl.src = qrUrl + '?v=' + Date.now();
+                        }
+
+                        // Delegacja kliknięć na dokument
+                        document.addEventListener('click', function(e){
+                            const btn = e.target && e.target.closest ? e.target.closest('.js-qr-open') : null;
+                            if (btn) {
+                                e.preventDefault();
+                                openOverlay();
+                                loadForId(btn.getAttribute('data-qr-id'));
+                                return;
+                            }
+
+                            const closeEl = e.target && e.target.getAttribute ? (e.target.getAttribute('data-qr-close') || '') : '';
+                            if (closeEl === '1') {
+                                e.preventDefault();
+                                closeOverlay();
+                            }
+                        });
+
+                        // Backup: bezpośrednie podpięcie (gdyby ktoś zatrzymał propagację)
+                        const directButtons = Array.prototype.slice.call(document.querySelectorAll('.js-qr-open'));
+                        directButtons.forEach(function(btn){
+                            btn.addEventListener('click', function(e){
+                                e.preventDefault();
+                                openOverlay();
+                                loadForId(btn.getAttribute('data-qr-id'));
+                            });
+                        });
+
+                        document.addEventListener('keydown', function(e){
+                            if (e.key === 'Escape' && overlay && !overlay.hidden) {
+                                closeOverlay();
+                            }
+                        });
+                    } catch (err) {
+                        console.error('QR panel init error', err);
+                        alert('Błąd JS panelu QR: ' + (err && err.message ? err.message : String(err)));
+                    }
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initQrPanel);
+                } else {
+                    initQrPanel();
                 }
             })();
         </script>
@@ -582,25 +756,71 @@
         <p>Brak sprzętu do wyświetlenia. Skontaktuj się z administratorem.</p>
     {% endif %}
 
-    <div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-md modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="qrModalTitle">QR Kod</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    {# Panel QR (bez Bootstrap modal – własny overlay) #}
+    <div id="qrOverlay" class="qr-overlay" hidden>
+        <div class="qr-backdrop" data-qr-close="1"></div>
+        <div class="qr-panel" role="dialog" aria-label="QR kod">
+            <div class="qr-header">
+                <div>
+                    <strong>QR:</strong> <span id="qrPanelId" class="qr-mono"></span>
                 </div>
-                <div class="modal-body text-center">
-                    <img id="qrImage" src="" alt="QR code" class="img-fluid mb-2"/>
-                    <p class="small" id="qrTargetText"></p>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-qr-close="1">Zamknij</button>
+            </div>
+
+            <div class="qr-body">
+                <div id="qrPanelError" class="alert alert-warning d-none" role="alert"></div>
+                <img id="qrPanelImg" alt="QR" class="qr-img" />
+
+                <!-- Docelowy link pod QR (kopiowalny) -->
+                <div class="small mt-2">
+                    <div class="text-muted">Link docelowy:</div>
+                    <a id="qrPanelTargetUrl" class="qr-mono" href="#" target="_blank" rel="noopener"></a>
                 </div>
-                <div class="modal-footer">
-                    <a id="qrOpenLink" class="btn btn-primary" target="_blank" rel="noopener">Otwórz stronę</a>
-                    <a id="qrDownloadBtn" class="btn btn-success" download="QR.png">
-                        <i class="bi bi-download"></i> Pobierz QR
-                    </a>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+
+                <div class="qr-actions">
+                    <a id="qrPanelCardLink" class="btn btn-primary" href="#">Otwórz kartę</a>
+                    <a id="qrPanelDownloadLink" class="btn btn-success" href="#" download>Pobierz PNG</a>
                 </div>
             </div>
         </div>
     </div>
+
+    <style>
+        .qr-overlay[hidden] { display: none !important; }
+        .qr-overlay { position: fixed; inset: 0; z-index: 2000; }
+        .qr-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+        .qr-panel {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: min(520px, calc(100vw - 32px));
+            max-height: calc(100vh - 32px);
+            overflow: auto;
+            background: var(--bs-body-bg, #fff);
+            color: var(--bs-body-color, #111);
+            border: 1px solid rgba(0,0,0,.15);
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0,0,0,.25);
+        }
+        .qr-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 12px;
+            border-bottom: 1px solid rgba(0,0,0,.1);
+        }
+        .qr-body { padding: 12px; text-align: center; }
+        .qr-img {
+            width: 100%;
+            max-width: 420px;
+            height: auto;
+            background: #fff;
+            border: 1px solid rgba(0,0,0,.12);
+            border-radius: 10px;
+            padding: 10px;
+        }
+        .qr-actions { display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+        .qr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
+    </style>
 {% endblock %}

@@ -41,3 +41,14 @@ def test_sprzet_edit_template_has_qty_and_unit_fields_for_zelastwo_kanadyjki(cat
     assert "qty_suggestions_kanadyjki" in html
     assert "name=\"ilosc\"" in html
     assert "name=\"jednostka\"" in html
+
+
+def test_normalize_qty_units_maps_sztuki_to_dot_szt():
+    from src import views
+
+    C = views.CATEGORIES
+
+    for raw in ['szt', 'szt.', 'sztuki', 'Sztuki', ' .szt ', '.szt']:
+        data = {'ilosc': '3', 'jednostka': raw}
+        views._normalize_qty_fields(data, C['PRZEDMIOT'])
+        assert data.get('jednostka') == '.szt'

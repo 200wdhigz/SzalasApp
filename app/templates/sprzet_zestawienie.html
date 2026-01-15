@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2 class="mb-4">Zestawienie Elementów</h2>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Konfiguracja zestawienia</h5>
+                    <form method="GET" action="{{ url_for('views.sprzet_zestawienie') }}" class="row g-3 mt-2">
+                        <div class="col-md-3">
+                            <label for="cat_a" class="form-label">Element A (Baza/Potrzeba)</label>
+                            <select name="cat_a" id="cat_a" class="form-select">
+                                <option value="">Wybierz kategorię...</option>
+                                {% for k, v in kategorie.items() %}
+                                    <option value="{{ v }}" {% if cat_a == v %}selected{% endif %}>{{ k | capitalize }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="cat_b" class="form-label">Element B (Stan/Zasób)</label>
+                            <select name="cat_b" id="cat_b" class="form-select">
+                                <option value="">Wybierz kategorię...</option>
+                                {% for k, v in kategorie.items() %}
+                                    <option value="{{ v }}" {% if cat_b == v %}selected{% endif %}>{{ k | capitalize }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="magazyn_id" class="form-label">Magazyn (Filtruj obszar)</label>
+                            <select name="magazyn_id" id="magazyn_id" class="form-select">
+                                <option value="">Wszystkie magazyny</option>
+                                {% for m in magazyny %}
+                                    <option value="{{ m.id }}" {% if magazyn_id == m.id %}selected{% endif %}>{{ m.nazwa or m.id }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">Generuj Zestawienie</button>
+                        </div>
+                    </form>
+                    
+                    <div class="mt-3">
+                        <small class="text-muted">Szybkie wybory:</small>
+                        <a href="{{ url_for('views.sprzet_zestawienie', preset='namioty_zelastwo') }}" class="btn btn-sm btn-outline-secondary ms-2">Namioty vs Żelastwo</a>
+                        <a href="{{ url_for('views.sprzet_zestawienie', preset='kanadyjki') }}" class="btn btn-sm btn-outline-secondary ms-2">Kanadyjki vs Naprawcze</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if summary %}
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ summary.title }}</h5>
+                <div class="dropdown">
+                    <button class="btn btn-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-download"></i> Raport
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='pdf', preset=preset, cat_a=cat_a, cat_b=cat_b, magazyn_id=magazyn_id, mode='zestawienie') }}">PDF</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='xlsx', preset=preset, cat_a=cat_a, cat_b=cat_b, magazyn_id=magazyn_id, mode='zestawienie') }}">Excel</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Element / Typ</th>
+                                <th class="text-center">Potrzeba (Namioty/Sprzęt)</th>
+                                <th class="text-center">Stan (Omasztowanie/Zestawy)</th>
+                                <th class="text-center">Różnica</th>
+                                <th class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in summary.rows %}
+                                <tr>
+                                    <td><strong>{{ row.label }}</strong></td>
+                                    <td class="text-center">{{ row.demand }}</td>
+                                    <td class="text-center">{{ row.supply }}</td>
+                                    <td class="text-center">
+                                        <span class="fw-bold {% if row.diff < 0 %}text-danger{% elif row.diff > 0 %}text-success{% endif %}">
+                                            {{ "%+d" | format(row.diff) }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if row.status == 'ok' %}
+                                            <span class="badge bg-success">Komplet</span>
+                                        {% elif row.status == 'excess' %}
+                                            <span class="badge bg-info">Nadmiar</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Niedobór</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% elif preset %}
+        <div class="alert alert-info">
+            Brak danych dla wybranego zestawienia.
+        </div>
+    {% endif %}
+
+{% endblock %}
