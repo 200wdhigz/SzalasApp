@@ -747,6 +747,10 @@ def generate_qr_code(sprzet_id):
         # Zamiast redirect (który psuje tag <img>), zwracamy 404 lub puste
         return "Sprzęt nie istnieje", 404
     qr_url = os.getenv('QR_URL')
+    if not qr_url:
+        # Błędna konfiguracja aplikacji - brak bazowego adresu dla kodów QR
+        current_app.logger.error("QR_URL environment variable is not set or empty; cannot generate QR code URL.")
+        return "Błąd konfiguracji kodu QR", 500
 
     # Generuj URL do strony sprzętu
     target_url = f"{qr_url}/sprzet/{sprzet_id}"
