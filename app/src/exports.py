@@ -6,7 +6,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.units import mm
 import qrcode
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from flask import send_file
@@ -211,7 +211,6 @@ def export_qr_codes_pdf(data, filename, base_url):
         items_per_page = cols * rows_per_page
         
         # Create a new style to avoid modifying the shared style object
-        from reportlab.lib.styles import ParagraphStyle
         id_style = ParagraphStyle(
             'IDStyle',
             parent=styles['Normal'],
