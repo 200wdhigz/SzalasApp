@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from google.cloud import firestore
 import qrcode
 from io import BytesIO
+import html
 
 from . import get_firestore_client
 from .auth import login_required, admin_required, quartermaster_required
@@ -797,6 +798,12 @@ def sprzet_qr_page(sprzet_id):
 
     name = sprzet_item.get('nazwa') or sprzet_item.get('typ') or sprzet_id
 
+    # Escape values before embedding into HTML to prevent XSS
+    sprzet_id_escaped = html.escape(str(sprzet_id), quote=True)
+    name_escaped = html.escape(str(name), quote=True)
+    qr_png_url_escaped = html.escape(qr_png_url, quote=True)
+    target_url_escaped = html.escape(target_url, quote=True)
+
     # Minimalny HTML inline – bez dodatkowych template'ów.
     return (
         "<!doctype html>\n"
@@ -804,7 +811,7 @@ def sprzet_qr_page(sprzet_id):
         "<head>\n"
         "  <meta charset=\"utf-8\">\n"
         "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-        f"  <title>QR: {sprzet_id}</title>\n"
+        f"  <title>QR: {sprzet_id_escaped}</title>\n"
         "  <style>body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:24px;}"
         ".box{max-width:520px;margin:0 auto;text-align:center;}"
         "img{max-width:420px;width:100%;height:auto;border:1px solid #ddd;border-radius:8px;padding:12px;background:#fff;}"
@@ -814,12 +821,12 @@ def sprzet_qr_page(sprzet_id):
         "</head>\n"
         "<body>\n"
         "  <div class=\"box\">\n"
-        f"    <h2>QR: <span class=\"id\">{sprzet_id}</span></h2>\n"
-        f"    <div style=\"margin-bottom:6px;color:#555\">{name}</div>\n"
-        f"    <img src=\"{qr_png_url}\" alt=\"QR {sprzet_id}\">\n"
+        f"    <h2>QR: <span class=\"id\">{sprzet_id_escaped}</span></h2>\n"
+        f"    <div style=\"margin-bottom:6px;color:#555\">{name_escaped}</div>\n"
+        f"    <img src=\"{qr_png_url_escaped}\" alt=\"QR {sprzet_id_escaped}\">\n"
         "    <div>\n"
-        f"      <a href=\"{target_url}\" target=\"_blank\" rel=\"noopener\">Otwórz kartę sprzętu</a>\n"
-        f"      <a href=\"{qr_png_url}?download=1\">Pobierz PNG</a>\n"
+        f"      <a href=\"{target_url_escaped}\" target=\"_blank\" rel=\"noopener\">Otwórz kartę sprzętu</a>\n"
+        f"      <a href=\"{qr_png_url_escaped}?download=1\">Pobierz PNG</a>\n"
         "    </div>\n"
         "  </div>\n"
         "</body>\n"
