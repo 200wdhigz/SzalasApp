@@ -1,7 +1,6 @@
 import pandas as pd
 from io import BytesIO
 from docx import Document
-from docx.shared import Pt
 from reportlab.lib.pagesizes import letter, landscape, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether
 from reportlab.lib.units import mm
