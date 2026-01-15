@@ -367,6 +367,8 @@
                                 {{ render_field('Wraca do Wawy', sprzet.czyWraca) }}
                             {% endif %}
 
+                            {{ render_field('Oficjalna ewidencja', sprzet.oficjalna_ewidencja or 'Nie') }}
+
                             {# Category specific fields #}
                             {% if sprzet.category == 'namiot' %}
                                 {{ render_field('Typ', sprzet.typ) }}

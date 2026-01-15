@@ -278,6 +278,13 @@
                                 </option>
                             </select>
                         </div>
+                        <div class="col-md-3 common-fields">
+                            <label for="oficjalna_ewidencja" class="form-label">Oficjalna ewidencja?</label>
+                            <select name="oficjalna_ewidencja" id="oficjalna_ewidencja" class="form-select">
+                                <option value="Tak" {% if sprzet and sprzet.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>Tak</option>
+                                <option value="Nie" {% if not sprzet or sprzet.oficjalna_ewidencja == 'Nie' or not sprzet.oficjalna_ewidencja %}selected{% endif %}>Nie</option>
+                            </select>
+                        </div>
 
                         <div class="col-12">
                             <label for="uwagi" class="form-label">Uwagi konserwacyjne</label>
