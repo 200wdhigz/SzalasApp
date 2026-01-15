@@ -467,7 +467,15 @@
                     updateState();
 
                     // Column visibility and order logic
-                    // Zmieniamy wersję klucza, żeby użytkownikom nie "zniknęły" nowe kolumny przez starą konfigurację.
+                    // Wersjonujemy klucz w localStorage, żeby użytkownikom nie "zniknęły" nowe kolumny przez starą konfigurację.
+                    // Aktualna wersja schematu: v3.
+                    // Zasada migracji:
+                    // - Przy niekompatybilnej zmianie schematu (np. dodanie/usunięcie kolumn, zmiana identyfikatorów)
+                    //   zwiększamy sufiks wersji w nazwie klucza (np. sprzet_list_column_config_v4).
+                    // - Stare konfiguracje są wtedy ignorowane i traktowane jak brak konfiguracji (używany jest DEFAULT_CONFIG),
+                    //   dzięki czemu użytkownik zawsze widzi wszystkie nowe istotne kolumny.
+                    // - Jeśli w przyszłości konieczna będzie faktyczna migracja danych, należy ją zaimplementować
+                    //   w logice odczytu/zapisu konfiguracji, przed użyciem STORAGE_KEY_CONFIG.
                     const STORAGE_KEY_CONFIG = 'sprzet_list_column_config_v3';
                     const table = document.querySelector('table');
                     const theadRow = table.querySelector('thead tr');
@@ -644,7 +652,7 @@
                                 const btn = e.target && e.target.closest ? e.target.closest('.js-qr-open') : null;
                                 if (btn) {
                                     e.preventDefault();
-                                    alert('Błąd UI: nie znaleziono panelu QR (qrOverlay). Odśwież stronę.');
+                                    alert('Błąd: Panel QR nie został załadowany. Skontaktuj się z administratorem.');
                                 }
                             });
                             return;

@@ -17,7 +17,7 @@ def _render_template(template_name: str, **ctx) -> str:
         return render_template(template_name, **ctx)
 
 
-@pytest.mark.parametrize("category", ["zelastwo", "kanadyjki"])
+@pytest.mark.parametrize("category", ["zelastwo", "kanadyjki", "przedmiot"])
 def test_sprzet_edit_template_has_qty_and_unit_fields_for_zelastwo_kanadyjki(category):
     html = _render_template(
         "sprzet_edit.html",
@@ -48,7 +48,9 @@ def test_normalize_qty_units_maps_sztuki_to_dot_szt():
 
     C = views.CATEGORIES
 
-    for raw in ['szt', 'szt.', 'sztuki', 'Sztuki', ' .szt ', '.szt']:
-        data = {'ilosc': '3', 'jednostka': raw}
-        views._normalize_qty_fields(data, C['PRZEDMIOT'])
-        assert data.get('jednostka') == '.szt'
+    # Test for all relevant categories
+    for cat_name, cat_value in [('PRZEDMIOT', C['PRZEDMIOT']), ('ZELASTWO', C['ZELASTWO']), ('KANADYJKI', C['KANADYJKI'])]:
+        for raw in ['szt', 'szt.', 'sztuki', 'Sztuki', ' .szt ', '.szt']:
+            data = {'ilosc': '3', 'jednostka': raw}
+            views._normalize_qty_fields(data, cat_value)
+            assert data.get('jednostka') == '.szt', f"Failed for category {cat_name} with input '{raw}'"
