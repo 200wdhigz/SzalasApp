@@ -176,7 +176,7 @@ def export_to_pdf(data, filename, title, columns=None):
     output.seek(0)
     return send_file(output, mimetype='application/pdf', as_attachment=True, download_name=f"{filename}.pdf")
 
-def export_qr_codes_pdf(data, filename, base_url):
+def export_qr_codes_pdf(data, filename, qr_url):
     """
     Generuje PDF z kodami QR dla listy przedmiotów.
     Każda etykieta zawiera ID oraz duży kod QR.
@@ -229,7 +229,7 @@ def export_qr_codes_pdf(data, filename, base_url):
             
             for item in page_items:
                 item_id = item.get('id', 'N/A')
-                qr_data = f"{base_url}/sprzet/{item_id}"
+                qr_data = f"{qr_url}/sprzet/{item_id}"
                 
                 # Generowanie QR do BytesIO
                 qr = qrcode.QRCode(version=1, box_size=10, border=2) # border=2 to quiet space

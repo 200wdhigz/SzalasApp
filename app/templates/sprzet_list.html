@@ -2,23 +2,26 @@
 
 {% block content %}
     {% from 'macros.html' import render_field %}
-    
+
     <style>
         .parent-card-img {
             height: 100%;
             min-height: 150px;
             object-fit: cover;
         }
-        
+
         .placeholder-dark {
             display: none;
         }
+
         .placeholder-light {
             display: block;
         }
+
         html[data-bs-theme="dark"] .placeholder-dark {
             display: block;
         }
+
         html[data-bs-theme="dark"] .placeholder-light {
             display: none;
         }
@@ -77,8 +80,12 @@
                     <label for="oficjalna_ewidencja" class="form-label">Oficjalna ewidencja</label>
                     <select name="oficjalna_ewidencja" id="oficjalna_ewidencja" class="form-select">
                         <option value="">Wszystkie</option>
-                        <option value="Tak" {% if selected_filters.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>Tak</option>
-                        <option value="Nie" {% if selected_filters.oficjalna_ewidencja == 'Nie' %}selected{% endif %}>Nie</option>
+                        <option value="Tak" {% if selected_filters.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>
+                            Tak
+                        </option>
+                        <option value="Nie" {% if selected_filters.oficjalna_ewidencja == 'Nie' %}selected{% endif %}>
+                            Nie
+                        </option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -98,7 +105,8 @@
             <div class="row g-0">
                 <div class="col-md-3 col-lg-2">
                     {% if parent_item.zdjecia_lista_url %}
-                        <img src="{{ parent_item.zdjecia_lista_url[0] }}" class="img-fluid rounded-start parent-card-img w-100" alt="{{ parent_item.id }}">
+                        <img src="{{ parent_item.zdjecia_lista_url[0] }}"
+                             class="img-fluid rounded-start parent-card-img w-100" alt="{{ parent_item.id }}">
                     {% else %}
                         {% set cat = parent_item.category or 'default' %}
                         <img src="{{ url_for('static', filename='assets/img/sprzet/placeholder_' ~ cat ~ '_light.png') }}"
@@ -122,11 +130,12 @@
                                 </h5>
                                 <small class="text-muted">{{ parent_item.category | upper }}</small>
                             </div>
-                            <a href="{{ url_for('views.sprzet_card', sprzet_id=parent_item.id) }}" class="btn btn-sm btn-outline-primary">
+                            <a href="{{ url_for('views.sprzet_card', sprzet_id=parent_item.id) }}"
+                               class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-eye"></i> Pełna karta
                             </a>
                         </div>
-                        
+
                         <div class="row g-2 flex-grow-1">
                             {% if parent_item.category == 'magazyn' %}
                                 {{ render_field('GPS Lat', parent_item.gps_lat) }}
@@ -149,7 +158,7 @@
                                     {{ render_field('Ilość', (parent_item.ilosc | string) ~ ' ' ~ (parent_item.jednostka or '')) }}
                                 {% endif %}
                             {% endif %}
-                            
+
                             {% if parent_item.uwagi %}
                                 <div class="col-12 mt-auto">
                                     <div class="bg-body-tertiary p-1 rounded border small">
@@ -171,12 +180,26 @@
                 <i class="bi bi-download"></i> Eksportuj
             </button>
             <ul class="dropdown-menu">
-                <li><button class="dropdown-item" onclick="submitExport('csv')">CSV</button></li>
-                <li><button class="dropdown-item" onclick="submitExport('xlsx')">Excel (.xlsx)</button></li>
-                <li><button class="dropdown-item" onclick="submitExport('docx')">Word (.docx)</button></li>
-                <li><button class="dropdown-item" onclick="submitExport('pdf')">PDF</button></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><button class="dropdown-item" onclick="submitExport('qr')"><i class="bi bi-qr-code"></i> Drukuj Kody QR (PDF)</button></li>
+                <li>
+                    <button class="dropdown-item" onclick="submitExport('csv')">CSV</button>
+                </li>
+                <li>
+                    <button class="dropdown-item" onclick="submitExport('xlsx')">Excel (.xlsx)</button>
+                </li>
+                <li>
+                    <button class="dropdown-item" onclick="submitExport('docx')">Word (.docx)</button>
+                </li>
+                <li>
+                    <button class="dropdown-item" onclick="submitExport('pdf')">PDF</button>
+                </li>
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
+                <li>
+                    <button class="dropdown-item" onclick="submitExport('qr')"><i class="bi bi-qr-code"></i> Drukuj Kody
+                        QR (PDF)
+                    </button>
+                </li>
             </ul>
         </div>
         <script>
@@ -184,7 +207,7 @@
                 const form = document.createElement('form');
                 form.method = 'GET';
                 form.action = "{{ url_for('views.export_sprzet', format='FORMAT') }}".replace('FORMAT', format);
-                
+
                 // Kopiuj wszystkie filtry z URL
                 const urlParams = new URLSearchParams(window.location.search);
                 urlParams.forEach((value, key) => {
@@ -642,13 +665,11 @@
 
         <script>
             (function () {
-                function initQrPanel(){
+                function initQrPanel() {
                     try {
-                        // QR Panel logic (bez Bootstrapa)
                         const overlay = document.getElementById('qrOverlay');
                         if (!overlay) {
-                            // Jeśli użytkownik kliknie QR a overlay nie istnieje, zobaczy informację.
-                            document.addEventListener('click', function(e){
+                            document.addEventListener('click', function (e) {
                                 const btn = e.target && e.target.closest ? e.target.closest('.js-qr-open') : null;
                                 if (btn) {
                                     e.preventDefault();
@@ -665,57 +686,77 @@
                         const dlLink = document.getElementById('qrPanelDownloadLink');
                         const targetUrlEl = document.getElementById('qrPanelTargetUrl');
 
+                        // NEW: base URL provided by backend as a constant (e.g. "https://200wdhigz.github.io")
+                        const QR_BASE_URL = {{ (qr_url or '') | tojson }};
+
                         function openOverlay() {
                             overlay.hidden = false;
                             document.body.style.overflow = 'hidden';
                         }
+
                         function closeOverlay() {
                             overlay.hidden = true;
                             document.body.style.overflow = '';
                             if (imgEl) imgEl.removeAttribute('src');
-                            if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
+                            if (errEl) {
+                                errEl.classList.add('d-none');
+                                errEl.textContent = '';
+                            }
                         }
 
-                        function setError(msg){
+                        function setError(msg) {
                             if (!errEl) return;
                             errEl.textContent = msg;
                             errEl.classList.remove('d-none');
                         }
 
-                        function loadForId(sprzetId){
+                        function joinUrl(base, path) {
+                            const b = String(base || '').replace(/\/+$/, '');
+                            const p = String(path || '').replace(/^\/+/, '');
+                            return b ? (b + '/' + p) : ('/' + p);
+                        }
+
+                        function loadForId(sprzetId) {
                             if (!sprzetId) return;
                             if (idEl) idEl.textContent = sprzetId;
 
-                            const cardUrl = '/sprzet/' + encodeURIComponent(sprzetId);
-                            if (cardLink) cardLink.href = cardUrl;
+                            const cardPath = '/sprzet/' + encodeURIComponent(sprzetId);
+                            const cardAbsUrl = joinUrl(QR_BASE_URL, cardPath);
 
-                            // Uzupełnij widoczny link docelowy
+                            if (cardLink) cardLink.href = cardAbsUrl;
+
+                            // Target link under QR uses QR_BASE_URL (not window.location.origin)
                             if (targetUrlEl) {
-                                targetUrlEl.href = cardUrl;
-                                targetUrlEl.textContent = window.location.origin + cardUrl;
+                                targetUrlEl.href = cardAbsUrl;
+                                targetUrlEl.textContent = cardAbsUrl;
                             }
 
                             const qrUrl = '/sprzet/' + encodeURIComponent(sprzetId) + '/qrcode';
                             if (dlLink) dlLink.href = qrUrl + '?download=1';
 
-                            if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
+                            if (errEl) {
+                                errEl.classList.add('d-none');
+                                errEl.textContent = '';
+                            }
 
                             if (!imgEl) {
                                 setError('Błąd UI: brak elementu img dla QR.');
                                 return;
                             }
 
-                            imgEl.onload = function(){
-                                if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
+                            imgEl.onload = function () {
+                                if (errEl) {
+                                    errEl.classList.add('d-none');
+                                    errEl.textContent = '';
+                                }
                             };
-                            imgEl.onerror = function(){
+                            imgEl.onerror = function () {
                                 setError('Nie udało się wygenerować QR dla tego elementu.');
                             };
                             imgEl.src = qrUrl + '?v=' + Date.now();
                         }
 
-                        // Delegacja kliknięć na dokument
-                        document.addEventListener('click', function(e){
+                        document.addEventListener('click', function (e) {
                             const btn = e.target && e.target.closest ? e.target.closest('.js-qr-open') : null;
                             if (btn) {
                                 e.preventDefault();
@@ -731,17 +772,16 @@
                             }
                         });
 
-                        // Backup: bezpośrednie podpięcie (gdyby ktoś zatrzymał propagację)
                         const directButtons = Array.prototype.slice.call(document.querySelectorAll('.js-qr-open'));
-                        directButtons.forEach(function(btn){
-                            btn.addEventListener('click', function(e){
+                        directButtons.forEach(function (btn) {
+                            btn.addEventListener('click', function (e) {
                                 e.preventDefault();
                                 openOverlay();
                                 loadForId(btn.getAttribute('data-qr-id'));
                             });
                         });
 
-                        document.addEventListener('keydown', function(e){
+                        document.addEventListener('keydown', function (e) {
                             if (e.key === 'Escape' && overlay && !overlay.hidden) {
                                 closeOverlay();
                             }
@@ -777,7 +817,7 @@
 
             <div class="qr-body">
                 <div id="qrPanelError" class="alert alert-warning d-none" role="alert"></div>
-                <img id="qrPanelImg" alt="QR" class="qr-img" />
+                <img id="qrPanelImg" alt="QR" class="qr-img"/>
 
                 <!-- Docelowy link pod QR (kopiowalny) -->
                 <div class="small mt-2">
@@ -794,9 +834,22 @@
     </div>
 
     <style>
-        .qr-overlay[hidden] { display: none !important; }
-        .qr-overlay { position: fixed; inset: 0; z-index: 2000; }
-        .qr-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+        .qr-overlay[hidden] {
+            display: none !important;
+        }
+
+        .qr-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+        }
+
+        .qr-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, .45);
+        }
+
         .qr-panel {
             position: absolute;
             left: 50%;
@@ -807,28 +860,44 @@
             overflow: auto;
             background: var(--bs-body-bg, #fff);
             color: var(--bs-body-color, #111);
-            border: 1px solid rgba(0,0,0,.15);
+            border: 1px solid rgba(0, 0, 0, .15);
             border-radius: 12px;
-            box-shadow: 0 12px 32px rgba(0,0,0,.25);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, .25);
         }
+
         .qr-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 12px 12px;
-            border-bottom: 1px solid rgba(0,0,0,.1);
+            border-bottom: 1px solid rgba(0, 0, 0, .1);
         }
-        .qr-body { padding: 12px; text-align: center; }
+
+        .qr-body {
+            padding: 12px;
+            text-align: center;
+        }
+
         .qr-img {
             width: 100%;
             max-width: 420px;
             height: auto;
             background: #fff;
-            border: 1px solid rgba(0,0,0,.12);
+            border: 1px solid rgba(0, 0, 0, .12);
             border-radius: 10px;
             padding: 10px;
         }
-        .qr-actions { display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
-        .qr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
+
+        .qr-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .qr-mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+        }
     </style>
 {% endblock %}
