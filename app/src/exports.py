@@ -60,7 +60,7 @@ def apply_zhp_template_docx(document, title):
     header_para = header.paragraphs[0]
     header_para.text = "ZWIĄZEK HARCERSTWA POLSKIEGO\nSZCZEP SZALAS"
     header_para.style.font.bold = True
-    
+
     footer = section.footer
     footer_para = footer.paragraphs[0]
     footer_para.text = f"Generowano: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')} | Katalog Sprzętu SzałasApp"
@@ -81,7 +81,7 @@ def export_to_xlsx(data, filename, columns=None):
             if col not in df.columns:
                 df[col] = ""
         df = df[columns]
-        
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)
@@ -100,7 +100,7 @@ def export_to_docx(data, filename, title, columns=None):
             keys = columns
         else:
             keys = list(data[0].keys())
-            
+
         table = document.add_table(rows=1, cols=len(keys))
         hdr_cells = table.rows[0].cells
         for i, key in enumerate(keys):
@@ -182,6 +182,10 @@ def export_qr_codes_pdf(data, filename, base_url):
     Każda etykieta zawiera ID oraz duży kod QR.
     Dodaje linie cięcia i zachowuje safe space.
     """
+    # Validate base_url to prevent invalid QR data
+    if not isinstance(base_url, str) or not base_url or not base_url.strip():
+        raise ValueError("base_url must be a non-empty string")
+    
     output = BytesIO()
     # Używamy A4 w pionie
     doc = SimpleDocTemplate(
@@ -209,7 +213,7 @@ def export_qr_codes_pdf(data, filename, base_url):
         cols = 3
         rows_per_page = 4
         items_per_page = cols * rows_per_page
-        
+
         # Create a new style to avoid modifying the shared style object
         id_style = ParagraphStyle(
             'IDStyle',
@@ -226,43 +230,43 @@ def export_qr_codes_pdf(data, filename, base_url):
         for page_items in chunk_data(data, items_per_page):
             table_data = []
             current_row = []
-            
+
             for item in page_items:
                 item_id = item.get('id', 'N/A')
                 qr_data = f"{base_url}/sprzet/{item_id}"
-                
+
                 # Generowanie QR do BytesIO
-                qr = qrcode.QRCode(version=1, box_size=10, border=2) # border=2 to quiet space
+                qr = qrcode.QRCode(version=1, box_size=10, border=2)  # border=2 for quiet zone (required blank border)
                 qr.add_data(qr_data)
                 qr.make(fit=True)
                 qr_img = qr.make_image(fill_color="black", back_color="white")
-                
+
                 img_buffer = BytesIO()
                 qr_img.save(img_buffer, format='PNG')
                 img_buffer.seek(0)
-                
+
                 # Tworzenie komórki etykiety
                 img = Image(img_buffer, width=40 * mm, height=40 * mm)
-                
+
                 # Zawartość etykiety: ID na górze, potem QR
                 label_content = [
                     Paragraph(f"<b>{item_id}</b>", id_style),
                     Spacer(1, 1 * mm),
                     img
                 ]
-                
+
                 current_row.append(label_content)
-                
+
                 if len(current_row) == cols:
                     table_data.append(current_row)
                     current_row = []
-                    
+
             if current_row:
                 # Dopełnij ostatni rząd pustymi komórkami
                 while len(current_row) < cols:
                     current_row.append("")
                 table_data.append(current_row)
-                
+
             if table_data:
                 # Tabela z liniami cięcia (grid)
                 t = Table(table_data, colWidths=[60 * mm] * cols, rowHeights=[55 * mm] * len(table_data))

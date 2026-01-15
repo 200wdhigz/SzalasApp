@@ -398,7 +398,8 @@ def sprzet_list():
                            ewidencje=ewidencje,
                            kategorie=kategorie,
                            parent_item=parent_item,
-                           selected_filters=request.args)
+                           selected_filters=request.args,
+                           qr_url=os.getenv('QR_URL'))
 
 
 # =======================================================================
@@ -745,9 +746,14 @@ def generate_qr_code(sprzet_id):
     if not sprzet_item:
         # Zamiast redirect (który psuje tag <img>), zwracamy 404 lub puste
         return "Sprzęt nie istnieje", 404
+    qr_url = os.getenv('QR_URL')
+    if not qr_url:
+        # Błędna konfiguracja aplikacji - brak bazowego adresu dla kodów QR
+        current_app.logger.error("QR_URL environment variable is not set or empty; cannot generate QR code URL.")
+        return "Błąd konfiguracji kodu QR", 500
 
     # Generuj URL do strony sprzętu
-    target_url = url_for('views.sprzet_card', sprzet_id=sprzet_id, _external=True)
+    target_url = f"{qr_url}/sprzet/{sprzet_id}"
 
     # Sprawdź czy jest tryb debug
     is_debug = os.getenv('FLASK_ENV') == 'development' or os.getenv('DEBUG') == 'True'
@@ -1519,8 +1525,11 @@ def export_sprzet(format):
     if fmt == 'docx':
         return export_to_docx(export_rows, filename, title, columns=columns)
     if fmt == 'qr':
-        base_url = request.host_url.rstrip('/')
-        return export_qr_codes_pdf(export_rows, filename, base_url)
+        qr_url = os.getenv('QR_URL')
+        if not qr_url:
+            flash('Eksport QR jest niedostępny: brak konfiguracji QR_URL.', 'warning')
+            return export_to_pdf(export_rows, filename, title, columns=columns)
+        return export_qr_codes_pdf(export_rows, filename, qr_url)
     return export_to_pdf(export_rows, filename, title, columns=columns)
 
 @views_bp.route('/usterki/export/<format>')
