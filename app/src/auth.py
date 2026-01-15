@@ -1,7 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from functools import wraps
 import requests
+import random
 from firebase_admin import auth
+from datetime import timedelta
 
 from . import GOOGLE_API_KEY
 from .db_users import get_user_by_uid, create_user
@@ -9,14 +11,27 @@ from .db_users import get_user_by_uid, create_user
 auth_bp = Blueprint('auth', __name__, url_prefix='/')
 
 def login_required(f):
-    """Dekorator do sprawdzania, czy użytkownik jest zalogowany."""
+    """Dekorator do sprawdzania, czy użytkownik jest zalogowany (lub zalogowany PINem)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session and not session.get('is_pin_authenticated'):
+            # flash('Musisz się zalogować lub podać PIN, aby uzyskać dostęp.', 'danger')
+            return redirect(url_for('auth.pin_login', next=request.full_path))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def full_login_required(f):
+    """Dekorator do sprawdzania, czy użytkownik jest zalogowany pełnym kontem (nie PINem)."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            flash('Musisz się zalogować, aby uzyskać dostęp.', 'danger')
-            return redirect(url_for('auth.login'))
+            flash('Ta strona wymaga pełnego logowania.', 'warning')
+            if session.get('is_pin_authenticated'):
+                return redirect(url_for('views.home'))
+            return redirect(url_for('auth.login', next=request.full_path))
         return f(*args, **kwargs)
     return decorated_function
+
 def admin_required(f):
     """Dekorator do sprawdzania, czy użytkownik jest zalogowany i czy jest administratorem."""
     @wraps(f)
@@ -137,5 +152,48 @@ def logout():
     session.pop('is_admin', None)
     session.pop('user_role', None)
     session.pop('user_name', None)
+    session.pop('is_pin_authenticated', None)
     flash('Wylogowano pomyślnie.', 'info')
-    return redirect(url_for('views.sprzet_list'))
+    return redirect(url_for('views.home'))
+
+def get_or_rotate_pin():
+    from .db_firestore import get_config, update_config, _warsaw_now
+    config = get_config()
+    pin = config.get('view_pin')
+    auto_rotate = config.get('pin_auto_rotate', False)
+    last_rotate = config.get('pin_last_rotate')
+    
+    now = _warsaw_now()
+    
+    # Jeśli PIN nie istnieje, wygeneruj go
+    if not pin:
+        pin = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        update_config(view_pin=pin, pin_last_rotate=now)
+        return pin
+        
+    # Jeśli auto_rotate jest włączone i minął czas (np. 24h)
+    if auto_rotate and last_rotate:
+        if now - last_rotate > timedelta(days=1):
+             pin = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+             update_config(view_pin=pin, pin_last_rotate=now)
+             
+    return pin
+
+@auth_bp.route('/pin', methods=['GET', 'POST'])
+def pin_login():
+    if request.method == 'POST':
+        entered_pin = request.form.get('pin')
+        actual_pin = get_or_rotate_pin()
+        
+        if entered_pin == actual_pin:
+            session['is_pin_authenticated'] = True
+            # Nadajemy podstawowe uprawnienia "gościa z pinem"
+            session['user_role'] = 'reporter'
+            session['user_name'] = 'Gość (PIN)'
+            flash('Dostęp przyznany za pomocą PIN.', 'success')
+            next_url = request.args.get('next') or url_for('views.sprzet_list')
+            return redirect(next_url)
+        else:
+            flash('Nieprawidłowy kod PIN.', 'danger')
+            
+    return render_template('pin_login.html')

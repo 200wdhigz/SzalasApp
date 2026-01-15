@@ -69,27 +69,22 @@
                             <i class="bi bi-people"></i> Zarządzanie Użytkownikami
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.settings') }}">
+                            <i class="bi bi-gear"></i> Ustawienia
+                        </a>
+                    </li>
                 {% endif %}
             </ul>
             <ul class="navbar-nav">
-                {% if IS_ADMIN %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('views.user_profile', user_id=session.get('user_id')) }}">
-                            <i class="bi bi-person-circle"></i> Moje Konto
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <span class="nav-link text-white-50">Zalogowany ({{ USER_ROLE | upper }})</span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="btn btn-danger" href="{{ url_for('auth.logout') }}">Wyloguj</a>
-                    </li>
-                {% elif IS_LOGGED_IN %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('views.user_profile', user_id=session.get('user_id')) }}">
-                            <i class="bi bi-person-circle"></i> Moje Konto
-                        </a>
-                    </li>
+                {% if IS_LOGGED_IN %}
+                    {% if session.get('user_id') %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('views.user_profile', user_id=session.get('user_id')) }}">
+                                <i class="bi bi-person-circle"></i> Moje Konto
+                            </a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item">
                         <span class="nav-link text-white-50">Zalogowany ({{ USER_ROLE | upper }})</span>
                     </li>

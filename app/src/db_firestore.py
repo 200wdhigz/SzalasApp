@@ -276,3 +276,16 @@ def get_loans_for_item(item_id):
 def mark_loan_returned(loan_id):
     """Oznacza wypożyczenie jako zwrócone."""
     update_item(COLLECTION_WYPOZYCZENIA, loan_id, status='returned', return_timestamp=_warsaw_now())
+
+def get_config():
+    from . import get_firestore_client
+    db = get_firestore_client()
+    doc = db.collection('config').document('app_settings').get()
+    if doc.exists:
+        return doc.to_dict()
+    return {}
+
+def update_config(**kwargs):
+    from . import get_firestore_client
+    db = get_firestore_client()
+    db.collection('config').document('app_settings').set(kwargs, merge=True)

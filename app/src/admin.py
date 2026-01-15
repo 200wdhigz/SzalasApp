@@ -6,7 +6,7 @@ import os
 
 from .auth import admin_required, quartermaster_required
 from .db_firestore import (
-    get_all_logs, add_log, restore_item
+    get_all_logs, add_log, restore_item, get_config, update_config
 )
 from .db_users import (
     get_all_users, get_user_by_uid, update_user,
@@ -378,6 +378,35 @@ def log_restore(log_id):
         flash(message, 'danger')
     
     return redirect(request.referrer or url_for('views.logs_list'))
+
+
+@admin_bp.route('/settings', methods=['GET', 'POST'])
+@admin_required
+def settings():
+    """Zarządzanie ustawieniami aplikacji (np. PIN)."""
+    if request.method == 'POST':
+        pin = request.form.get('view_pin')
+        auto_rotate = request.form.get('pin_auto_rotate') == 'on'
+        
+        # Opcjonalnie: walidacja tokena CSRF, jeśli admin go używa (widzę że admin.py go używa)
+        if not validate_csrf_token():
+             return redirect(url_for('admin.settings'))
+
+        update_data = {'pin_auto_rotate': auto_rotate}
+        if pin:
+            if not pin.isdigit() or len(pin) != 6:
+                flash('PIN musi składać się z 6 cyfr.', 'danger')
+                return redirect(url_for('admin.settings'))
+            update_data['view_pin'] = pin
+            from .db_firestore import _warsaw_now
+            update_data['pin_last_rotate'] = _warsaw_now()
+        
+        update_config(**update_data)
+        flash('Ustawienia zostały zapisane.', 'success')
+        return redirect(url_for('admin.settings'))
+            
+    config = get_config()
+    return render_template('admin/settings.html', config=config)
 
 
 

@@ -75,11 +75,12 @@ def create_app():
         user_role = session.get('user_role')
         return dict(
             is_debug=app.debug,
-            IS_LOGGED_IN=('user_id' in session),
+            IS_LOGGED_IN=('user_id' in session or session.get('is_pin_authenticated')),
             IS_ADMIN=('user_id' in session and user_role == 'admin'),
             IS_QUARTERMASTER=('user_id' in session and user_role in ['quartermaster', 'admin']),
             USER_ROLE=user_role,
-            csrf_token=generate_csrf_token
+            csrf_token=generate_csrf_token,
+            hasattr=hasattr
         )
 
     _init_firebase_admin()

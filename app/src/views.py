@@ -10,7 +10,7 @@ from io import BytesIO
 import html
 
 from . import get_firestore_client
-from .auth import login_required, admin_required, quartermaster_required
+from .auth import login_required, admin_required, quartermaster_required, full_login_required
 from .gcs_utils import list_equipment_photos, upload_blob_to_gcs, refresh_urls
 from .db_firestore import (
     get_sprzet_item, get_usterki_for_sprzet, get_usterka_item,
@@ -178,228 +178,270 @@ def home():
     return render_template('home.html')
 
 @views_bp.route('/sprzety')
-@login_required
+@full_login_required
 def sprzet_list():
-    parent_id = request.args.get('parent_id')
-    search_query = request.args.get('search')
-    category = request.args.get('category')
-    
-    # Podstawowe filtry
-    typ = request.args.get('typ')
-    wodoszczelnosc = request.args.get('wodoszczelnosc')
-    lokalizacja = request.args.get('lokalizacja')
-    oficjalna_ewidencja = request.args.get('oficjalna_ewidencja')
+    # Wymóg bezpieczeństwa: nie udostępniaj listy sprzętu.
+    return "Brak dostępu.", 403
 
-    filters = []
-    if category:
-        filters.append(('category', '==', category))
-    if typ:
-        filters.append(('typ', '==', typ))
-    if wodoszczelnosc:
-        filters.append(('wodoszczelnosc', '==', wodoszczelnosc))
-    if lokalizacja:
-        filters.append(('lokalizacja', '==', lokalizacja))
-    if oficjalna_ewidencja:
-        filters.append(('oficjalna_ewidencja', '==', oficjalna_ewidencja))
-    
-    if parent_id:
-        filters.append(('parent_id', '==', parent_id))
-    
-    if filters:
-        items = get_items_by_filters(COLLECTION_SPRZET, filters, order_by='__name__', direction=firestore.Query.ASCENDING)
-    else:
-        # Jeśli nie ma filtrów ani parent_id, a nie jest to wyszukiwanie, pokaż tylko Magazyny
-        items = get_all_sprzet(category=CATEGORIES['MAGAZYN']) if not search_query else get_all_sprzet()
+@views_bp.route('/sprzet/add', methods=['GET', 'POST'])
+@quartermaster_required
+def sprzet_add():
+    if request.method == 'POST':
+        category = request.form.get('category')
 
-    # Wyszukiwanie lokalne (Firestore nie wspiera łatwo full-text search bez zewnętrznych usług)
-    if search_query:
-        s = search_query.lower().strip()
-
-        # Lista pól, po których chcemy szukać (dużo danych jest opcjonalnych, więc wszystko przez str()).
-        # Celowo obejmujemy pola ogólne + specyficzne dla kategorii.
-        searchable_fields = [
-            'id', 'nazwa', 'typ',
-            'przeznaczenie',
-            'lokalizacja', 'magazyn_display',
-            'informacje', 'uwagi',
-            'stan_ogolny',
-            'wodoszczelnosc',
-            'ilosc', 'jednostka',
-            'oficjalna_ewidencja',
-            # namioty
-            'zapalki', 'kolor_dachu', 'kolor_bokow',
-            # żelastwo
-            'typ_zelastwa', 'do_czego',
-            # kanadyjki
-            'material',
-            # kompatybilność wsteczna/importy
-            'historia',
-        ]
-
-        def _matches(item: dict) -> bool:
-            for key in searchable_fields:
-                try:
-                    if s in str(item.get(key, '')).lower():
-                        return True
-                except Exception:
-                    # W razie nietypowych typów danych w polach – pomiń.
-                    continue
-            return False
-
-        items = [i for i in items if _matches(i)]
-
-    # Pobieramy unikalne wartości do filtrów
-    all_items = get_all_sprzet()
-    typy = sorted(list(set(i.get('typ') for i in all_items if i.get('typ'))))
-    lokalizacje = sorted(list(set(i.get('lokalizacja') for i in all_items if i.get('lokalizacja'))))
-    wodoszczelnosci = sorted(list(set(i.get('wodoszczelnosc') for i in all_items if i.get('wodoszczelnosc'))))
-    ewidencje = sorted(list(set(i.get('oficjalna_ewidencja') for i in all_items if i.get('oficjalna_ewidencja'))))
-    kategorie = CATEGORIES
-
-    # Pobieramy mapę ID -> obiekt dla wszystkich sprzętów
-    sprzet_map = {s['id']: s for s in all_items if 'id' in s}
-    
-    # Dodajemy informację o nazwie magazynu nadrzędnego
-    for item in items:
-        # Poczyszczenie po ewentualnych brakach w logice filtrów/importów
-        if not item.get('magazyn_display'):
-            # Szukamy nadrzędnego magazynu w hierarchii
-            curr = item
-            visited = set()
-            while curr.get('parent_id') and curr['parent_id'] not in visited:
-                visited.add(curr['id'])
-                parent = sprzet_map.get(curr['parent_id'])
-                if not parent:
-                    break
-                if parent.get('category') == CATEGORIES['MAGAZYN']:
-                    item['magazyn_display'] = parent.get('nazwa') or parent.get('id')
-                    item['magazyn_id'] = parent.get('id')
-                    break
-                curr = parent
-        
-        if not item.get('magazyn_display'):
-            if item.get('lokalizacja'):
-                item['magazyn_display'] = item['lokalizacja']
-            else:
-                item['magazyn_display'] = 'N/A'
-        
-        # Ochrona danych osobowych dla Zgłaszającego
-        if session.get('user_role') not in ['quartermaster', 'admin']:
-            # Sprawdzamy czy jest jakieś aktywne wypożyczenie
-            active_loans = get_active_loans()
-            item_loans = [l for l in active_loans if l.get('item_id') == item['id']]
-            if item_loans:
-                item['is_loaned'] = True
-            else:
-                item['is_loaned'] = False
-
-    # Grupowanie Żelastwa i Kanadyjek (tylko jeśli nie jest to wyszukiwanie globalne i jesteśmy wewnątrz jakiegoś rodzica)
-    grouped_items = []
-    if parent_id and not search_query:
-        # Grupowanie Żelastwa
-        zelastwo = [i for i in items if i.get('category') == CATEGORIES['ZELASTWO']]
-        other_items = [i for i in items if i.get('category') != CATEGORIES['ZELASTWO'] and i.get('category') != CATEGORIES['KANADYJKI']]
-        kanadyjki = [i for i in items if i.get('category') == CATEGORIES['KANADYJKI']]
-        
-        # Grupowanie Żelastwa: (do_czego, typ_zelastwa, sprawny)
-        zel_groups = {}
-        for z in zelastwo:
-            key = (z.get('do_czego', 'Inne'), z.get('typ_zelastwa', 'Brak typu'), z.get('sprawny', 'Tak'))
-            if key not in zel_groups:
-                zel_groups[key] = []
-            zel_groups[key].append(z)
-        
-        for key, group in zel_groups.items():
-            if len(group) > 1:
-                # Tworzymy wirtualny obiekt grupy
-                rep = group[0]
-                grouped_items.append({
-                    'id': f"GROUP_ZEL_{rep.get('id')}",
-                    'category': CATEGORIES['ZELASTWO'],
-                    'nazwa': f"{len(group)}x {rep.get('typ_zelastwa')} ({rep.get('do_czego')}) - {'Sprawne' if key[2] == 'Tak' else 'Niesprawne'}",
-                    'is_group': True,
-                    'group_ids': [g['id'] for g in group],
-                    'magazyn_display': rep.get('magazyn_display'),
-                    'oficjalna_ewidencja': rep.get('oficjalna_ewidencja', 'Nie')
-                })
-            else:
-                grouped_items.extend(group)
-        
-        # Grupowanie Kanadyjek: (material, sprawny)
-        kan_groups = {}
-        for k in kanadyjki:
-            key = (k.get('material', 'materiałowe'), k.get('sprawny', 'Tak'))
-            if key not in kan_groups:
-                kan_groups[key] = []
-            kan_groups[key].append(k)
-            
-        for key, group in kan_groups.items():
-            if len(group) > 1:
-                rep = group[0]
-                grouped_items.append({
-                    'id': f"GROUP_KAN_{rep.get('id')}",
-                    'category': CATEGORIES['KANADYJKI'],
-                    'nazwa': f"{len(group)}x Kanadyjka {key[0]} - {'Sprawna' if key[1] == 'Tak' else 'Niesprawna'}",
-                    'is_group': True,
-                    'group_ids': [g['id'] for g in group],
-                    'magazyn_display': rep.get('magazyn_display'),
-                    'oficjalna_ewidencja': rep.get('oficjalna_ewidencja', 'Nie')
-                })
-            else:
-                grouped_items.extend(group)
-        
-        grouped_items.extend(other_items)
-        items = grouped_items
-
-    # Fast-card: jeśli jesteśmy w folderze (parent_id) -> policz które elementy mają dzieci.
-    # Dotyczy: namiot/przedmiot/żelastwo/kanadyjki.
-    if parent_id and items:
-        children = get_items_by_parent(parent_id)
-        parent_ids_with_children = {c.get('parent_id') for c in children if c.get('parent_id')}
-        fast_card_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI']}
-        for it in items:
-            it['has_children'] = (it.get('id') in parent_ids_with_children)
-            it['fast_card'] = (it.get('category') in fast_card_cats)
-
-    # Fast-card: ustaw flagi dla namiot/przedmiot/żelastwo/kanadyjki, żeby UI mógł
-    # przekierować klik w nazwę prosto na kartę, jeśli element nie ma dzieci.
-    if items:
-        fast_card_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI']}
-        # Minimalnie: sprawdzamy dzieci tylko dla elementów, które mogą używać fast-card.
-        candidate_parent_ids = [it.get('id') for it in items if it.get('id') and it.get('category') in fast_card_cats]
-        parent_ids_with_children: set[str] = set()
-        for pid in candidate_parent_ids:
-            try:
-                children = get_items_by_parent(pid)
-            except Exception:
-                children = []
-            if children:
-                parent_ids_with_children.add(pid)
-
-        for it in items:
-            it['fast_card'] = (it.get('category') in fast_card_cats)
-            # default False; tylko dla kandydatów liczymy realnie
-            it['has_children'] = (it.get('id') in parent_ids_with_children)
-
-    parent_item = get_sprzet_item(parent_id) if parent_id else None
-    if parent_item:
-        from .gcs_utils import list_equipment_photos, refresh_urls
-        zdjecia_z_bazy = parent_item.get('zdjecia')
-        if zdjecia_z_bazy is not None:
-            parent_item['zdjecia_lista_url'] = refresh_urls(zdjecia_z_bazy)
+        # Automatyczne generowanie ID dla wybranych kategorii
+        if category in [CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI'], CATEGORIES['PRZEDMIOT']]:
+            db = get_firestore_client()
+            sprzet_id = db.collection(COLLECTION_SPRZET).document().id.upper()
+        elif category == CATEGORIES['MAGAZYN']:
+            # Human-readable ID based on warehouse name, e.g. MAG_WARSZAWA / MAG_WARSZAWA_2
+            magazyn_name = (request.form.get('nazwa') or request.form.get('lokalizacja') or '').strip()
+            existing_ids = {s.get('id') for s in get_all_sprzet() if s.get('id')}
+            sprzet_id = generate_unique_magazyn_id(magazyn_name, existing_ids)
         else:
-            parent_item['zdjecia_lista_url'] = list_equipment_photos(parent_id)
+            sprzet_id = request.form.get('id', '').strip().upper()
 
-    return render_template('sprzet_list.html', 
-                           sprzet_list=items, 
-                           typy=typy, 
-                           lokalizacje=lokalizacje, 
-                           wodoszczelnosci=wodoszczelnosci,
-                           ewidencje=ewidencje,
-                           kategorie=kategorie,
-                           parent_item=parent_item,
-                           selected_filters=request.args,
-                           qr_url=os.getenv('QR_URL'))
+        if not sprzet_id:
+            flash('Błąd: Nie wygenerowano lub nie podano ID.', 'danger')
+            return redirect(url_for('views.sprzet_add'))
+
+        if get_sprzet_item(sprzet_id):
+            flash(f'Sprzęt o ID {sprzet_id} już istnieje!', 'danger')
+        else:
+            data = {k: v for k, v in request.form.items() if k != 'id'}
+            if 'oficjalna_ewidencja' not in data:
+                data['oficjalna_ewidencja'] = 'Nie'
+            _normalize_qty_fields(data, category)
+
+            # Obsługa zdjęć także przy dodawaniu
+            urls, err = process_uploads(request.files.getlist('nowe_zdjecia'), 'sprzet', sprzet_id)
+            if err:
+                flash(err, 'warning')
+            if urls:
+                data['zdjecia'] = urls
+
+            set_item(COLLECTION_SPRZET, sprzet_id, data)
+            add_log(session.get('user_id'), 'add', 'sprzet', sprzet_id, after=data)
+            flash(f'Sprzęt {sprzet_id} został dodany.', 'success')
+            return redirect(url_for('views.sprzet_list'))
+
+    # Filtrujemy potencjalnych rodziców: tylko Magazyny i Półki/Skrzynie
+    potential_parents = [s for s in get_all_sprzet() if s.get('category') in [CATEGORIES['MAGAZYN'], CATEGORIES['POLKA']]]
+
+    return render_template('sprzet_edit.html',
+                           sprzet=None,
+                           categories=CATEGORIES,
+                           magazyny_names=MAGAZYNY_NAMES,
+                           all_items=potential_parents,
+                           qty_suggestions_zelastwo=_build_qty_suggestions(CATEGORIES['ZELASTWO']),
+                           qty_suggestions_kanadyjki=_build_qty_suggestions(CATEGORIES['KANADYJKI']),
+                           do_czego_suggestions=_build_do_czego_suggestions())
+
+@views_bp.route('/sprzet/import', methods=['GET', 'POST'])
+@quartermaster_required
+def sprzet_import():
+    diff_data = []
+    if request.method == 'POST' and 'file' in request.files:
+        f = request.files['file']
+        if f.filename:
+            ext = os.path.splitext(f.filename)[1].lower()
+            try:
+                if ext == '.csv':
+                    df = pd.read_csv(f, on_bad_lines='skip').fillna('')
+                elif ext == '.xlsx':
+                    df = pd.read_excel(f).fillna('')
+                else:
+                    flash('Nieobsługiwany format pliku.', 'danger')
+                    return redirect(url_for('views.sprzet_import'))
+
+                mapping = {
+                    'Typ': 'typ', 'ID': 'id', 'Zakup': 'zakup', 'Przejęty': 'przejecie',
+                    'Znak szczególny': 'znak_szczegolny', 'Zapałki': 'zapalki',
+                    'Kolor dachu': 'kolor_dachu', 'Kolor boków': 'kolor_bokow',
+                    'ZMIANA STANU (WRACA DO WARSZAWY)': 'czyWraca',
+                    'Wodoszczelność': 'wodoszczelnosc', 'Stan ogólny': 'stan_ogolny',
+                    'Uwagi konserwacyjne': 'uwagi', 'Magazyn': 'lokalizacja',
+                    'Lokalizacja': 'lokalizacja',
+                    'Przeznaczenie': 'przeznaczenie', 'Historia': 'historia'
+                }
+                df = df.rename(columns=mapping)
+
+                # Standaryzacja ID
+                if 'id' not in df.columns:
+                    flash('Brak kolumny ID w pliku.', 'danger')
+                    return redirect(url_for('views.sprzet_import'))
+
+                all_sprzet = {s['id']: s for s in get_all_sprzet()}
+
+                for _, row in df.iterrows():
+                    sid = str(row['id']).upper().strip()
+                    if not sid or sid == 'NAN': continue
+
+                    new_data = {mapping[k]: str(v).strip() for k, v in row.to_dict().items() if k in mapping and mapping[k] != 'id'}
+
+                    if sid in all_sprzet:
+                        old_data = {k: v for k, v in all_sprzet[sid].items() if k not in ['id', 'zdjecia_lista_url']}
+                        diffs = {}
+                        for k, v in new_data.items():
+                            old_val = str(old_data.get(k, '')).strip()
+                            if v and v != old_val:
+                                diffs[k] = {'old': old_val, 'new': v}
+
+                        if diffs:
+                            diff_data.append({'id': sid, 'diffs': diffs, 'new_data': new_data, 'before_data': old_data})
+                    else:
+                        diff_data.append({'id': sid, 'diffs': {}, 'new_data': new_data})
+
+                if not diff_data:
+                    flash('Brak różnic lub nowych danych do zaimportowania.', 'info')
+
+            except Exception as e:
+                flash(f'Błąd przetwarzania pliku: {e}', 'danger')
+
+    return render_template('sprzet_import.html', diff_data=diff_data)
+
+@views_bp.route('/sprzet/import/confirm', methods=['POST'])
+@quartermaster_required
+def sprzet_import_confirm():
+    import_ids = request.form.getlist('import_ids')
+    count = 0
+    for sid in import_ids:
+        data_json = request.form.get(f'data_{sid}')
+        if data_json:
+            data = json.loads(data_json)
+            before_json = request.form.get(f'before_{sid}')
+            before_data = json.loads(before_json) if before_json else None
+
+            set_item(COLLECTION_SPRZET, sid, data)
+            add_log(session.get('user_id'), 'import', 'sprzet', sid, before=before_data, after=data)
+            count += 1
+
+    flash(f'Pomyślnie zaimportowano/zaktualizowano {count} pozycji.', 'success')
+    return redirect(url_for('views.sprzet_list'))
+
+@views_bp.route('/sprzet/edit/<sprzet_id>', methods=['GET', 'POST'])
+@quartermaster_required
+def sprzet_edit(sprzet_id):
+    sprzet = get_sprzet_item(sprzet_id)
+    if not sprzet:
+        flash('Nie znaleziono sprzętu.', 'danger')
+        return redirect(url_for('views.sprzet_list'))
+
+    if request.method == 'POST':
+        data = {k: v for k, v in request.form.items() if k != 'id'}
+        _normalize_qty_fields(data, sprzet.get('category'))
+
+        # Obsługa nowych zdjęć
+        urls, err = process_uploads(request.files.getlist('nowe_zdjecia'), 'sprzet', sprzet_id)
+        if err:
+            flash(err, 'warning')
+
+        # Obsługa usuwania zdjęć - porównujemy blob_name zamiast pełnych URL
+        from .gcs_utils import extract_blob_name, list_equipment_photos, delete_blob_from_gcs
+        zdjecia_do_usuniecia = request.form.getlist('usun_zdjecia')
+        blob_names_do_usuniecia = []
+        for url in zdjecia_do_usuniecia:
+            bn = extract_blob_name(url)
+            if bn:
+                blob_names_do_usuniecia.append(bn)
+                # Fizycznie usuwamy plik z GCS, aby uniknąć fallbacku i osieroconych plików
+                delete_blob_from_gcs(bn)
+
+        # Priorytet dla zdjęć w bazie danych, jeśli brak - sprawdzamy fallback (GCS)
+        aktualne_zdjecia = sprzet.get('zdjecia')
+        if aktualne_zdjecia is None:
+            # Jeśli w bazie nie ma listy, pobierz ją z GCS (tak jak widzi to użytkownik na karcie)
+            # Uwaga: list_equipment_photos zwraca Signed URLs, które extract_blob_name potrafi obsłużyć.
+            aktualne_zdjecia = list_equipment_photos(sprzet_id)
+
+        # Usuwamy z listy te zdjęcia, które użytkownik zaznaczył do usunięcia.
+        # Porównujemy blob_name, aby uniknąć problemów z wygasającymi tokenami w Signed URLs.
+        nowa_lista_zdjec = [
+            z for z in aktualne_zdjecia
+            if extract_blob_name(z) not in blob_names_do_usuniecia
+        ]
+        if urls:
+            nowa_lista_zdjec.extend(urls)
+
+        data['zdjecia'] = nowa_lista_zdjec
+
+        # Przygotuj dane przed zapisem do loga
+        before_data = {k: v for k, v in sprzet.items() if k not in ['id', 'zdjecia_lista_url']}
+
+        update_sprzet(sprzet_id, **data)
+        add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, before=before_data, after=data)
+        flash(f'Sprzęt {sprzet_id} został zaktualizowany.', 'success')
+        return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
+
+    # Priorytet dla zdjęć zapisanych w bazie danych (odświeżamy linki), fallback do listowania GCS
+    from .gcs_utils import list_equipment_photos
+    zdjecia_z_bazy = sprzet.get('zdjecia')
+    if zdjecia_z_bazy is not None:
+        sprzet['zdjecia_lista_url'] = refresh_urls(zdjecia_z_bazy)
+    else:
+        sprzet['zdjecia_lista_url'] = list_equipment_photos(sprzet_id)
+
+    # Filtrujemy potencjalnych rodziców: tylko Magazyny i Półki/Skrzynie
+    potential_parents = [s for s in get_all_sprzet() if s.get('category') in [CATEGORIES['MAGAZYN'], CATEGORIES['POLKA']]]
+
+    return render_template('sprzet_edit.html',
+                           sprzet=sprzet,
+                           categories=CATEGORIES,
+                           magazyny_names=MAGAZYNY_NAMES,
+                           all_items=potential_parents,
+                           qty_suggestions_zelastwo=_build_qty_suggestions(CATEGORIES['ZELASTWO']),
+                           qty_suggestions_kanadyjki=_build_qty_suggestions(CATEGORIES['KANADYJKI']),
+                           do_czego_suggestions=_build_do_czego_suggestions())
+
+@views_bp.route('/sprzet/delete/<sprzet_id>', methods=['POST'])
+@quartermaster_required
+def sprzet_delete(sprzet_id):
+    delete_item(COLLECTION_SPRZET, sprzet_id)
+    add_log(session.get('user_id'), 'delete', 'sprzet', sprzet_id)
+    flash(f'Sprzęt {sprzet_id} został usunięty.', 'success')
+    return redirect(url_for('views.sprzet_list'))
+
+@views_bp.route('/sprzet/<sprzet_id>', methods=['GET', 'POST'])
+@login_required
+def sprzet_card(sprzet_id):
+    sprzet_item = get_sprzet_item(sprzet_id)
+    if not sprzet_item:
+        flash(f'Sprzęt "{sprzet_id}" nie został znaleziony.', 'danger')
+        return redirect(url_for('views.sprzet_list'))
+
+    # Wymóg: w /sprzet/<sprzet-id> NIE pozwalaj na dodanie usterki
+    if request.method == 'POST':
+        return "Brak dostępu.", 403
+
+    # Priorytet dla zdjęć zapisanych w bazie danych, fallback do listowania GCS
+    zdjecia_z_bazy = sprzet_item.get('zdjecia')
+    if zdjecia_z_bazy is not None:
+        sprzet_item['zdjecia_lista_url'] = refresh_urls(zdjecia_z_bazy)
+    else:
+        sprzet_item['zdjecia_lista_url'] = list_equipment_photos(sprzet_id)
+
+    # Usterki (publicznie pokazujemy zgłoszone usterki)
+    usterki = get_usterki_for_sprzet(sprzet_id)
+
+    # Informacja czy aktualnie jest wypożyczone (bez historii i bez danych kontaktowych)
+    active_loan = None
+    try:
+        loans = get_loans_for_item(sprzet_id)
+        active_loan = next((l for l in loans if l.get('status') == 'active'), None)
+    except Exception:
+        active_loan = None
+
+    return render_template(
+        'sprzet_card.html',
+        sprzet=sprzet_item,
+        usterki=usterki,
+        # brak logów i brak historii wypożyczeń
+        logs=[],
+        loans=[],
+        active_loan=active_loan,
+        # pomocnicza flaga dla template'u
+        is_loaned=bool(active_loan),
+    )
 
 
 # =======================================================================
@@ -625,218 +667,45 @@ def sprzet_delete(sprzet_id):
     return redirect(url_for('views.sprzet_list'))
 
 @views_bp.route('/sprzet/<sprzet_id>', methods=['GET', 'POST'])
+@login_required
 def sprzet_card(sprzet_id):
     sprzet_item = get_sprzet_item(sprzet_id)
     if not sprzet_item:
         flash(f'Sprzęt "{sprzet_id}" nie został znaleziony.', 'danger')
         return redirect(url_for('views.sprzet_list'))
 
+    # Wymóg: w /sprzet/<sprzet-id> NIE pozwalaj na dodanie usterki
     if request.method == 'POST':
-        if not session.get('user_id'):
-            flash('Musisz być zalogowany, aby dodać usterkę.', 'warning')
-            return redirect(url_for('auth.login'))
-
-        opis = request.form.get('opis_usterki')
-
-        if not opis:
-            flash('Opis usterki nie może być pusty!', 'warning')
-        else:
-            try:
-                db = get_firestore_client()
-                doc_ref = db.collection('usterki').document()
-                urls, err = process_uploads(request.files.getlist('zdjecia_usterki'), 'usterki', doc_ref.id)
-                if err:
-                    flash(err, 'warning')
-                else:
-                    data = {
-                        'sprzet_id': sprzet_id,
-                        'opis': opis,
-                        'zgloszono_przez': session.get('user_name', 'Anonim'),
-                        'user_id': session.get('user_id'),
-                        'data_zgloszenia': _warsaw_now(),
-                        'status': 'oczekuje',
-                        'zdjecia': urls
-                    }
-                    doc_ref.set(data)
-                    add_log(session.get('user_id'), 'add', 'usterka', doc_ref.id, data)
-                    flash(f'Usterka dla {sprzet_id} została zgłoszona!', 'success')
-            except Exception as e:
-                flash(f'Błąd: {e}', 'danger')
-            return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
+        return "Brak dostępu.", 403
 
     # Priorytet dla zdjęć zapisanych w bazie danych, fallback do listowania GCS
     zdjecia_z_bazy = sprzet_item.get('zdjecia')
-    # Używamy jawnego sprawdzenia is not None, aby [] (pusta lista) nie wyzwalała fallbacku
     if zdjecia_z_bazy is not None:
         sprzet_item['zdjecia_lista_url'] = refresh_urls(zdjecia_z_bazy)
     else:
-        # Fallback tylko jeśli pole 'zdjecia' w ogóle nie istnieje w dokumencie
         sprzet_item['zdjecia_lista_url'] = list_equipment_photos(sprzet_id)
 
-    # Pobieranie logów aktywności dla tego sprzętu
-    from .db_firestore import get_logs_by_target
-    from .db_users import get_all_users
-    
-    # Pobieramy tylko ostatnie 15 logów dla wydajności karty
-    logs = get_logs_by_target(sprzet_id, limit=15)
-    users = get_all_users()
-    user_map = build_user_map(users)
-    
-    for log in logs:
-        log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
+    # Usterki (publicznie pokazujemy zgłoszone usterki)
+    usterki = get_usterki_for_sprzet(sprzet_id)
 
-    # Dodaj mapę sprzętów do sprzet_card, aby wyciągnąć magazyn_id i magazyn_display
-    all_items = get_all_sprzet()
-    sprzet_map = {s['id']: s for s in all_items if 'id' in s}
-    if not sprzet_item.get('magazyn_display'):
-        curr = sprzet_item
-        visited = set()
-        while curr.get('parent_id') and curr['parent_id'] not in visited:
-            visited.add(curr['id'])
-            parent = sprzet_map.get(curr['parent_id'])
-            if not parent:
-                break
-            if parent.get('category') == CATEGORIES['MAGAZYN']:
-                sprzet_item['magazyn_display'] = parent.get('nazwa') or parent.get('id')
-                sprzet_item['magazyn_id'] = parent.get('id')
-                break
-            curr = parent
-        if not sprzet_item.get('magazyn_display') and sprzet_item.get('lokalizacja'):
-            sprzet_item['magazyn_display'] = sprzet_item['lokalizacja']
+    # Informacja czy aktualnie jest wypożyczone (bez historii i bez danych kontaktowych)
+    active_loan = None
+    try:
+        loans = get_loans_for_item(sprzet_id)
+        active_loan = next((l for l in loans if l.get('status') == 'active'), None)
+    except Exception:
+        active_loan = None
 
-    # Aktywne wypożyczenie
-    loans = get_loans_for_item(sprzet_id)
-    active_loan = next((l for l in loans if l.get('status') == 'active'), None)
-
-    return render_template('sprzet_card.html', sprzet=sprzet_item,
-                           usterki=get_usterki_for_sprzet(sprzet_id),
-                           logs=logs,
-                           loans=loans,
-                           active_loan=active_loan)
-
-
-@views_bp.route('/sprzet/<sprzet_id>/quick_photo', methods=['POST'])
-@quartermaster_required
-def quick_photo(sprzet_id):
-    """Szybkie dodawanie zdjęcia aparatem z poziomu karty sprzętu."""
-    sprzet = get_sprzet_item(sprzet_id)
-    if not sprzet:
-        flash("Nie znaleziono sprzętu", "danger")
-        return redirect(url_for('views.sprzet_list'))
-
-    if 'foto' in request.files:
-        urls, err = process_uploads([request.files['foto']], 'sprzet', sprzet_id)
-        if err:
-            flash(err, 'warning')
-        if urls:
-            aktualne_zdjecia = sprzet.get('zdjecia', [])
-            aktualne_zdjecia.extend(urls)
-            update_sprzet(sprzet_id, zdjecia=aktualne_zdjecia)
-            add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, details={'action': 'quick_photo_add'})
-            flash('Zdjęcie zostało dodane.', 'success')
-
-    return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
-
-
-@views_bp.route('/sprzet/<sprzet_id>/qrcode')
-def generate_qr_code(sprzet_id):
-    """Generuje kod QR dla danego sprzętu i zwraca go jako obraz PNG."""
-    # Sprawdź czy sprzęt istnieje
-    sprzet_item = get_sprzet_item(sprzet_id)
-    if not sprzet_item:
-        # Zamiast redirect (który psuje tag <img>), zwracamy 404 lub puste
-        return "Sprzęt nie istnieje", 404
-    qr_url = os.getenv('QR_URL')
-    if not qr_url:
-        # Błędna konfiguracja aplikacji - brak bazowego adresu dla kodów QR
-        current_app.logger.error("QR_URL environment variable is not set or empty; cannot generate QR code URL.")
-        return "Błąd konfiguracji kodu QR", 500
-
-    # Generuj URL do strony sprzętu
-    target_url = f"{qr_url}/sprzet/{sprzet_id}"
-
-    # Sprawdź czy jest tryb debug
-    is_debug = os.getenv('FLASK_ENV') == 'development' or os.getenv('DEBUG') == 'True'
-    if is_debug:
-        target_url += '?dev'
-
-    # Generuj kod QR
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(target_url)
-    qr.make(fit=True)
-
-    # Twórz obraz
-    img = qr.make_image(fill_color="black", back_color="white")
-
-    # Zapisz do BytesIO
-    img_io = BytesIO()
-    img.save(img_io, 'PNG')
-    img_io.seek(0)
-
-    # Zwróć plik
-    return send_file(
-        img_io,
-        mimetype='image/png',
-        as_attachment=request.args.get('download') == '1',
-        download_name=f'QR_{sprzet_id}.png'
-    )
-
-@views_bp.route('/sprzet/<sprzet_id>/qr')
-def sprzet_qr_page(sprzet_id):
-    """Prosta strona HTML z QR dla danego sprzętu.
-
-    To jest alternatywa dla modala na liście. Otwieramy w nowej karcie –
-    dzięki temu omijamy problemy z bootstrap modal/focus/cache i łatwo diagnozować błędy.
-    """
-    sprzet_item = get_sprzet_item(sprzet_id)
-    if not sprzet_item:
-        return "Sprzęt nie istnieje", 404
-
-    target_url = url_for('views.sprzet_card', sprzet_id=sprzet_id, _external=True)
-
-    # Używamy istniejącego endpointu PNG (można też pobrać bezpośrednio)
-    qr_png_url = url_for('views.generate_qr_code', sprzet_id=sprzet_id)
-
-    name = sprzet_item.get('nazwa') or sprzet_item.get('typ') or sprzet_id
-
-    # Escape values before embedding into HTML to prevent XSS
-    sprzet_id_escaped = html.escape(str(sprzet_id), quote=True)
-    name_escaped = html.escape(str(name), quote=True)
-    qr_png_url_escaped = html.escape(qr_png_url, quote=True)
-    target_url_escaped = html.escape(target_url, quote=True)
-
-    # Minimalny HTML inline – bez dodatkowych template'ów.
-    return (
-        "<!doctype html>\n"
-        "<html lang=\"pl\">\n"
-        "<head>\n"
-        "  <meta charset=\"utf-8\">\n"
-        "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-        f"  <title>QR: {sprzet_id_escaped}</title>\n"
-        "  <style>body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:24px;}"
-        ".box{max-width:520px;margin:0 auto;text-align:center;}"
-        "img{max-width:420px;width:100%;height:auto;border:1px solid #ddd;border-radius:8px;padding:12px;background:#fff;}"
-        "a{display:inline-block;margin:10px 6px;}"
-        ".id{font-family:ui-monospace,Consolas,monospace;}"
-        "</style>\n"
-        "</head>\n"
-        "<body>\n"
-        "  <div class=\"box\">\n"
-        f"    <h2>QR: <span class=\"id\">{sprzet_id_escaped}</span></h2>\n"
-        f"    <div style=\"margin-bottom:6px;color:#555\">{name_escaped}</div>\n"
-        f"    <img src=\"{qr_png_url_escaped}\" alt=\"QR {sprzet_id_escaped}\">\n"
-        "    <div>\n"
-        f"      <a href=\"{target_url_escaped}\" target=\"_blank\" rel=\"noopener\">Otwórz kartę sprzętu</a>\n"
-        f"      <a href=\"{qr_png_url_escaped}?download=1\">Pobierz PNG</a>\n"
-        "    </div>\n"
-        "  </div>\n"
-        "</body>\n"
-        "</html>\n"
+    return render_template(
+        'sprzet_card.html',
+        sprzet=sprzet_item,
+        usterki=usterki,
+        # brak logów i brak historii wypożyczeń
+        logs=[],
+        loans=[],
+        active_loan=active_loan,
+        # pomocnicza flaga dla template'u
+        is_loaned=bool(active_loan),
     )
 
 
@@ -845,51 +714,10 @@ def sprzet_qr_page(sprzet_id):
 # =======================================================================
 
 @views_bp.route('/usterki')
-@login_required
+@full_login_required
 def usterki_list():
-    """Panel administratora - lista wszystkich usterek."""
-    status = request.args.get('status')
-    magazyn = request.args.get('magazyn')
-    sprzet_id = request.args.get('sprzet_id')
-    oficjalna_ewidencja = request.args.get('oficjalna_ewidencja')
-
-    usterki = get_all_usterki()
-    sprzet_items = get_all_sprzet()
-    sprzet_map = {s['id']: s for s in sprzet_items}
-    
-    filtered_usterki = []
-    for u in usterki:
-        s = sprzet_map.get(u.get('sprzet_id'))
-        u['nazwa_sprzetu'] = s.get('nazwa', 'N/A') if s else 'USUNIĘTY'
-        u['magazyn'] = s.get('lokalizacja', 'N/A') if s else 'N/A' # Używamy lokalizacja jako magazyn
-        u['oficjalna_ewidencja'] = s.get('oficjalna_ewidencja', 'Nie') if s else 'Nie'
-        
-        # Filtrowanie w pamięci
-        match = True
-        if status and u.get('status') != status:
-            match = False
-        if magazyn and u.get('magazyn') != magazyn:
-            match = False
-        if sprzet_id and u.get('sprzet_id') != sprzet_id:
-            match = False
-        if oficjalna_ewidencja and u.get('oficjalna_ewidencja') != oficjalna_ewidencja:
-            match = False
-            
-        if match:
-            filtered_usterki.append(u)
-    
-    statuses = sorted(list(set(u.get('status') for u in usterki if u.get('status'))))
-    magazyny = sorted(list(set(s.get('lokalizacja') for s in sprzet_items if s.get('lokalizacja'))))
-    ids_sprzetu = sorted(list(set(u.get('sprzet_id') for u in usterki if u.get('sprzet_id'))))
-    ewidencje = sorted(list(set(u.get('oficjalna_ewidencja') for u in filtered_usterki if u.get('oficjalna_ewidencja'))))
-
-    return render_template('usterki_list.html', 
-                           usterki=filtered_usterki,
-                           statuses=statuses,
-                           magazyny=magazyny,
-                           ids_sprzetu=ids_sprzetu,
-                           ewidencje=ewidencje,
-                           selected_filters=request.args)
+    # Wymóg bezpieczeństwa: nie udostępniaj listy usterek.
+    return "Brak dostępu.", 403
 
 @views_bp.route('/usterka/<usterka_id>')
 @login_required
@@ -1233,138 +1061,8 @@ def user_profile(user_id):
 @views_bp.route('/sprzet/zestawienie')
 @login_required
 def sprzet_zestawienie():
-    """Widok zestawienia elementów (porównanie zasobów)."""
-    # Parametry dynamiczne
-    cat_a = request.args.get('cat_a')
-    cat_b = request.args.get('cat_b')
-    magazyn_id = request.args.get('magazyn_id')
-    
-    # Predefiniowane presety (kompatybilność wsteczna)
-    preset = request.args.get('preset')
-    if preset == 'namioty_zelastwo':
-        cat_a = CATEGORIES['NAMIOT']
-        cat_b = CATEGORIES['ZELASTWO']
-    elif preset == 'kanadyjki':
-        cat_a = CATEGORIES['KANADYJKI']
-        # Kanadyjki są specyficzne, bo porównujemy kanadyjki z zestawami naprawczymi (też kategoria kanadyjki)
-        cat_b = CATEGORIES['KANADYJKI']
-
-    items = get_all_sprzet()
-    
-    # Filtrowanie po magazynie (opcjonalne)
-    if magazyn_id:
-        # Znajdź wszystkie dzieci tego magazynu (rekurencyjnie lub tylko bezpośrednie?)
-        # W tej aplikacji struktura jest zazwyczaj: Magazyn -> Polka/Skrzynia -> Przedmiot
-        # lub Magazyn -> Przedmiot.
-        # Pobierzmy wszystkie przedmioty i przefiltrujmy po parent_id lub lokalizacji.
-        magazyn_children_ids = {magazyn_id}
-        # Dodajmy półki które są w tym magazynie
-        for i in items:
-            if i.get('parent_id') == magazyn_id:
-                magazyn_children_ids.add(i.get('id'))
-        
-        items = [i for i in items if i.get('id') == magazyn_id or i.get('parent_id') in magazyn_children_ids]
-
-    summary = {}
-    
-    if cat_a and cat_b:
-        group_a = [i for i in items if i.get('category') == cat_a]
-        group_b = [i for i in items if i.get('category') == cat_b]
-        
-        # Specyficzna logika dla kanadyjek
-        if preset == 'kanadyjki' or (cat_a == CATEGORIES['KANADYJKI'] and cat_b == CATEGORIES['KANADYJKI']):
-            kanadyjki = [i for i in group_a if 'zestaw naprawczy' not in (i.get('nazwa') or '').lower()]
-            naprawcze = [i for i in group_b if 'zestaw naprawczy' in (i.get('nazwa') or '').lower()]
-            
-            k_count = len(kanadyjki)
-            n_count = sum(int(i.get('ilosc', 0)) for i in naprawcze if str(i.get('ilosc', '')).isdigit())
-            
-            summary = {
-                'title': 'Zestawienie: Kanadyjki vs Zestawy Naprawcze',
-                'rows': [{
-                    'label': 'Kanadyjki',
-                    'demand': k_count,
-                    'supply': n_count,
-                    'diff': n_count - k_count,
-                    'status': 'ok' if n_count == k_count else ('excess' if n_count > k_count else 'shortage')
-                }]
-            }
-        # Specyficzna logika dla Namioty vs Żelastwo
-        elif (cat_a == CATEGORIES['NAMIOT'] and cat_b == CATEGORIES['ZELASTWO']) or \
-             (cat_a == CATEGORIES['ZELASTWO'] and cat_b == CATEGORIES['NAMIOT']):
-            
-            namioty = group_a if cat_a == CATEGORIES['NAMIOT'] else group_b
-            zelastwo = group_b if cat_b == CATEGORIES['ZELASTWO'] else group_a
-            
-            namioty_stats = {}
-            for n in namioty:
-                t = n.get('typ', 'Nieokreślony')
-                namioty_stats[t] = namioty_stats.get(t, 0) + 1
-                
-            zelastwo_stats = {}
-            for z in zelastwo:
-                target = z.get('do_czego', 'Nieokreślone')
-                qty = z.get('ilosc', 0)
-                try: qty = int(qty)
-                except (ValueError, TypeError): qty = 0
-                zelastwo_stats[target] = zelastwo_stats.get(target, 0) + qty
-                
-            summary = {
-                'title': 'Zestawienie: Namioty vs Omasztowanie',
-                'rows': []
-            }
-            all_types = sorted(list(set(namioty_stats.keys()) | set(zelastwo_stats.keys())))
-            for t in all_types:
-                n_val = namioty_stats.get(t, 0)
-                z_val = zelastwo_stats.get(t, 0)
-                diff = z_val - n_val
-                summary['rows'].append({
-                    'label': t,
-                    'demand': n_val,
-                    'supply': z_val,
-                    'diff': diff,
-                    'status': 'ok' if diff == 0 else ('excess' if diff > 0 else 'shortage')
-                })
-        else:
-            # Generyczna logika dla innych kategorii
-            # Próbujemy grupować po 'typ' lub 'nazwa'
-            stats_a = {}
-            for i in group_a:
-                label = i.get('typ') or i.get('nazwa') or 'Inne'
-                stats_a[label] = stats_a.get(label, 0) + (int(i.get('ilosc', 1)) if str(i.get('ilosc', '')).isdigit() else 1)
-            
-            stats_b = {}
-            for i in group_b:
-                label = i.get('typ') or i.get('nazwa') or 'Inne'
-                stats_b[label] = stats_b.get(label, 0) + (int(i.get('ilosc', 1)) if str(i.get('ilosc', '')).isdigit() else 1)
-            
-            summary = {
-                'title': f'Zestawienie: {cat_a.capitalize()} vs {cat_b.capitalize()}',
-                'rows': []
-            }
-            all_labels = sorted(list(set(stats_a.keys()) | set(stats_b.keys())))
-            for l in all_labels:
-                a_val = stats_a.get(l, 0)
-                b_val = stats_b.get(l, 0)
-                diff = b_val - a_val
-                summary['rows'].append({
-                    'label': l,
-                    'demand': a_val,
-                    'supply': b_val,
-                    'diff': diff,
-                    'status': 'ok' if diff == 0 else ('excess' if diff > 0 else 'shortage')
-                })
-
-    magazyny = [i for i in get_all_sprzet() if i.get('category') == CATEGORIES['MAGAZYN']]
-    
-    return render_template('sprzet_zestawienie.html', 
-                           summary=summary, 
-                           preset=preset, 
-                           cat_a=cat_a, 
-                           cat_b=cat_b, 
-                           magazyn_id=magazyn_id,
-                           kategorie=CATEGORIES,
-                           magazyny=magazyny)
+    # Wymóg bezpieczeństwa: nie udostępniaj zestawienia.
+    return "Brak dostępu.", 403
 
 @views_bp.route('/sprzet/export/<format>')
 @login_required

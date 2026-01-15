@@ -12,9 +12,12 @@
                     <p class="mb-4">Kompleksowe rozwiązanie do zarządzania sprzętem, zgłaszania usterek i koordynacji
                         prac konserwacyjnych.</p>
                     {% if not IS_LOGGED_IN %}
-                        <div class="d-flex gap-3 justify-content-center">
+                        <div class="d-flex gap-3 justify-content-center flex-wrap">
                             <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg">
                                 <i class="bi bi-box-arrow-in-right"></i> Zaloguj się
+                            </a>
+                            <a href="{{ url_for('auth.pin_login') }}" class="btn btn-outline-primary btn-lg">
+                                <i class="bi bi-shield-lock"></i> Dostęp przez PIN
                             </a>
                         </div>
                     {% else %}
