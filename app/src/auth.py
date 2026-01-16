@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from functools import wraps
 import requests
-import random
+import secrets
 from firebase_admin import auth
-from datetime import timedelta
+from datetime import timedelta, datetime
 from urllib.parse import urlparse
 
 from . import GOOGLE_API_KEY
@@ -168,14 +168,17 @@ def get_or_rotate_pin():
     
     # Jeśli PIN nie istnieje, wygeneruj go
     if not pin:
-        pin = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
         update_config(view_pin=pin, pin_last_rotate=now)
         return pin
         
     # Jeśli auto_rotate jest włączone i minął czas (np. 24h)
     if auto_rotate and last_rotate:
+        # Convert last_rotate to datetime if it's a string
+        if isinstance(last_rotate, str):
+            last_rotate = datetime.fromisoformat(last_rotate)
         if now - last_rotate > timedelta(days=1):
-             pin = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+             pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
              update_config(view_pin=pin, pin_last_rotate=now)
              
     return pin

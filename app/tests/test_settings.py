@@ -2,10 +2,10 @@ import unittest
 import sys
 import os
 
-# Dodaj folder 'app' do ścieżki, aby importy działały
+# Add the 'app' folder to sys.path so imports work correctly
 sys.path.append(os.path.join(os.getcwd(), 'app'))
 
-# Popraw ścieżkę do credentials dla testu, jeśli uruchamiamy z roota
+# Fix the path to credentials for test if running from root
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(os.getcwd(), 'credentials', 'service-account.json')
 
 from src import create_app
@@ -18,7 +18,7 @@ class SettingsTemplateTestCase(unittest.TestCase):
         self.client = self.app.test_client()
 
     def test_settings_page_renders_with_pin_last_rotate(self):
-        """Sprawdza, czy strona ustawień renderuje się poprawnie, gdy ustawiony jest pin_last_rotate."""
+        """Tests if the settings page renders correctly when pin_last_rotate is set."""
         from datetime import datetime
         
         with self.client.session_transaction() as sess:
