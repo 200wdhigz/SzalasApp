@@ -163,6 +163,7 @@ def get_or_rotate_pin():
     pin = config.get('view_pin')
     auto_rotate = config.get('pin_auto_rotate', False)
     last_rotate = config.get('pin_last_rotate')
+    rotate_hours = config.get('pin_rotate_hours', 24)  # Default to 24 hours
     
     now = _warsaw_now()
     
@@ -172,7 +173,7 @@ def get_or_rotate_pin():
         update_config(view_pin=pin, pin_last_rotate=now)
         return pin
         
-    # Jeśli auto_rotate jest włączone i minął czas (np. 24h)
+    # Jeśli auto_rotate jest włączone i minął czas
     if auto_rotate and last_rotate:
         # Convert last_rotate to datetime if it's a string
         if isinstance(last_rotate, str):
@@ -181,7 +182,7 @@ def get_or_rotate_pin():
             except (ValueError, TypeError):
                 # If conversion fails, treat as if last_rotate doesn't exist
                 last_rotate = None
-        if last_rotate and now - last_rotate > timedelta(days=1):
+        if last_rotate and now - last_rotate > timedelta(hours=rotate_hours):
             pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
             update_config(view_pin=pin, pin_last_rotate=now)
             
