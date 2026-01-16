@@ -760,6 +760,14 @@ def generate_qr_code(sprzet_id):
         # request.host_url ma trailing slash
         base = request.host_url.rstrip('/')
 
+    # Preferuj QR_URL z .env; jeśli brak, fallback na aktualny host.
+    qr_url = (os.getenv('QR_URL') or '').strip()
+    if qr_url:
+        base = qr_url.rstrip('/')
+    else:
+        # request.host_url ma trailing slash
+        base = request.host_url.rstrip('/')
+
     # Generuj URL do strony sprzętu
     target_url = f"{base}/sprzet/{sprzet_id}"
 

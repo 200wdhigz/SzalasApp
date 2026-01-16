@@ -15,7 +15,7 @@ try:
     # 1) app/.env
     load_dotenv(os.path.join(app_dir, '.env'), override=False)
     # 2) repo root .env
-    load_dotenv(os.path.join(repo_root, '.env'), override=False)
+    load_dotenv(os.path.join(repo_root, '.env'), override=True)
 except Exception:
     # dotenv is optional in production; ignore if missing
     pass
