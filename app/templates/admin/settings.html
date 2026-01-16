@@ -43,7 +43,19 @@
                                    {% if config.get('pin_auto_rotate') %}checked{% endif %}>
                             <label class="form-check-label fw-bold" for="pin_auto_rotate">Automatyczna rotacja kodu PIN</label>
                         </div>
-                        <div class="form-text">Jeśli włączone, kod PIN będzie automatycznie zmieniany co 24 godziny.</div>
+                        <div class="form-text">Jeśli włączone, kod PIN będzie automatycznie zmieniany zgodnie z ustawionym interwałem.</div>
+                    </div>
+                    
+                    <div class="mb-4" id="rotate_hours_container">
+                        <label for="pin_rotate_hours" class="form-label fw-bold">Interwał rotacji PIN (w godzinach):</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-clock"></i></span>
+                            <input type="number" id="pin_rotate_hours" name="pin_rotate_hours" class="form-control" 
+                                   value="{{ config.get('pin_rotate_hours', 24) }}"
+                                   min="1" max="720" step="1">
+                            <span class="input-group-text">godzin</span>
+                        </div>
+                        <div class="form-text">Określ co ile godzin PIN będzie automatycznie rotowany (1-720 godzin). Wartość domyślna: 24 godziny.</div>
                     </div>
                     
                     {% if config.get('pin_last_rotate') %}

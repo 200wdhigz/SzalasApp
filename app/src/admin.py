@@ -387,12 +387,28 @@ def settings():
     if request.method == 'POST':
         pin = request.form.get('view_pin')
         auto_rotate = request.form.get('pin_auto_rotate') == 'on'
+        rotate_hours = request.form.get('pin_rotate_hours', '').strip()
         
         # Opcjonalnie: walidacja tokena CSRF, jeśli admin go używa (widzę że admin.py go używa)
         if not validate_csrf_token():
              return redirect(url_for('admin.settings'))
 
         update_data = {'pin_auto_rotate': auto_rotate}
+        
+        # Validate and set rotation hours - always set it even if empty (use default)
+        if not rotate_hours:
+            update_data['pin_rotate_hours'] = 24  # Default value
+        else:
+            try:
+                hours = int(rotate_hours)
+                if hours < 1 or hours > 720:  # Between 1 hour and 30 days
+                    flash('Interwał rotacji musi być między 1 a 720 godzin (30 dni).', 'danger')
+                    return redirect(url_for('admin.settings'))
+                update_data['pin_rotate_hours'] = hours
+            except ValueError:
+                flash('Interwał rotacji musi być liczbą całkowitą.', 'danger')
+                return redirect(url_for('admin.settings'))
+        
         if pin:
             if not pin.isdigit() or len(pin) != 6:
                 flash('PIN musi składać się z 6 cyfr.', 'danger')
