@@ -193,15 +193,21 @@ def pin_login():
             session['user_name'] = 'Gość (PIN)'
             flash('Dostęp przyznany za pomocą PIN.', 'success')
             next_url = request.args.get('next')
+            normalized_next = None
             if next_url:
                 # Normalizuj i sprawdź, czy URL jest względny (bez hosta i schematu)
-                normalized_next = next_url.replace('\\', '/')
-                parsed = urlparse(normalized_next)
-                # Sprawdź czy URL jest bezpieczny (tylko względna ścieżka zaczynająca się od /)
-                if parsed.scheme or parsed.netloc or not normalized_next.startswith('/'):
-                    normalized_next = None
-            else:
-                normalized_next = None
+                candidate = next_url.replace('\\', '/').strip()
+                parsed = urlparse(candidate)
+
+                # Bezpieczeństwo:
+                # - blokujemy schemat/host
+                # - blokujemy URL typu //evil.com (protocol-relative)
+                # - wymagamy, żeby ścieżka była absolutna i w allowliście
+                if not parsed.scheme and not parsed.netloc and candidate.startswith('/') and not candidate.startswith('//'):
+                    low = candidate.lower()
+                    if low.startswith('/sprzet/') or low.startswith('/usterka/'):
+                        normalized_next = candidate
+
             safe_next = normalized_next or url_for('views.sprzet_list')
             return redirect(safe_next)
         else:

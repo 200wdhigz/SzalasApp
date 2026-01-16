@@ -625,6 +625,7 @@ def sprzet_delete(sprzet_id):
     return redirect(url_for('views.sprzet_list'))
 
 @views_bp.route('/sprzet/<sprzet_id>', methods=['GET', 'POST'])
+@login_required
 def sprzet_card(sprzet_id):
     sprzet_item = get_sprzet_item(sprzet_id)
     if not sprzet_item:
