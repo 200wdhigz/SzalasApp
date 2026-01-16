@@ -176,8 +176,12 @@ def get_or_rotate_pin():
     if auto_rotate and last_rotate:
         # Convert last_rotate to datetime if it's a string
         if isinstance(last_rotate, str):
-            last_rotate = datetime.fromisoformat(last_rotate)
-        if now - last_rotate > timedelta(days=1):
+            try:
+                last_rotate = datetime.fromisoformat(last_rotate)
+            except (ValueError, TypeError):
+                # If conversion fails, treat as if last_rotate doesn't exist
+                last_rotate = None
+        if last_rotate and now - last_rotate > timedelta(days=1):
             pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
             update_config(view_pin=pin, pin_last_rotate=now)
             
