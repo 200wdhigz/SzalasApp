@@ -53,6 +53,14 @@ class PinRedirectSecurityTestCase(unittest.TestCase):
             self.assertEqual(response.status_code, 302)
             self.assertNotIn('evil.com', response.location)
 
+    def test_blocks_backslash_slash_bypass(self):
+        """Sprawdza, czy próba obejścia z /\\ jest blokowana."""
+        with self.client:
+            response = self.client.post('/pin?next=/\\evil.com', data={'pin': '123456'})
+            self.assertEqual(response.status_code, 302)
+            self.assertNotIn('evil.com', response.location)
+            self.assertIn('/sprzet', response.location)
+
     def test_blocks_protocol_relative_url(self):
         """Sprawdza, czy URL względne do protokołu są blokowane."""
         with self.client:
