@@ -222,24 +222,152 @@
 
     let html5QrCode = null;
 
+    // --- Walidacja QR i bezpośrednie przekierowanie (bez pośrednika) ---
+    // Dozwolone domeny pobieramy z backendu (QR_URL z .env), a localhost zostawiamy na sztywno.
+    const ALLOWED_QR_HOSTS = new Set([
+        {% for h in QR_ALLOWED_HOSTS %}'{{ h }}',{% endfor %}
+        'localhost',
+        '127.0.0.1'
+    ]);
+
+    // Dopuszczalne ścieżki w QR.
+    const ALLOWED_PATH_PREFIXES = ['/sprzet/', '/usterka/'];
+
+    function _isAllowedPath(pathname) {
+        const p = String(pathname || '');
+        const lower = p.toLowerCase();
+        return ALLOWED_PATH_PREFIXES.some(prefix => lower.startsWith(prefix) && p.length > prefix.length);
+    }
+
+    function _redirectToInternalPath(pathWithQuery) {
+        // Przekierowanie w ramach tej aplikacji (bez pośredników i bez zmiany domeny).
+        // Zachowujemy querystring, jeśli QR go ma (np. ?dev).
+        window.location.href = pathWithQuery;
+    }
+
+    function _handleScannedText(decodedText) {
+        const raw = String(decodedText || '').trim();
+        if (!raw) return;
+
+        // 1) Jeśli to pełny URL http/https -> sprawdzamy domenę i robimy redirect tylko po ścieżce.
+        if (raw.startsWith('http://') || raw.startsWith('https://')) {
+            let u;
+            try {
+                u = new URL(raw);
+            } catch (e) {
+                alert('Nieprawidłowy kod QR (URL).');
+                return;
+            }
+
+            const host = (u.hostname || '').toLowerCase();
+            if (!ALLOWED_QR_HOSTS.has(host)) {
+                alert('Ten kod QR pochodzi z niedozwolonej domeny: ' + host);
+                return;
+            }
+
+            if (!_isAllowedPath(u.pathname)) {
+                alert('Ten kod QR prowadzi do niedozwolonej ścieżki: ' + u.pathname);
+                return;
+            }
+
+            _redirectToInternalPath(u.pathname + (u.search || ''));
+            return;
+        }
+
+        // 2) Jeśli to ścieżka względna /sprzet/ID lub sprzet/ID
+        const cleaned = raw.replace(/^\s+|\s+$/g, '').replace(/^\//, '');
+        const candidatePath = '/' + cleaned;
+        if (_isAllowedPath(candidatePath)) {
+            _redirectToInternalPath(candidatePath);
+            return;
+        }
+
+        // 3) Fallback: traktuj jako ID sprzętu
+        _redirectToInternalPath('/sprzet/' + encodeURIComponent(raw));
+    }
+
+    function stopScanner() {
+        try {
+            const statusEl = document.getElementById('scanner-status');
+            if (statusEl) statusEl.textContent = "Zatrzymywanie skanera...";
+
+            if (html5QrCode) {
+                // stop() zwraca Promise; jeśli skaner nie wystartował, może rzucić błąd
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                    html5QrCode = null;
+                    if (statusEl) statusEl.textContent = "Skaner zatrzymany.";
+                }).catch(() => {
+                    // Fallback: spróbuj wyczyścić bez stop
+                    try { html5QrCode.clear(); } catch (_) {}
+                    html5QrCode = null;
+                    if (statusEl) statusEl.textContent = "Skaner zatrzymany.";
+                });
+            }
+        } catch (_) {
+            html5QrCode = null;
+        }
+    }
+
     function startScanner() {
         const modalEl = document.getElementById('qrScannerModal');
+        if (!modalEl) return;
+
         const modal = new bootstrap.Modal(modalEl);
-        
+
         // Zapewnij zatrzymanie skanera przy zamknięciu modala
         modalEl.addEventListener('hidden.bs.modal', stopScanner, { once: true });
-        
+
         modal.show();
 
         const statusEl = document.getElementById('scanner-status');
-        statusEl.textContent = "Uruchamianie kamery...";
+        if (statusEl) statusEl.textContent = "Uruchamianie kamery...";
+
+        // Jeśli został jakiś stary skaner (np. po błędzie), spróbuj posprzątać.
+        stopScanner();
 
         html5QrCode = new Html5Qrcode("reader");
-        const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-            // Przetwarzanie zeskanowanego URL w sposób bezpieczny
-            stopScanner();
-            const modalEl = document.getElementById('qrScannerModal');
-            const modalInstance = bootstrap.Modal.getInstance(modalEl);
-            modalInstance.hide();
 
-            const rawText = (decodedText || '').trim();
+        const onScanSuccess = (decodedText) => {
+            // Zatrzymaj skaner zanim przejdziemy dalej
+            stopScanner();
+
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) modalInstance.hide();
+
+            _handleScannedText(decodedText);
+        };
+
+        const onScanFailure = () => {
+            // Ignorujemy pojedyncze błędy dekodowania; status zostaje.
+        };
+
+        // Konfiguracja skanera
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        Html5Qrcode.getCameras().then((devices) => {
+            if (!devices || devices.length === 0) {
+                if (statusEl) statusEl.textContent = "Brak dostępnych kamer.";
+                return;
+            }
+
+            const cameraId = devices[0].id;
+
+            html5QrCode.start(
+                cameraId,
+                config,
+                onScanSuccess,
+                onScanFailure
+            ).then(() => {
+                if (statusEl) statusEl.textContent = "Skanuj kod QR...";
+            }).catch((err) => {
+                if (statusEl) statusEl.textContent = "Nie udało się uruchomić kamery: " + err;
+            });
+        }).catch((err) => {
+            if (statusEl) statusEl.textContent = "Błąd dostępu do kamery: " + err;
+        });
+    }
+</script>
+
+</body>
+</html>

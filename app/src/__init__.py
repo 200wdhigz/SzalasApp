@@ -73,6 +73,19 @@ def create_app():
     @app.context_processor
     def inject_vars():
         user_role = session.get('user_role')
+
+        # Allowed hosts for QR scans: derived from QR_URL (.env)
+        qr_allowed_hosts: list[str] = []
+        try:
+            from urllib.parse import urlparse
+            qr_env = (os.getenv('QR_URL') or '').strip()
+            if qr_env:
+                parsed = urlparse(qr_env)
+                if parsed.hostname:
+                    qr_allowed_hosts.append(parsed.hostname.lower())
+        except Exception:
+            qr_allowed_hosts = []
+
         return dict(
             is_debug=app.debug,
             IS_LOGGED_IN=('user_id' in session or session.get('is_pin_authenticated')),
@@ -81,7 +94,8 @@ def create_app():
             IS_QUARTERMASTER=('user_id' in session and user_role in ['quartermaster', 'admin']),
             USER_ROLE=user_role,
             csrf_token=generate_csrf_token,
-            hasattr=hasattr
+            hasattr=hasattr,
+            QR_ALLOWED_HOSTS=qr_allowed_hosts,
         )
 
     _init_firebase_admin()

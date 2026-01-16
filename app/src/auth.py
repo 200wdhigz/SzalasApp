@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from functools import wraps
 import requests
-import random
+import secrets
 from firebase_admin import auth
-from datetime import timedelta
+from datetime import timedelta, datetime
 from urllib.parse import urlparse
 
 from . import GOOGLE_API_KEY
@@ -163,21 +163,29 @@ def get_or_rotate_pin():
     pin = config.get('view_pin')
     auto_rotate = config.get('pin_auto_rotate', False)
     last_rotate = config.get('pin_last_rotate')
+    rotate_hours = config.get('pin_rotate_hours', 24)  # Default to 24 hours
     
     now = _warsaw_now()
     
     # Jeśli PIN nie istnieje, wygeneruj go
     if not pin:
-        pin = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
         update_config(view_pin=pin, pin_last_rotate=now)
         return pin
         
-    # Jeśli auto_rotate jest włączone i minął czas (np. 24h)
+    # Jeśli auto_rotate jest włączone i minął czas
     if auto_rotate and last_rotate:
-        if now - last_rotate > timedelta(days=1):
-             pin = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-             update_config(view_pin=pin, pin_last_rotate=now)
-             
+        # Convert last_rotate to datetime if it's a string
+        if isinstance(last_rotate, str):
+            try:
+                last_rotate = datetime.fromisoformat(last_rotate)
+            except (ValueError, TypeError):
+                # If conversion fails, treat as if last_rotate doesn't exist
+                last_rotate = None
+        if last_rotate and now - last_rotate > timedelta(hours=rotate_hours):
+            pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+            update_config(view_pin=pin, pin_last_rotate=now)
+            
     return pin
 
 @auth_bp.route('/pin', methods=['GET', 'POST'])
@@ -193,15 +201,21 @@ def pin_login():
             session['user_name'] = 'Gość (PIN)'
             flash('Dostęp przyznany za pomocą PIN.', 'success')
             next_url = request.args.get('next')
+            normalized_next = None
             if next_url:
                 # Normalizuj i sprawdź, czy URL jest względny (bez hosta i schematu)
-                normalized_next = next_url.replace('\\', '/')
-                parsed = urlparse(normalized_next)
-                # Sprawdź czy URL jest bezpieczny (tylko względna ścieżka zaczynająca się od /)
-                if parsed.scheme or parsed.netloc or not normalized_next.startswith('/'):
-                    normalized_next = None
-            else:
-                normalized_next = None
+                candidate = next_url.replace('\\', '/').strip()
+                parsed = urlparse(candidate)
+
+                # Bezpieczeństwo:
+                # - blokujemy schemat/host
+                # - blokujemy URL typu //evil.com (protocol-relative)
+                # - wymagamy, żeby ścieżka była absolutna i w allowliście
+                if not parsed.scheme and not parsed.netloc and candidate.startswith('/') and not candidate.startswith('//'):
+                    low = candidate.lower()
+                    if low.startswith('/sprzet/') or low.startswith('/usterka/'):
+                        normalized_next = candidate
+
             safe_next = normalized_next or url_for('views.sprzet_list')
             return redirect(safe_next)
         else:

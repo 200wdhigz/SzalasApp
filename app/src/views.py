@@ -625,6 +625,7 @@ def sprzet_delete(sprzet_id):
     return redirect(url_for('views.sprzet_list'))
 
 @views_bp.route('/sprzet/<sprzet_id>', methods=['GET', 'POST'])
+@login_required
 def sprzet_card(sprzet_id):
     sprzet_item = get_sprzet_item(sprzet_id)
     if not sprzet_item:
@@ -750,11 +751,14 @@ def generate_qr_code(sprzet_id):
     if not sprzet_item:
         # Zamiast redirect (który psuje tag <img>), zwracamy 404 lub puste
         return "Sprzęt nie istnieje", 404
-    qr_url = os.getenv('QR_URL')
-    if not qr_url:
-        # Błędna konfiguracja aplikacji - brak bazowego adresu dla kodów QR
-        current_app.logger.error("QR_URL environment variable is not set or empty; cannot generate QR code URL.")
-        return "Błąd konfiguracji kodu QR", 500
+
+    # Preferuj QR_URL z .env; jeśli brak, fallback na aktualny host.
+    qr_url = (os.getenv('QR_URL') or '').strip()
+    if qr_url:
+        base = qr_url.rstrip('/')
+    else:
+        # request.host_url ma trailing slash
+        base = request.host_url.rstrip('/')
 
     # Preferuj QR_URL z .env; jeśli brak, fallback na aktualny host.
     qr_url = (os.getenv('QR_URL') or '').strip()
