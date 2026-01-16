@@ -10,7 +10,7 @@ os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(os.getcwd(), 'creden
 
 from src import create_app
 from flask import url_for, session
-from src.db_firestore import update_config, get_config
+from src.db_firestore import update_config
 
 class SettingsPinViewTestCase(unittest.TestCase):
     def setUp(self):
