@@ -32,6 +32,11 @@
     </style>
 
     <div class="container mt-5">
+        <div class="mb-3">
+            <a href="{{ url_for('views.usterki_list') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Powrót do listy usterek
+            </a>
+        </div>
         <h2 class="mb-4">Karta Usterki: <span class="badge text-bg-warning">{{ usterka.sprzet_id | upper }}</span>
             - ID: {{ usterka.id }}</h2>
 
@@ -175,7 +180,7 @@
                                 <ul class="list-group list-group-flush mb-4">
                                     <li class="list-group-item"><strong>ID Usterki:</strong> {{ usterka.id }}</li>
                                     <li class="list-group-item"><strong>Powiązany Sprzęt:</strong>
-                                        <a href="{{ url_for('views.sprzet_list', parent_id=usterka.sprzet_id) }}"
+                                        <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}"
                                            class="text-decoration-none">
                                             {{ usterka.sprzet_id | upper }}
                                         </a>

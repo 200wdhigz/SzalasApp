@@ -109,6 +109,11 @@
 
 
     <div class="container mt-5">
+        <div class="mb-3">
+            <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Powrót do katalogu
+            </a>
+        </div>
         {% if active_loan and (IS_QUARTERMASTER or session.get('user_role') == 'reporter') %}
             <div class="alert alert-warning shadow-sm border-start border-4 border-warning mb-4">
                 <div class="d-flex align-items-center">
@@ -118,7 +123,9 @@
                         <p class="mb-0">
                             Wypożyczony przez: <strong>{{ active_loan.przez_kogo }}</strong>
                             {% if active_loan.do_kiedy %}(do: {{ active_loan.do_kiedy }}){% endif %}.
-                            Kontakt: {{ active_loan.kontakt or 'N/A' }}.
+                            {% if session.get('user_id') %}
+                                Kontakt: {{ active_loan.kontakt or 'N/A' }}.
+                            {% endif %}
                         </p>
                     </div>
                 </div>
@@ -232,7 +239,7 @@
                     </div>
                 </div>
 
-                {% if IS_LOGGED_IN %}
+                {% if session.get('user_id') %}
                     <div class="card shadow-sm mb-4 d-none d-lg-block">
                         <div class="card-header text-bg-danger">
                             <h4 class="mb-0">Zgłoś Nową Usterkę dla {{ sprzet.id | upper }}</h4>
@@ -425,7 +432,7 @@
                     </div>
                 </div>
 
-                {% if IS_LOGGED_IN %}
+                {% if session.get('user_id') %}
                     <!-- Formularz zgłaszania usterki - widoczny tylko na małych ekranach (mobile) -->
                     <div class="card shadow-sm mb-4 d-lg-none">
                         <div class="card-header bg-danger text-white">
@@ -883,7 +890,7 @@
 
             var isDebug = {{ 'true' if is_debug else 'false' }};
 
-            var baseTarget = window.location.origin + '/sprzet/{{ sprzet.id }}';
+            var baseTarget = '{{ qr_url_base }}/sprzet/{{ sprzet.id }}';
 
             qrModalEl.addEventListener('show.bs.modal', function () {
                 var target = baseTarget;

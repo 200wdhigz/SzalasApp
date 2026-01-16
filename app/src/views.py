@@ -10,7 +10,7 @@ from io import BytesIO
 import html
 
 from . import get_firestore_client
-from .auth import login_required, admin_required, quartermaster_required
+from .auth import login_required, admin_required, quartermaster_required, full_login_required
 from .gcs_utils import list_equipment_photos, upload_blob_to_gcs, refresh_urls
 from .db_firestore import (
     get_sprzet_item, get_usterki_for_sprzet, get_usterka_item,
@@ -178,12 +178,12 @@ def home():
     return render_template('home.html')
 
 @views_bp.route('/sprzety')
-@login_required
+@full_login_required
 def sprzet_list():
     parent_id = request.args.get('parent_id')
     search_query = request.args.get('search')
     category = request.args.get('category')
-    
+
     # Podstawowe filtry
     typ = request.args.get('typ')
     wodoszczelnosc = request.args.get('wodoszczelnosc')
@@ -201,10 +201,10 @@ def sprzet_list():
         filters.append(('lokalizacja', '==', lokalizacja))
     if oficjalna_ewidencja:
         filters.append(('oficjalna_ewidencja', '==', oficjalna_ewidencja))
-    
+
     if parent_id:
         filters.append(('parent_id', '==', parent_id))
-    
+
     if filters:
         items = get_items_by_filters(COLLECTION_SPRZET, filters, order_by='__name__', direction=firestore.Query.ASCENDING)
     else:
@@ -258,7 +258,7 @@ def sprzet_list():
 
     # Pobieramy mapę ID -> obiekt dla wszystkich sprzętów
     sprzet_map = {s['id']: s for s in all_items if 'id' in s}
-    
+
     # Dodajemy informację o nazwie magazynu nadrzędnego
     for item in items:
         # Poczyszczenie po ewentualnych brakach w logice filtrów/importów
@@ -276,13 +276,13 @@ def sprzet_list():
                     item['magazyn_id'] = parent.get('id')
                     break
                 curr = parent
-        
+
         if not item.get('magazyn_display'):
             if item.get('lokalizacja'):
                 item['magazyn_display'] = item['lokalizacja']
             else:
                 item['magazyn_display'] = 'N/A'
-        
+
         # Ochrona danych osobowych dla Zgłaszającego
         if session.get('user_role') not in ['quartermaster', 'admin']:
             # Sprawdzamy czy jest jakieś aktywne wypożyczenie
@@ -300,7 +300,7 @@ def sprzet_list():
         zelastwo = [i for i in items if i.get('category') == CATEGORIES['ZELASTWO']]
         other_items = [i for i in items if i.get('category') != CATEGORIES['ZELASTWO'] and i.get('category') != CATEGORIES['KANADYJKI']]
         kanadyjki = [i for i in items if i.get('category') == CATEGORIES['KANADYJKI']]
-        
+
         # Grupowanie Żelastwa: (do_czego, typ_zelastwa, sprawny)
         zel_groups = {}
         for z in zelastwo:
@@ -308,7 +308,7 @@ def sprzet_list():
             if key not in zel_groups:
                 zel_groups[key] = []
             zel_groups[key].append(z)
-        
+
         for key, group in zel_groups.items():
             if len(group) > 1:
                 # Tworzymy wirtualny obiekt grupy
@@ -324,7 +324,7 @@ def sprzet_list():
                 })
             else:
                 grouped_items.extend(group)
-        
+
         # Grupowanie Kanadyjek: (material, sprawny)
         kan_groups = {}
         for k in kanadyjki:
@@ -332,7 +332,7 @@ def sprzet_list():
             if key not in kan_groups:
                 kan_groups[key] = []
             kan_groups[key].append(k)
-            
+
         for key, group in kan_groups.items():
             if len(group) > 1:
                 rep = group[0]
@@ -347,7 +347,7 @@ def sprzet_list():
                 })
             else:
                 grouped_items.extend(group)
-        
+
         grouped_items.extend(other_items)
         items = grouped_items
 
@@ -390,10 +390,10 @@ def sprzet_list():
         else:
             parent_item['zdjecia_lista_url'] = list_equipment_photos(parent_id)
 
-    return render_template('sprzet_list.html', 
-                           sprzet_list=items, 
-                           typy=typy, 
-                           lokalizacje=lokalizacje, 
+    return render_template('sprzet_list.html',
+                           sprzet_list=items,
+                           typy=typy,
+                           lokalizacje=lokalizacje,
                            wodoszczelnosci=wodoszczelnosci,
                            ewidencje=ewidencje,
                            kategorie=kategorie,
@@ -676,12 +676,12 @@ def sprzet_card(sprzet_id):
     # Pobieranie logów aktywności dla tego sprzętu
     from .db_firestore import get_logs_by_target
     from .db_users import get_all_users
-    
+
     # Pobieramy tylko ostatnie 15 logów dla wydajności karty
     logs = get_logs_by_target(sprzet_id, limit=15)
     users = get_all_users()
     user_map = build_user_map(users)
-    
+
     for log in logs:
         log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
 
@@ -708,11 +708,15 @@ def sprzet_card(sprzet_id):
     loans = get_loans_for_item(sprzet_id)
     active_loan = next((l for l in loans if l.get('status') == 'active'), None)
 
+    qr_env = (os.getenv('QR_URL') or '').strip()
+    qr_url_base = (qr_env.rstrip('/') if qr_env else request.host_url.rstrip('/'))
+
     return render_template('sprzet_card.html', sprzet=sprzet_item,
                            usterki=get_usterki_for_sprzet(sprzet_id),
                            logs=logs,
                            loans=loans,
-                           active_loan=active_loan)
+                           active_loan=active_loan,
+                           qr_url_base=qr_url_base)
 
 
 @views_bp.route('/sprzet/<sprzet_id>/quick_photo', methods=['POST'])
@@ -752,8 +756,16 @@ def generate_qr_code(sprzet_id):
         current_app.logger.error("QR_URL environment variable is not set or empty; cannot generate QR code URL.")
         return "Błąd konfiguracji kodu QR", 500
 
+    # Preferuj QR_URL z .env; jeśli brak, fallback na aktualny host.
+    qr_url = (os.getenv('QR_URL') or '').strip()
+    if qr_url:
+        base = qr_url.rstrip('/')
+    else:
+        # request.host_url ma trailing slash
+        base = request.host_url.rstrip('/')
+
     # Generuj URL do strony sprzętu
-    target_url = f"{qr_url}/sprzet/{sprzet_id}"
+    target_url = f"{base}/sprzet/{sprzet_id}"
 
     # Sprawdź czy jest tryb debug
     is_debug = os.getenv('FLASK_ENV') == 'development' or os.getenv('DEBUG') == 'True'
@@ -845,7 +857,7 @@ def sprzet_qr_page(sprzet_id):
 # =======================================================================
 
 @views_bp.route('/usterki')
-@login_required
+@full_login_required
 def usterki_list():
     """Panel administratora - lista wszystkich usterek."""
     status = request.args.get('status')
@@ -856,14 +868,14 @@ def usterki_list():
     usterki = get_all_usterki()
     sprzet_items = get_all_sprzet()
     sprzet_map = {s['id']: s for s in sprzet_items}
-    
+
     filtered_usterki = []
     for u in usterki:
         s = sprzet_map.get(u.get('sprzet_id'))
         u['nazwa_sprzetu'] = s.get('nazwa', 'N/A') if s else 'USUNIĘTY'
         u['magazyn'] = s.get('lokalizacja', 'N/A') if s else 'N/A' # Używamy lokalizacja jako magazyn
         u['oficjalna_ewidencja'] = s.get('oficjalna_ewidencja', 'Nie') if s else 'Nie'
-        
+
         # Filtrowanie w pamięci
         match = True
         if status and u.get('status') != status:
@@ -874,16 +886,16 @@ def usterki_list():
             match = False
         if oficjalna_ewidencja and u.get('oficjalna_ewidencja') != oficjalna_ewidencja:
             match = False
-            
+
         if match:
             filtered_usterki.append(u)
-    
+
     statuses = sorted(list(set(u.get('status') for u in usterki if u.get('status'))))
     magazyny = sorted(list(set(s.get('lokalizacja') for s in sprzet_items if s.get('lokalizacja'))))
     ids_sprzetu = sorted(list(set(u.get('sprzet_id') for u in usterki if u.get('sprzet_id'))))
     ewidencje = sorted(list(set(u.get('oficjalna_ewidencja') for u in filtered_usterki if u.get('oficjalna_ewidencja'))))
 
-    return render_template('usterki_list.html', 
+    return render_template('usterki_list.html',
                            usterki=filtered_usterki,
                            statuses=statuses,
                            magazyny=magazyny,
@@ -1231,14 +1243,14 @@ def user_profile(user_id):
     return render_template('user_profile.html', user_info=user, logs=logs)
 
 @views_bp.route('/sprzet/zestawienie')
-@login_required
+@full_login_required
 def sprzet_zestawienie():
     """Widok zestawienia elementów (porównanie zasobów)."""
     # Parametry dynamiczne
     cat_a = request.args.get('cat_a')
     cat_b = request.args.get('cat_b')
     magazyn_id = request.args.get('magazyn_id')
-    
+
     # Predefiniowane presety (kompatybilność wsteczna)
     preset = request.args.get('preset')
     if preset == 'namioty_zelastwo':
@@ -1246,11 +1258,10 @@ def sprzet_zestawienie():
         cat_b = CATEGORIES['ZELASTWO']
     elif preset == 'kanadyjki':
         cat_a = CATEGORIES['KANADYJKI']
-        # Kanadyjki są specyficzne, bo porównujemy kanadyjki z zestawami naprawczymi (też kategoria kanadyjki)
         cat_b = CATEGORIES['KANADYJKI']
 
     items = get_all_sprzet()
-    
+
     # Filtrowanie po magazynie (opcjonalne)
     if magazyn_id:
         # Znajdź wszystkie dzieci tego magazynu (rekurencyjnie lub tylko bezpośrednie?)
@@ -1262,23 +1273,23 @@ def sprzet_zestawienie():
         for i in items:
             if i.get('parent_id') == magazyn_id:
                 magazyn_children_ids.add(i.get('id'))
-        
+
         items = [i for i in items if i.get('id') == magazyn_id or i.get('parent_id') in magazyn_children_ids]
 
     summary = {}
-    
+
     if cat_a and cat_b:
         group_a = [i for i in items if i.get('category') == cat_a]
         group_b = [i for i in items if i.get('category') == cat_b]
-        
+
         # Specyficzna logika dla kanadyjek
         if preset == 'kanadyjki' or (cat_a == CATEGORIES['KANADYJKI'] and cat_b == CATEGORIES['KANADYJKI']):
             kanadyjki = [i for i in group_a if 'zestaw naprawczy' not in (i.get('nazwa') or '').lower()]
             naprawcze = [i for i in group_b if 'zestaw naprawczy' in (i.get('nazwa') or '').lower()]
-            
+
             k_count = len(kanadyjki)
             n_count = sum(int(i.get('ilosc', 0)) for i in naprawcze if str(i.get('ilosc', '')).isdigit())
-            
+
             summary = {
                 'title': 'Zestawienie: Kanadyjki vs Zestawy Naprawcze',
                 'rows': [{
@@ -1292,15 +1303,15 @@ def sprzet_zestawienie():
         # Specyficzna logika dla Namioty vs Żelastwo
         elif (cat_a == CATEGORIES['NAMIOT'] and cat_b == CATEGORIES['ZELASTWO']) or \
              (cat_a == CATEGORIES['ZELASTWO'] and cat_b == CATEGORIES['NAMIOT']):
-            
+
             namioty = group_a if cat_a == CATEGORIES['NAMIOT'] else group_b
             zelastwo = group_b if cat_b == CATEGORIES['ZELASTWO'] else group_a
-            
+
             namioty_stats = {}
             for n in namioty:
                 t = n.get('typ', 'Nieokreślony')
                 namioty_stats[t] = namioty_stats.get(t, 0) + 1
-                
+
             zelastwo_stats = {}
             for z in zelastwo:
                 target = z.get('do_czego', 'Nieokreślone')
@@ -1308,7 +1319,7 @@ def sprzet_zestawienie():
                 try: qty = int(qty)
                 except (ValueError, TypeError): qty = 0
                 zelastwo_stats[target] = zelastwo_stats.get(target, 0) + qty
-                
+
             summary = {
                 'title': 'Zestawienie: Namioty vs Omasztowanie',
                 'rows': []
@@ -1332,12 +1343,12 @@ def sprzet_zestawienie():
             for i in group_a:
                 label = i.get('typ') or i.get('nazwa') or 'Inne'
                 stats_a[label] = stats_a.get(label, 0) + (int(i.get('ilosc', 1)) if str(i.get('ilosc', '')).isdigit() else 1)
-            
+
             stats_b = {}
             for i in group_b:
                 label = i.get('typ') or i.get('nazwa') or 'Inne'
                 stats_b[label] = stats_b.get(label, 0) + (int(i.get('ilosc', 1)) if str(i.get('ilosc', '')).isdigit() else 1)
-            
+
             summary = {
                 'title': f'Zestawienie: {cat_a.capitalize()} vs {cat_b.capitalize()}',
                 'rows': []
@@ -1356,12 +1367,12 @@ def sprzet_zestawienie():
                 })
 
     magazyny = [i for i in get_all_sprzet() if i.get('category') == CATEGORIES['MAGAZYN']]
-    
-    return render_template('sprzet_zestawienie.html', 
-                           summary=summary, 
-                           preset=preset, 
-                           cat_a=cat_a, 
-                           cat_b=cat_b, 
+
+    return render_template('sprzet_zestawienie.html',
+                           summary=summary,
+                           preset=preset,
+                           cat_a=cat_a,
+                           cat_b=cat_b,
                            magazyn_id=magazyn_id,
                            kategorie=CATEGORIES,
                            magazyny=magazyny)
@@ -1420,6 +1431,7 @@ def export_sprzet(format):
                 })
             elif (cat_a == CATEGORIES['NAMIOT'] and cat_b == CATEGORIES['ZELASTWO']) or \
                  (cat_a == CATEGORIES['ZELASTWO'] and cat_b == CATEGORIES['NAMIOT']):
+
                 title = "Zestawienie: Namioty vs Omasztowanie"
                 namioty = group_a if cat_a == CATEGORIES['NAMIOT'] else group_b
                 zelastwo = group_b if cat_b == CATEGORIES['ZELASTWO'] else group_a

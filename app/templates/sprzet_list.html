@@ -181,6 +181,9 @@
                 </li>
                 <li><a class="dropdown-item"
                        href="{{ url_for('views.export_sprzet', format='pdf', **selected_filters) }}">PDF</a></li>
+                <li>
+                    <a class="dropdown-item"
+                       href="{{ url_for('views.export_sprzet', format='qr', **selected_filters) }}">PDF (QR + ID)</a></li>
             </ul>
         </div>
         <script>
