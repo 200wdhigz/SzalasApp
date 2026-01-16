@@ -178,9 +178,9 @@ def get_or_rotate_pin():
         if isinstance(last_rotate, str):
             last_rotate = datetime.fromisoformat(last_rotate)
         if now - last_rotate > timedelta(days=1):
-             pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
-             update_config(view_pin=pin, pin_last_rotate=now)
-             
+            pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+            update_config(view_pin=pin, pin_last_rotate=now)
+            
     return pin
 
 @auth_bp.route('/pin', methods=['GET', 'POST'])
