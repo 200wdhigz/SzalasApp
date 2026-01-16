@@ -4,6 +4,7 @@ import requests
 import random
 from firebase_admin import auth
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from . import GOOGLE_API_KEY
 from .db_users import get_user_by_uid, create_user
@@ -191,8 +192,18 @@ def pin_login():
             session['user_role'] = 'reporter'
             session['user_name'] = 'Gość (PIN)'
             flash('Dostęp przyznany za pomocą PIN.', 'success')
-            next_url = request.args.get('next') or url_for('views.sprzet_list')
-            return redirect(next_url)
+            next_url = request.args.get('next')
+            if next_url:
+                # Normalizuj i sprawdź, czy URL jest względny (bez hosta i schematu)
+                normalized_next = next_url.replace('\\', '/')
+                parsed = urlparse(normalized_next)
+                # Sprawdź czy URL jest bezpieczny (tylko względna ścieżka zaczynająca się od /)
+                if parsed.scheme or parsed.netloc or not normalized_next.startswith('/'):
+                    normalized_next = None
+            else:
+                normalized_next = None
+            safe_next = normalized_next or url_for('views.sprzet_list')
+            return redirect(safe_next)
         else:
             flash('Nieprawidłowy kod PIN.', 'danger')
             

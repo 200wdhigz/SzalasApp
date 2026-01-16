@@ -242,4 +242,4 @@
             const modalInstance = bootstrap.Modal.getInstance(modalEl);
             modalInstance.hide();
 
-            const rawText = (decodedText |
+            const rawText = (decodedText || '').trim();
