@@ -10,7 +10,6 @@ os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(os.getcwd(), 'creden
 
 from src import create_app
 from src.db_firestore import update_config, add_item, COLLECTION_SPRZET, COLLECTION_USTERKI, COLLECTION_WYPOZYCZENIA
-from flask import url_for, session
 
 class RestrictedPinAccessTestCase(unittest.TestCase):
     def setUp(self):
