@@ -42,7 +42,7 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                {% if IS_LOGGED_IN %}
+                {% if IS_LOGGED_IN and not IS_PIN_AUTH %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('views.sprzet_list') }}">Lista Sprzętu</a>
                     </li>
@@ -174,6 +174,9 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
+
+{% block scripts %}{% endblock %}
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Log table collapse logic using event delegation
@@ -239,57 +242,4 @@
             const modalInstance = bootstrap.Modal.getInstance(modalEl);
             modalInstance.hide();
 
-            const rawText = (decodedText || "").trim();
-
-            // Zezwalaj tylko na adresy względne lub adresy z tego samego hosta (http/https)
-            if (!rawText) {
-                alert("Zeskanowano pusty lub nieprawidłowy kod QR.");
-                return;
-            }
-
-            // Adres względny w obrębie aplikacji
-            if (rawText.startsWith('/')) {
-                window.location.href = rawText;
-                return;
-            }
-
-            try {
-                // Traktuj zeskanowany tekst jako URL w oparciu o bieżący origin
-                const url = new URL(rawText, window.location.origin);
-                const allowedProtocols = ['http:', 'https:'];
-
-                // Zezwalaj tylko na ten sam host i bezpieczne protokoły
-                if (allowedProtocols.includes(url.protocol) && url.hostname === window.location.hostname) {
-                    window.location.href = url.href;
-                } else {
-                    alert("Zeskanowano zewnętrzny lub nieobsługiwany adres URL. Przekierowanie zostało zablokowane:\n" + rawText);
-                }
-            } catch (e) {
-                alert("Zeskanowano nieprawidłowy adres URL. Przekierowanie zostało zablokowane:\n" + rawText);
-            }
-        };
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-        // Preferuj kamerę tylną (environment)
-        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
-            .then(() => {
-                statusEl.textContent = "Skieruj aparat na kod QR";
-            })
-            .catch((err) => {
-                console.error("Błąd kamery:", err);
-                statusEl.textContent = "Błąd: Nie można uzyskać dostępu do kamery.";
-            });
-    }
-
-    function stopScanner() {
-        if (html5QrCode && html5QrCode.isScanning) {
-            html5QrCode.stop().then(() => {
-                html5QrCode.clear();
-            }).catch(err => console.error("Błąd zatrzymania skanera:", err));
-        }
-    }
-</script>
-{% block scripts %}
-{% endblock %}
-</body>
-</html>
+            const rawText = (decodedText |

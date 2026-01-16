@@ -890,7 +890,7 @@
 
             var isDebug = {{ 'true' if is_debug else 'false' }};
 
-            var baseTarget = window.location.origin + '/sprzet/{{ sprzet.id }}';
+            var baseTarget = '{{ qr_url_base }}/sprzet/{{ sprzet.id }}';
 
             qrModalEl.addEventListener('show.bs.modal', function () {
                 var target = baseTarget;

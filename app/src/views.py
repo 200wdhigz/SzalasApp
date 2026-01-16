@@ -10,7 +10,7 @@ from io import BytesIO
 import html
 
 from . import get_firestore_client
-from .auth import login_required, admin_required, quartermaster_required
+from .auth import login_required, admin_required, quartermaster_required, full_login_required
 from .gcs_utils import list_equipment_photos, upload_blob_to_gcs, refresh_urls
 from .db_firestore import (
     get_sprzet_item, get_usterki_for_sprzet, get_usterka_item,
@@ -178,7 +178,7 @@ def home():
     return render_template('home.html')
 
 @views_bp.route('/sprzety')
-@login_required
+@full_login_required
 def sprzet_list():
     parent_id = request.args.get('parent_id')
     search_query = request.args.get('search')
@@ -708,11 +708,15 @@ def sprzet_card(sprzet_id):
     loans = get_loans_for_item(sprzet_id)
     active_loan = next((l for l in loans if l.get('status') == 'active'), None)
 
+    qr_env = (os.getenv('QR_URL') or '').strip()
+    qr_url_base = (qr_env.rstrip('/') if qr_env else request.host_url.rstrip('/'))
+
     return render_template('sprzet_card.html', sprzet=sprzet_item,
                            usterki=get_usterki_for_sprzet(sprzet_id),
                            logs=logs,
                            loans=loans,
-                           active_loan=active_loan)
+                           active_loan=active_loan,
+                           qr_url_base=qr_url_base)
 
 
 @views_bp.route('/sprzet/<sprzet_id>/quick_photo', methods=['POST'])
@@ -746,14 +750,17 @@ def generate_qr_code(sprzet_id):
     if not sprzet_item:
         # Zamiast redirect (który psuje tag <img>), zwracamy 404 lub puste
         return "Sprzęt nie istnieje", 404
-    qr_url = os.getenv('QR_URL')
-    if not qr_url:
-        # Błędna konfiguracja aplikacji - brak bazowego adresu dla kodów QR
-        current_app.logger.error("QR_URL environment variable is not set or empty; cannot generate QR code URL.")
-        return "Błąd konfiguracji kodu QR", 500
+
+    # Preferuj QR_URL z .env; jeśli brak, fallback na aktualny host.
+    qr_url = (os.getenv('QR_URL') or '').strip()
+    if qr_url:
+        base = qr_url.rstrip('/')
+    else:
+        # request.host_url ma trailing slash
+        base = request.host_url.rstrip('/')
 
     # Generuj URL do strony sprzętu
-    target_url = f"{qr_url}/sprzet/{sprzet_id}"
+    target_url = f"{base}/sprzet/{sprzet_id}"
 
     # Sprawdź czy jest tryb debug
     is_debug = os.getenv('FLASK_ENV') == 'development' or os.getenv('DEBUG') == 'True'
@@ -845,7 +852,7 @@ def sprzet_qr_page(sprzet_id):
 # =======================================================================
 
 @views_bp.route('/usterki')
-@login_required
+@full_login_required
 def usterki_list():
     """Panel administratora - lista wszystkich usterek."""
     status = request.args.get('status')
@@ -1231,7 +1238,7 @@ def user_profile(user_id):
     return render_template('user_profile.html', user_info=user, logs=logs)
 
 @views_bp.route('/sprzet/zestawienie')
-@login_required
+@full_login_required
 def sprzet_zestawienie():
     """Widok zestawienia elementów (porównanie zasobów)."""
     # Parametry dynamiczne
@@ -1246,7 +1253,6 @@ def sprzet_zestawienie():
         cat_b = CATEGORIES['ZELASTWO']
     elif preset == 'kanadyjki':
         cat_a = CATEGORIES['KANADYJKI']
-        # Kanadyjki są specyficzne, bo porównujemy kanadyjki z zestawami naprawczymi (też kategoria kanadyjki)
         cat_b = CATEGORIES['KANADYJKI']
 
     items = get_all_sprzet()
@@ -1420,6 +1426,7 @@ def export_sprzet(format):
                 })
             elif (cat_a == CATEGORIES['NAMIOT'] and cat_b == CATEGORIES['ZELASTWO']) or \
                  (cat_a == CATEGORIES['ZELASTWO'] and cat_b == CATEGORIES['NAMIOT']):
+
                 title = "Zestawienie: Namioty vs Omasztowanie"
                 namioty = group_a if cat_a == CATEGORIES['NAMIOT'] else group_b
                 zelastwo = group_b if cat_b == CATEGORIES['ZELASTWO'] else group_a
