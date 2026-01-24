@@ -1420,7 +1420,8 @@ def loan_return(loan_id):
         # Budujemy nazwę aktualnego użytkownika do porównania
         first_name = current_user.get('first_name', '')
         last_name = current_user.get('last_name', '')
-        full_name = (f"{first_name} {last_name}").strip() or current_user.get('email', '')
+        email = current_user.get('email', '')
+        full_name = (f"{first_name} {last_name}").strip() or email
 
         przez_kogo = loan.get('przez_kogo', '')
         
