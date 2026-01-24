@@ -10,10 +10,25 @@
             <div class="card-body">
                 <form method="POST">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                    
-                    <h5 class="card-title border-bottom pb-2 mb-3">Dostęp przez PIN</h5>
-                    <p class="text-muted small">Ustawienia 6-cyfrowego kodu PIN, który umożliwia podgląd kart sprzętu bez pełnego logowania.</p>
-                    
+
+                    <h5 class="card-title border-bottom pb-2 mb-3">Listy wyboru (konfiguracja)</h5>
+                    <p class="text-muted small">Te wartości są używane w formularzach jako wybory/podpowiedzi. Każda pozycja w osobnej linii.</p>
+
+                    <div class="mb-4">
+                        <label for="owners" class="form-label fw-bold">Właściciele (owner)</label>
+                        <textarea id="owners" name="owners" class="form-control" rows="6" spellcheck="false">{{ (owners or []) | join('\n') }}</textarea>
+                        <div class="form-text">Używane przy sprzęcie: Szczep/Leśnicy/…  (pole wymagane dla części kategorii).</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="magazyny_names" class="form-label fw-bold">Podpowiedzi nazw magazynów</label>
+                        <textarea id="magazyny_names" name="magazyny_names" class="form-control" rows="6" spellcheck="false">{{ (magazyny_names or []) | join('\n') }}</textarea>
+                        <div class="form-text">Podpowiedzi w formularzach magazynu (np. Esperanto, Obozowa/…).</div>
+                    </div>
+
+                     <h5 class="card-title border-bottom pb-2 mb-3">Dostęp przez PIN</h5>
+                     <p class="text-muted small">Ustawienia 6-cyfrowego kodu PIN, który umożliwia podgląd kart sprzętu bez pełnego logowania.</p>
+
                     <div class="mb-4">
                         <label class="form-label fw-bold">Aktualnie obowiązujący PIN:</label>
                         <div class="input-group">
@@ -58,6 +73,23 @@
                         <div class="form-text">Określ co ile godzin PIN będzie automatycznie rotowany (1-720 godzin). Wartość domyślna: 24 godziny.</div>
                     </div>
                     
+                    <div class="mb-4">
+                        <label for="pin_next_rotate_at" class="form-label fw-bold">Następna automatyczna zmiana PIN (data i godzina):</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                            <input type="datetime-local" id="pin_next_rotate_at" name="pin_next_rotate_at" class="form-control"
+                                   step="60"
+                                   value="{% if config.get('pin_next_rotate_at') %}{{ config.get('pin_next_rotate_at')[:16] if config.get('pin_next_rotate_at') is string else (config.get('pin_next_rotate_at').strftime('%Y-%m-%dT%H:%M') if hasattr(config.get('pin_next_rotate_at'), 'strftime') else '') }}{% endif %}">
+                        </div>
+                        <div class="form-text">Opcjonalnie: ustaw konkretną datę/godzinę następnej zmiany PIN. Zostaw puste, aby automat wyliczał termin z interwału.</div>
+
+                        {% if config.get('pin_next_rotate_at') %}
+                            <p class="text-muted small mt-2 mb-0">
+                                <i class="bi bi-calendar-check"></i> Aktualnie ustawione: <strong>{{ config.get('pin_next_rotate_at') }}</strong>
+                            </p>
+                        {% endif %}
+                    </div>
+
                     {% if config.get('pin_last_rotate') %}
                     <div class="mb-4">
                         <p class="text-muted small">

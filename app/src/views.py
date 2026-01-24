@@ -10,7 +10,7 @@ from io import BytesIO
 import html
 
 from . import get_firestore_client
-from .auth import login_required, admin_required, quartermaster_required, full_login_required
+from .auth import login_required, admin_required, quartermaster_required, full_login_required, pin_restricted_required
 from .gcs_utils import list_equipment_photos, upload_blob_to_gcs, refresh_urls
 from .db_firestore import (
     get_sprzet_item, get_usterki_for_sprzet, get_usterka_item,
@@ -18,15 +18,55 @@ from .db_firestore import (
     COLLECTION_SPRZET, COLLECTION_USTERKI, COLLECTION_WYPOZYCZENIA, add_item, set_item,
     add_log, get_all_logs, update_item, delete_item, CATEGORIES, MAGAZYNY_NAMES,
     add_loan, get_active_loans, get_loans_for_item, mark_loan_returned, _warsaw_now,
-    get_all_items, get_item, get_items_by_parent
+    get_all_items, get_item, get_items_by_parent, get_list_setting
 )
-from .exports import export_to_csv, export_to_xlsx, export_to_docx, export_to_pdf, export_qr_codes_pdf
+from .exports import export_to_csv, export_to_xlsx, export_to_docx, export_to_pdf
 from .id_utils import generate_unique_magazyn_id
 
 views_bp = Blueprint('views', __name__, url_prefix='/')
 
 # Maksymalna liczba błędów pokazywanych użytkownikowi w bulk edit
 MAX_DISPLAYED_ERRORS = 5
+
+
+def _owners_list() -> list[str]:
+    # preferuj konfigurację z Firestore; fallback jest w db_firestore.DEFAULT_APP_LISTS
+    return get_list_setting('owners')
+
+
+def _normalize_owner(val: str | None) -> str | None:
+    if val is None:
+        return None
+    v = str(val).strip()
+    if not v:
+        return None
+    # Dopuszczamy wpis ręczny, ale jeśli pasuje do znanej listy (case-insensitive), normalizujemy do kanonicznej.
+    for o in _owners_list():
+        if v.casefold() == o.casefold():
+            return o
+    return v
+
+
+def _resolve_owner_default(parent_id: str | None) -> str | None:
+    """Wylicza domyślnego właściciela na podstawie elementu nadrzędnego (magazyn/półka/szrkzynia).
+
+    Reguła:
+    - jeśli parent ma ustawione `owner_default` -> zwróć
+    - w przeciwnym razie, jeśli parent ma `owner` -> zwróć
+    - w przeciwnym razie None
+
+    Cel: szybkie tworzenie elementów w konkretnym magazynie bez ręcznego przepisywania właściciela.
+    """
+    if not parent_id:
+        return None
+    try:
+        parent = get_sprzet_item(parent_id)
+    except Exception:
+        parent = None
+    if not parent:
+        return None
+    return _normalize_owner(parent.get('owner_default') or parent.get('owner'))
+
 
 def process_uploads(files, folder, id_prefix=None):
     """Waliduje i wgrywa pliki do GCS."""
@@ -126,6 +166,32 @@ def _build_do_czego_suggestions() -> list[str]:
     return sorted(list(seen))
 
 
+def _build_owner_suggestions(limit: int = 40) -> list[str]:
+    """Podpowiedzi właściciela: najpierw stała lista, potem unikalne wartości z bazy."""
+    seen: set[str] = set()
+    out: list[str] = []
+
+    for o in _owners_list():
+        if o not in seen:
+            out.append(o)
+            seen.add(o)
+
+    # Dodaj to co już jest w sprzęcie (jeśli ktoś wpisał niestandardowe)
+    for s in get_all_sprzet():
+        v = s.get('owner')
+        if not v:
+            continue
+        vv = str(v).strip()
+        if not vv or vv in seen:
+            continue
+        out.append(vv)
+        seen.add(vv)
+        if len(out) >= limit:
+            break
+
+    return out
+
+
 def _normalize_qty_fields(data: dict, category_value: str) -> None:
     """Czyści/normalizuje pola ilości/jednostka w zależności od kategorii."""
     ilosc = (data.get('ilosc') or '').strip() if isinstance(data.get('ilosc'), str) else data.get('ilosc')
@@ -143,7 +209,7 @@ def _normalize_qty_fields(data: dict, category_value: str) -> None:
         if j in {'szt', 'szt.', 'sztuki', '.szt', '.szt.', 'pcs', 'piece', 'pieces'}:
             data['jednostka'] = '.szt'
 
-    # Walidacja jednostki dla żelastwo/kanadyjki (skróty)
+    # Walidacja jednostki dla żelastwo/kanadyjki/materace
     if category_value == CATEGORIES['ZELASTWO']:
         allowed = {'zest.', '.szt'}
         # domyślnie zest.
@@ -152,8 +218,8 @@ def _normalize_qty_fields(data: dict, category_value: str) -> None:
         elif data.get('jednostka') not in allowed:
             data.pop('jednostka', None)
             data['jednostka'] = 'zest.'
-    if category_value == CATEGORIES['KANADYJKI']:
-        # Kanadyjki tylko szt.
+    if category_value in {CATEGORIES['KANADYJKI'], CATEGORIES['MATERACE']}:
+        # Kanadyjki i materace tylko szt.
         data['jednostka'] = '.szt'
 
     # Spróbuj zamienić ilość na int gdy wygląda na liczbę
@@ -178,11 +244,12 @@ def home():
     return render_template('home.html')
 
 @views_bp.route('/sprzety')
-@full_login_required
+@pin_restricted_required
 def sprzet_list():
     parent_id = request.args.get('parent_id')
     search_query = request.args.get('search')
     category = request.args.get('category')
+    owner = request.args.get('owner')
 
     # Podstawowe filtry
     typ = request.args.get('typ')
@@ -193,6 +260,8 @@ def sprzet_list():
     filters = []
     if category:
         filters.append(('category', '==', category))
+    if owner:
+        filters.append(('owner', '==', owner))
     if typ:
         filters.append(('typ', '==', typ))
     if wodoszczelnosc:
@@ -226,6 +295,7 @@ def sprzet_list():
             'wodoszczelnosc',
             'ilosc', 'jednostka',
             'oficjalna_ewidencja',
+            'owner',
             # namioty
             'zapalki', 'kolor_dachu', 'kolor_bokow',
             # żelastwo
@@ -298,7 +368,7 @@ def sprzet_list():
     if parent_id and not search_query:
         # Grupowanie Żelastwa
         zelastwo = [i for i in items if i.get('category') == CATEGORIES['ZELASTWO']]
-        other_items = [i for i in items if i.get('category') != CATEGORIES['ZELASTWO'] and i.get('category') != CATEGORIES['KANADYJKI']]
+        other_items = [i for i in items if i.get('category') not in {CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI']}]
         kanadyjki = [i for i in items if i.get('category') == CATEGORIES['KANADYJKI']]
 
         # Grupowanie Żelastwa: (do_czego, typ_zelastwa, sprawny)
@@ -352,19 +422,19 @@ def sprzet_list():
         items = grouped_items
 
     # Fast-card: jeśli jesteśmy w folderze (parent_id) -> policz które elementy mają dzieci.
-    # Dotyczy: namiot/przedmiot/żelastwo/kanadyjki.
+    # Dotyczy: namiot/przedmiot/żelastwo/kanadyjki/materace.
     if parent_id and items:
         children = get_items_by_parent(parent_id)
         parent_ids_with_children = {c.get('parent_id') for c in children if c.get('parent_id')}
-        fast_card_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI']}
+        fast_card_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI'], CATEGORIES['MATERACE']}
         for it in items:
             it['has_children'] = (it.get('id') in parent_ids_with_children)
             it['fast_card'] = (it.get('category') in fast_card_cats)
 
-    # Fast-card: ustaw flagi dla namiot/przedmiot/żelastwo/kanadyjki, żeby UI mógł
+    # Fast-card: ustaw flagi dla namiot/przedmiot/żelastwo/kanadyjki/materace, żeby UI mógł
     # przekierować klik w nazwę prosto na kartę, jeśli element nie ma dzieci.
     if items:
-        fast_card_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI']}
+        fast_card_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI'], CATEGORIES['MATERACE']}
         # Minimalnie: sprawdzamy dzieci tylko dla elementów, które mogą używać fast-card.
         candidate_parent_ids = [it.get('id') for it in items if it.get('id') and it.get('category') in fast_card_cats]
         parent_ids_with_children: set[str] = set()
@@ -391,15 +461,15 @@ def sprzet_list():
             parent_item['zdjecia_lista_url'] = list_equipment_photos(parent_id)
 
     return render_template('sprzet_list.html',
-                           sprzet_list=items,
-                           typy=typy,
-                           lokalizacje=lokalizacje,
-                           wodoszczelnosci=wodoszczelnosci,
-                           ewidencje=ewidencje,
-                           kategorie=kategorie,
-                           parent_item=parent_item,
-                           selected_filters=request.args,
-                           qr_url=os.getenv('QR_URL'))
+                            sprzet_list=items,
+                            typy=typy,
+                            lokalizacje=lokalizacje,
+                            wodoszczelnosci=wodoszczelnosci,
+                            ewidencje=ewidencje,
+                            kategorie=kategorie,
+                            parent_item=parent_item,
+                            selected_filters=request.args,
+                            qr_url=os.getenv('QR_URL'))
 
 
 # =======================================================================
@@ -409,11 +479,14 @@ def sprzet_list():
 @views_bp.route('/sprzet/add', methods=['GET', 'POST'])
 @quartermaster_required
 def sprzet_add():
+    # Zapamiętujemy skąd użytkownik przyszedł (pełny querystring listy), żeby po flash/redirect wrócić do kontekstu.
+    return_query = (request.args.get('return') or request.form.get('return') or '').strip()
+
     if request.method == 'POST':
         category = request.form.get('category')
 
         # Automatyczne generowanie ID dla wybranych kategorii
-        if category in [CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI'], CATEGORIES['PRZEDMIOT']]:
+        if category in [CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI'], CATEGORIES['MATERACE'], CATEGORIES['PRZEDMIOT']]:
             db = get_firestore_client()
             sprzet_id = db.collection(COLLECTION_SPRZET).document().id.upper()
         elif category == CATEGORIES['MAGAZYN']:
@@ -426,7 +499,7 @@ def sprzet_add():
 
         if not sprzet_id:
             flash('Błąd: Nie wygenerowano lub nie podano ID.', 'danger')
-            return redirect(url_for('views.sprzet_add'))
+            return redirect(url_for('views.sprzet_add') + (f'?return={return_query}' if return_query else ''))
 
         if get_sprzet_item(sprzet_id):
             flash(f'Sprzęt o ID {sprzet_id} już istnieje!', 'danger')
@@ -434,6 +507,36 @@ def sprzet_add():
             data = {k: v for k, v in request.form.items() if k != 'id'}
             if 'oficjalna_ewidencja' not in data:
                 data['oficjalna_ewidencja'] = 'Nie'
+
+            # Właściciel: wymagany dla określonych kategorii
+            owner_required_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI'], CATEGORIES['MATERACE']}
+            owner = _normalize_owner(data.get('owner'))
+            if data.get('category') in owner_required_cats:
+                if not owner:
+                    flash('Wybierz właściciela (pole wymagane).', 'danger')
+                    return redirect(url_for('views.sprzet_add') + (f'?return={return_query}' if return_query else ''))
+                if owner not in _owners_list():
+                    flash('Nieprawidłowy właściciel. Wybierz jedną z dostępnych opcji.', 'danger')
+                    return redirect(url_for('views.sprzet_add') + (f'?return={return_query}' if return_query else ''))
+                data['owner'] = owner
+            else:
+                # dla magazyn/półka owner nie jest wymagany
+                if owner:
+                    # opcjonalnie normalizuj, ale jeśli to nie znana wartość, zostaw jak wpisano
+                    data['owner'] = owner
+                else:
+                    data.pop('owner', None)
+
+            # Domyślny właściciel tylko na magazyn/półka
+            if data.get('category') in {CATEGORIES['MAGAZYN'], CATEGORIES['POLKA']}:
+                od = _normalize_owner(data.get('owner_default'))
+                if od:
+                    data['owner_default'] = od
+                else:
+                    data.pop('owner_default', None)
+            else:
+                data.pop('owner_default', None)
+
             _normalize_qty_fields(data, category)
 
             # Obsługa zdjęć także przy dodawaniu
@@ -446,19 +549,33 @@ def sprzet_add():
             set_item(COLLECTION_SPRZET, sprzet_id, data)
             add_log(session.get('user_id'), 'add', 'sprzet', sprzet_id, after=data)
             flash(f'Sprzęt {sprzet_id} został dodany.', 'success')
+            # Po dodaniu wróć do kontekstu listy, jeśli był podany
+            if return_query:
+                return redirect(url_for('views.sprzet_list') + f'?{return_query}')
             return redirect(url_for('views.sprzet_list'))
 
     # Filtrujemy potencjalnych rodziców: tylko Magazyny i Półki/Skrzynie
     potential_parents = [s for s in get_all_sprzet() if s.get('category') in [CATEGORIES['MAGAZYN'], CATEGORIES['POLKA']]]
 
+    # Prefill parent_id z querystring (ułatwia dodawanie elementów w konkretnym magazynie/półce)
+    prefill_parent_id = (request.args.get('parent_id') or '').strip().upper() or None
+
+    # Podpowiedź owner domyślnie z parent (dla UI)
+    default_owner = _resolve_owner_default(prefill_parent_id)
+
     return render_template('sprzet_edit.html',
                            sprzet=None,
                            categories=CATEGORIES,
-                           magazyny_names=MAGAZYNY_NAMES,
+                           magazyny_names=get_list_setting('magazyny_names'),
                            all_items=potential_parents,
                            qty_suggestions_zelastwo=_build_qty_suggestions(CATEGORIES['ZELASTWO']),
                            qty_suggestions_kanadyjki=_build_qty_suggestions(CATEGORIES['KANADYJKI']),
-                           do_czego_suggestions=_build_do_czego_suggestions())
+                           qty_suggestions_materace=_build_qty_suggestions(CATEGORIES['MATERACE']),
+                           do_czego_suggestions=_build_do_czego_suggestions(),
+                           owner_suggestions=_build_owner_suggestions(),
+                           default_owner=default_owner,
+                           prefill_parent_id=prefill_parent_id,
+                           return_query=return_query)
 
 @views_bp.route('/sprzet/import', methods=['GET', 'POST'])
 @quartermaster_required
@@ -476,45 +593,126 @@ def sprzet_import():
                 else:
                     flash('Nieobsługiwany format pliku.', 'danger')
                     return redirect(url_for('views.sprzet_import'))
-                
-                mapping = {
-                    'Typ': 'typ', 'ID': 'id', 'Zakup': 'zakup', 'Przejęty': 'przejecie',
-                    'Znak szczególny': 'znak_szczegolny', 'Zapałki': 'zapalki',
-                    'Kolor dachu': 'kolor_dachu', 'Kolor boków': 'kolor_bokow',
-                    'ZMIANA STANU (WRACA DO WARSZAWY)': 'czyWraca',
-                    'Wodoszczelność': 'wodoszczelnosc', 'Stan ogólny': 'stan_ogolny',
-                    'Uwagi konserwacyjne': 'uwagi', 'Magazyn': 'lokalizacja',
+
+                # Normalizacja nagłówków: obsługujemy zarówno stare pliki z nagłówkami PL
+                # jak i exporty z tej aplikacji (snake_case).
+                # Mapujemy nagłówek -> wewnętrzny klucz w Firestore.
+                header_aliases = {
+                    # podstawowe
+                    'ID': 'id',
+                    'id': 'id',
+                    'Typ': 'typ',
+                    'typ': 'typ',
+                    'Nazwa': 'nazwa',
+                    'nazwa': 'nazwa',
+                    'Category': 'category',
+                    'category': 'category',
+                    'parent_id': 'parent_id',
+                    'Parent ID': 'parent_id',
+
+                    # pola tekstowe
+                    'Informacje': 'informacje',
+                    'informacje': 'informacje',
+                    'Uwagi konserwacyjne': 'uwagi',
+                    'Uwagi': 'uwagi',
+                    'uwagi': 'uwagi',
+                    'Historia': 'historia',
+                    'historia': 'historia',
+                    'Przeznaczenie': 'przeznaczenie',
+                    'przeznaczenie': 'przeznaczenie',
+
+                    # magazyn/lokalizacja
+                    'Magazyn': 'lokalizacja',
                     'Lokalizacja': 'lokalizacja',
-                    'Przeznaczenie': 'przeznaczenie', 'Historia': 'historia'
+                    'lokalizacja': 'lokalizacja',
+
+                    # ewidencja
+                    'oficjalna_ewidencja': 'oficjalna_ewidencja',
+                    'Oficjalna ewidencja': 'oficjalna_ewidencja',
+
+                    # ilości
+                    'ilosc': 'ilosc',
+                    'Ilość': 'ilosc',
+                    'jednostka': 'jednostka',
+                    'Jednostka': 'jednostka',
+
+                    # właściciel
+                    'owner': 'owner',
+                    'Właściciel': 'owner',
+
+                    # sprawność
+                    'sprawny': 'sprawny',
+                    'Sprawny': 'sprawny',
+
+                    # namioty
+                    'Wodoszczelność': 'wodoszczelnosc',
+                    'wodoszczelnosc': 'wodoszczelnosc',
+                    'Stan ogólny': 'stan_ogolny',
+                    'stan_ogolny': 'stan_ogolny',
+                    'Zapałki': 'zapalki',
+                    'zapalki': 'zapalki',
+                    'Kolor dachu': 'kolor_dachu',
+                    'kolor_dachu': 'kolor_dachu',
+                    'Kolor boków': 'kolor_bokow',
+                    'kolor_bokow': 'kolor_bokow',
+
+                    # importy historyczne
+                    'ZMIANA STANU (WRACA DO WARSZAWY)': 'czyWraca',
+                    'czyWraca': 'czyWraca',
+                    'return': 'return',
+                    'zdjecia': 'zdjecia',
+                    'Zdjęcia': 'zdjecia',
                 }
-                df = df.rename(columns=mapping)
-                
+
+                df = df.rename(columns=lambda c: header_aliases.get(str(c).strip(), str(c).strip()))
+
                 # Standaryzacja ID
                 if 'id' not in df.columns:
                     flash('Brak kolumny ID w pliku.', 'danger')
                     return redirect(url_for('views.sprzet_import'))
 
                 all_sprzet = {s['id']: s for s in get_all_sprzet()}
-                
+
                 for _, row in df.iterrows():
                     sid = str(row['id']).upper().strip()
                     if not sid or sid == 'NAN': continue
-                    
-                    new_data = {mapping[k]: str(v).strip() for k, v in row.to_dict().items() if k in mapping and mapping[k] != 'id'}
-                    
+
+                    # Budujemy new_data z tych kolumn, które odpowiadają znanym polom (po rename).
+                    # Uwaga: pozwalamy też na czyszczenie pól (pusta wartość) – wtedy różnica ma być wykryta.
+                    allowed_fields = {
+                        'typ', 'zakup', 'przejecie', 'znak_szczegolny',
+                        'zapalki', 'kolor_dachu', 'kolor_bokow',
+                        'czyWraca', 'wodoszczelnosc', 'stan_ogolny',
+                        'uwagi', 'lokalizacja', 'przeznaczenie', 'historia',
+                        'oficjalna_ewidencja', 'informacje',
+                        'category', 'parent_id', 'nazwa', 'zdjecia',
+                        'ilosc', 'jednostka', 'sprawny', 'owner',
+                        'return'
+                    }
+                    row_dict = row.to_dict()
+                    new_data = {}
+                    for k, v in row_dict.items():
+                        if k == 'id':
+                            continue
+                        if k not in allowed_fields:
+                            continue
+                        # Pandas czasem trzyma liczby jako float; standaryzujemy do stringa jak wcześniej.
+                        new_data[k] = str(v).strip()
+
                     if sid in all_sprzet:
                         old_data = {k: v for k, v in all_sprzet[sid].items() if k not in ['id', 'zdjecia_lista_url']}
                         diffs = {}
                         for k, v in new_data.items():
                             old_val = str(old_data.get(k, '')).strip()
-                            if v and v != old_val:
-                                diffs[k] = {'old': old_val, 'new': v}
-                        
+                            # wykrywaj zmiany również gdy nowa wartość jest pusta (czyli czyszczenie pola)
+                            if v != old_val:
+                                 diffs[k] = {'old': old_val, 'new': v}
+
                         if diffs:
                             diff_data.append({'id': sid, 'diffs': diffs, 'new_data': new_data, 'before_data': old_data})
                     else:
                         diff_data.append({'id': sid, 'diffs': {}, 'new_data': new_data})
-                
+
                 if not diff_data:
                     flash('Brak różnic lub nowych danych do zaimportowania.', 'info')
 
@@ -550,8 +748,39 @@ def sprzet_edit(sprzet_id):
         flash('Nie znaleziono sprzętu.', 'danger')
         return redirect(url_for('views.sprzet_list'))
 
+    # Zachowaj kontekst listy (przekazywany jako ?return=...)
+    return_query = (request.args.get('return') or request.form.get('return') or '').strip()
+
     if request.method == 'POST':
         data = {k: v for k, v in request.form.items() if k != 'id'}
+
+        # Właściciel: wymagany dla określonych kategorii (bez dziedziczenia)
+        owner_required_cats = {CATEGORIES['NAMIOT'], CATEGORIES['PRZEDMIOT'], CATEGORIES['ZELASTWO'], CATEGORIES['KANADYJKI'], CATEGORIES['MATERACE']}
+        owner = _normalize_owner(data.get('owner'))
+        if data.get('category') in owner_required_cats:
+            if not owner:
+                flash('Wybierz właściciela (pole wymagane).', 'danger')
+                return redirect(url_for('views.sprzet_edit', sprzet_id=sprzet_id) + (f'?return={return_query}' if return_query else ''))
+            if owner not in _owners_list():
+                flash('Nieprawidłowy właściciel. Wybierz jedną z dostępnych opcji.', 'danger')
+                return redirect(url_for('views.sprzet_edit', sprzet_id=sprzet_id) + (f'?return={return_query}' if return_query else ''))
+            data['owner'] = owner
+        else:
+            if owner:
+                data['owner'] = owner
+            else:
+                data.pop('owner', None)
+
+        # Domyślny właściciel tylko na magazyn/półka
+        if data.get('category') in {CATEGORIES['MAGAZYN'], CATEGORIES['POLKA']}:
+            od = _normalize_owner(data.get('owner_default'))
+            if od:
+                data['owner_default'] = od
+            else:
+                data.pop('owner_default', None)
+        else:
+            data.pop('owner_default', None)
+
         _normalize_qty_fields(data, sprzet.get('category'))
 
         # Obsługa nowych zdjęć
@@ -594,6 +823,9 @@ def sprzet_edit(sprzet_id):
         update_sprzet(sprzet_id, **data)
         add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, before=before_data, after=data)
         flash(f'Sprzęt {sprzet_id} został zaktualizowany.', 'success')
+        # Przekaż return dalej na kartę, żeby 'Powrót do katalogu' wracał do właściwego miejsca.
+        if return_query:
+            return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id) + f'?return={return_query}')
         return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
 
     # Priorytet dla zdjęć zapisanych w bazie danych (odświeżamy linki), fallback do listowania GCS
@@ -610,11 +842,16 @@ def sprzet_edit(sprzet_id):
     return render_template('sprzet_edit.html',
                            sprzet=sprzet,
                            categories=CATEGORIES,
-                           magazyny_names=MAGAZYNY_NAMES,
+                           magazyny_names=get_list_setting('magazyny_names'),
                            all_items=potential_parents,
                            qty_suggestions_zelastwo=_build_qty_suggestions(CATEGORIES['ZELASTWO']),
                            qty_suggestions_kanadyjki=_build_qty_suggestions(CATEGORIES['KANADYJKI']),
-                           do_czego_suggestions=_build_do_czego_suggestions())
+                           qty_suggestions_materace=_build_qty_suggestions(CATEGORIES['MATERACE']),
+                           do_czego_suggestions=_build_do_czego_suggestions(),
+                           owner_suggestions=_build_owner_suggestions(),
+                           default_owner=_resolve_owner_default(sprzet.get('parent_id')),
+                           return_query=return_query)
+
 
 @views_bp.route('/sprzet/delete/<sprzet_id>', methods=['POST'])
 @quartermaster_required
@@ -622,6 +859,10 @@ def sprzet_delete(sprzet_id):
     delete_item(COLLECTION_SPRZET, sprzet_id)
     add_log(session.get('user_id'), 'delete', 'sprzet', sprzet_id)
     flash(f'Sprzęt {sprzet_id} został usunięty.', 'success')
+
+    return_query = (request.form.get('return_query') or '').strip()
+    if return_query:
+        return redirect(url_for('views.sprzet_list') + f'?{return_query}')
     return redirect(url_for('views.sprzet_list'))
 
 @views_bp.route('/sprzet/<sprzet_id>', methods=['GET', 'POST'])
@@ -630,7 +871,13 @@ def sprzet_card(sprzet_id):
     sprzet_item = get_sprzet_item(sprzet_id)
     if not sprzet_item:
         flash(f'Sprzęt "{sprzet_id}" nie został znaleziony.', 'danger')
+        # PIN nie ma dostępu do /sprzety, więc w takim przypadku wróć na home.
+        if session.get('is_pin_authenticated') and not session.get('user_id'):
+            return redirect(url_for('views.home'))
         return redirect(url_for('views.sprzet_list'))
+
+    # Kontekst powrotu do listy (magazyn/półka/filtry) – querystring z /sprzety
+    return_query = (request.args.get('return') or request.form.get('return') or '').strip()
 
     if request.method == 'POST':
         if not session.get('user_id'):
@@ -663,11 +910,11 @@ def sprzet_card(sprzet_id):
                     flash(f'Usterka dla {sprzet_id} została zgłoszona!', 'success')
             except Exception as e:
                 flash(f'Błąd: {e}', 'danger')
-            return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
+            return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id) + (f'?return={return_query}' if return_query else ''))
 
     # Priorytet dla zdjęć zapisanych w bazie danych, fallback do listowania GCS
     zdjecia_z_bazy = sprzet_item.get('zdjecia')
-    # Używamy jawnego sprawdzenia is not None, aby [] (pusta lista) nie wyzwalała fallbacku
+    # Używamy jawnego sprawdzenia is not None, aby [] (pusta lista) nie wyzwalało fallbacku
     if zdjecia_z_bazy is not None:
         sprzet_item['zdjecia_lista_url'] = refresh_urls(zdjecia_z_bazy)
     else:
@@ -717,7 +964,8 @@ def sprzet_card(sprzet_id):
                            logs=logs,
                            loans=loans,
                            active_loan=active_loan,
-                           qr_url_base=qr_url_base)
+                           qr_url_base=qr_url_base,
+                           return_query=return_query)
 
 
 @views_bp.route('/sprzet/<sprzet_id>/quick_photo', methods=['POST'])
@@ -728,6 +976,8 @@ def quick_photo(sprzet_id):
     if not sprzet:
         flash("Nie znaleziono sprzętu", "danger")
         return redirect(url_for('views.sprzet_list'))
+
+    return_query = (request.form.get('return') or request.args.get('return') or '').strip()
 
     if 'foto' in request.files:
         urls, err = process_uploads([request.files['foto']], 'sprzet', sprzet_id)
@@ -740,8 +990,7 @@ def quick_photo(sprzet_id):
             add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, details={'action': 'quick_photo_add'})
             flash('Zdjęcie zostało dodane.', 'success')
 
-    return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id))
-
+    return redirect(url_for('views.sprzet_card', sprzet_id=sprzet_id) + (f'?return={return_query}' if return_query else ''))
 
 @views_bp.route('/sprzet/<sprzet_id>/qrcode')
 def generate_qr_code(sprzet_id):
@@ -861,7 +1110,7 @@ def sprzet_qr_page(sprzet_id):
 # =======================================================================
 
 @views_bp.route('/usterki')
-@full_login_required
+@pin_restricted_required
 def usterki_list():
     """Panel administratora - lista wszystkich usterek."""
     status = request.args.get('status')
@@ -966,7 +1215,7 @@ def usterka_edit(usterka_id):
             flash(err, 'warning')
 
         # Obsługa usuwania zdjęć - porównujemy blob_name zamiast pełnych URL
-        from .gcs_utils import extract_blob_name, delete_blob_from_gcs
+        from .gcs_utils import extract_blob_name, list_equipment_photos, delete_blob_from_gcs
         zdjecia_do_usuniecia = request.form.getlist('usun_zdjecia')
         blob_names_do_usuniecia = []
         for url in zdjecia_do_usuniecia:
@@ -1171,9 +1420,8 @@ def loan_return(loan_id):
         # Budujemy nazwę aktualnego użytkownika do porównania
         first_name = current_user.get('first_name', '')
         last_name = current_user.get('last_name', '')
-        full_name = (f"{first_name} {last_name}").strip()
-        email = current_user.get('email', '')
-        
+        full_name = (f"{first_name} {last_name}").strip() or current_user.get('email', '')
+
         przez_kogo = loan.get('przez_kogo', '')
         
         if (full_name and przez_kogo == full_name) or (email and przez_kogo == email):
@@ -1247,7 +1495,7 @@ def user_profile(user_id):
     return render_template('user_profile.html', user_info=user, logs=logs)
 
 @views_bp.route('/sprzet/zestawienie')
-@full_login_required
+@pin_restricted_required
 def sprzet_zestawienie():
     """Widok zestawienia elementów (porównanie zasobów)."""
     # Parametry dynamiczne
@@ -1381,14 +1629,31 @@ def sprzet_zestawienie():
                            kategorie=CATEGORIES,
                            magazyny=magazyny)
 
+@views_bp.route('/sprzet/export')
+@login_required
+def sprzet_export_config():
+    """Strona pośrednia: wybór formatu i kolumn eksportu.
+
+    Zachowuje wszystkie aktualne parametry query (filtry, parent_id, tryb zestawienia).
+    Docelowo przekierowuje do /sprzet/export/<format> z parametrami columns=...
+    """
+    return render_template('sprzet_export_config.html')
+
+
 @views_bp.route('/sprzet/export/<format>')
 @login_required
 def export_sprzet(format):
     """Eksportuje listę sprzętu zgodnie z aktualnymi filtrami lub wynik zestawienia."""
     fmt = (format or '').lower().strip()
-    if fmt not in {'csv', 'xlsx', 'docx', 'pdf', 'qr'}:
+    if fmt not in {'csv', 'xlsx', 'docx', 'pdf'}:
         flash('Nieobsługiwany format eksportu.', 'danger')
         return redirect(url_for('views.sprzet_list', **request.args))
+
+    # Baza URL dla linków QR/karty w eksporcie (używana przy kolumnach qr_url / qr_png_url)
+    qr_base = (os.getenv('QR_URL') or '').strip().rstrip('/')
+    if not qr_base:
+        # request.host_url ma trailing slash
+        qr_base = request.host_url.rstrip('/')
 
     mode = request.args.get('mode')
     if mode == 'zestawienie':
@@ -1488,10 +1753,25 @@ def export_sprzet(format):
     # Standardowy eksport listy sprzętu (z opcją wyboru kolumn)
     columns = request.args.getlist('columns')
     
+    # Presety: jeśli nie podano columns, można wskazać preset=...
+    preset_id = (request.args.get('preset') or '').strip()
+    if (not columns) and preset_id:
+        preset_map = {
+            'all_csv_header': [
+                'oficjalna_ewidencja', 'informacje', 'historia', 'uwagi',
+                'category', 'parent_id', 'nazwa', 'zdjecia', 'id', 'return',
+                'ilosc', 'jednostka', 'sprawny', 'owner', 'czyWraca'
+            ],
+            'basic': ['id', 'category', 'nazwa', 'owner', 'ilosc', 'jednostka', 'magazyn_display'],
+            'qr_links': ['id', 'category', 'nazwa', 'qr_url', 'qr_png_url'],
+        }
+        columns = preset_map.get(preset_id, columns)
+
     # Odtwarzamy filtry identycznie jak w sprzet_list
     parent_id = request.args.get('parent_id')
     search_query = request.args.get('search')
     category = request.args.get('category')
+    owner = request.args.get('owner')
     typ = request.args.get('typ')
     wodoszczelnosc = request.args.get('wodoszczelnosc')
     lokalizacja = request.args.get('lokalizacja')
@@ -1500,6 +1780,8 @@ def export_sprzet(format):
     filters = []
     if category:
         filters.append(('category', '==', category))
+    if owner:
+        filters.append(('owner', '==', owner))
     if typ:
         filters.append(('typ', '==', typ))
     if wodoszczelnosc:
@@ -1529,7 +1811,19 @@ def export_sprzet(format):
 
     export_rows = []
     for it in items:
-        export_rows.append({k: v for k, v in it.items() if k != 'zdjecia_lista_url'})
+        row = {k: v for k, v in it.items() if k != 'zdjecia_lista_url'}
+
+        # Opcjonalne kolumny z linkami do karty/QR (używane w tabelkowych eksportach)
+        # Uwaga: dodajemy tylko jeśli użytkownik o nie poprosił, żeby nie zaśmiecać eksportów.
+        if columns:
+            item_id = row.get('id')
+            if item_id:
+                if 'qr_url' in columns:
+                    row['qr_url'] = f"{qr_base}/sprzet/{item_id}"
+                if 'qr_png_url' in columns:
+                    row['qr_png_url'] = f"{request.host_url.rstrip('/')}/sprzet/{item_id}/qrcode"
+
+        export_rows.append(row)
 
     filename = 'sprzet_export'
     title = 'Eksport sprzętu'
@@ -1540,12 +1834,6 @@ def export_sprzet(format):
         return export_to_xlsx(export_rows, filename, columns=columns)
     if fmt == 'docx':
         return export_to_docx(export_rows, filename, title, columns=columns)
-    if fmt == 'qr':
-        qr_url = os.getenv('QR_URL')
-        if not qr_url:
-            flash('Eksport QR jest niedostępny: brak konfiguracji QR_URL.', 'warning')
-            return export_to_pdf(export_rows, filename, title, columns=columns)
-        return export_qr_codes_pdf(export_rows, filename, qr_url)
     return export_to_pdf(export_rows, filename, title, columns=columns)
 
 @views_bp.route('/usterki/export/<format>')
@@ -1761,3 +2049,68 @@ def usterki_bulk_delete():
             flash(err, 'danger')
 
     return redirect(url_for('views.usterki_list'))
+
+@views_bp.route('/sprzet/import/template.csv')
+@quartermaster_required
+def sprzet_import_template_csv():
+    """Pobierz szablon CSV z poprawnymi nagłówkami importu sprzętu."""
+    path = os.path.join(current_app.root_path, 'static', 'assets', 'import_templates', 'sprzet_import_template.csv')
+    return send_file(path, mimetype='text/csv', as_attachment=True, download_name='sprzet_import_template.csv')
+
+
+@views_bp.route('/sprzet/import/template.xlsx')
+@quartermaster_required
+def sprzet_import_template_xlsx():
+    """Pobierz szablon XLSX z poprawnymi nagłówkami importu sprzętu."""
+    cols = [
+        'id', 'category', 'parent_id', 'nazwa', 'owner', 'sprawny', 'ilosc', 'jednostka',
+        'oficjalna_ewidencja', 'informacje', 'uwagi', 'historia', 'przeznaczenie', 'lokalizacja',
+        'typ', 'wodoszczelnosc', 'stan_ogolny', 'zapalki', 'kolor_dachu', 'kolor_bokow',
+        'czyWraca', 'return', 'zdjecia',
+        # kanadyjki
+        'material',
+        # żelastwo
+        'typ_zelastwa', 'do_czego',
+        # magazyny
+        'gps_lat', 'gps_lng',
+    ]
+
+    df = pd.DataFrame(columns=cols)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='sprzet_import')
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='sprzet_import_template.xlsx'
+    )
+
+@views_bp.route('/loan/delete/<loan_id>', methods=['POST'])
+@admin_required
+def loan_delete(loan_id):
+    """Usuwa wypożyczenie z historii (tylko ADMIN)."""
+    loan = get_item(COLLECTION_WYPOZYCZENIA, loan_id)
+    if not loan:
+        flash('Nie znaleziono wypożyczenia.', 'danger')
+        return redirect(url_for('views.loans_list', history=1))
+
+    # Bezpiecznik: pozwalamy usuwać tylko zwrócone (historyczne)
+    if loan.get('status') != 'returned':
+        flash('Można usuwać tylko historyczne (zwrócone) wypożyczenia.', 'warning')
+        return redirect(url_for('views.loans_list'))
+
+    try:
+        before_data = {k: v for k, v in loan.items() if k not in ['id']}
+        delete_item(COLLECTION_WYPOZYCZENIA, loan_id)
+        add_log(session.get('user_id'), 'delete', 'wypozyczenie', loan_id, before=before_data)
+        flash('Historyczne wypożyczenie zostało usunięte.', 'success')
+    except Exception as e:
+        flash(f'Błąd usuwania wypożyczenia: {e}', 'danger')
+
+    # wróć do historii jeśli user był w historii
+    if request.args.get('history') == '1':
+        return redirect(url_for('views.loans_list', history=1))
+    return redirect(url_for('views.loans_list', history=1))
+

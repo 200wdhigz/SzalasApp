@@ -3,11 +3,13 @@ from firebase_admin import auth as firebase_auth
 import secrets
 import string
 import os
+from datetime import datetime, timedelta
 
 from .auth import admin_required, quartermaster_required
 from .db_firestore import (
     get_all_logs, add_log, restore_item, get_config, update_config
 )
+from .db_firestore import get_list_setting, update_list_setting
 from .db_users import (
     get_all_users, get_user_by_uid, update_user,
     set_user_active_status, set_user_admin_status, create_user,
@@ -385,16 +387,21 @@ def log_restore(log_id):
 def settings():
     """Zarządzanie ustawieniami aplikacji (np. PIN)."""
     if request.method == 'POST':
+        # === listy wyboru ===
+        owners_raw = (request.form.get('owners') or '').strip()
+        magazyny_raw = (request.form.get('magazyny_names') or '').strip()
+
         pin = request.form.get('view_pin')
         auto_rotate = request.form.get('pin_auto_rotate') == 'on'
         rotate_hours = request.form.get('pin_rotate_hours', '').strip()
-        
+        next_rotate_at_raw = (request.form.get('pin_next_rotate_at') or '').strip()
+
         # Opcjonalnie: walidacja tokena CSRF, jeśli admin go używa (widzę że admin.py go używa)
         if not validate_csrf_token():
              return redirect(url_for('admin.settings'))
 
         update_data = {'pin_auto_rotate': auto_rotate}
-        
+
         # Validate and set rotation hours - always set it even if empty (use default)
         if not rotate_hours:
             update_data['pin_rotate_hours'] = 24  # Default value
@@ -409,20 +416,52 @@ def settings():
                 flash('Interwał rotacji musi być liczbą całkowitą.', 'danger')
                 return redirect(url_for('admin.settings'))
         
+        # Optional: ustaw ręcznie termin następnej rotacji (datetime-local)
+        if next_rotate_at_raw:
+            try:
+                # datetime-local zwraca np. 2026-01-24T14:30
+                # Zapisujemy jako ISO string; get_or_rotate_pin umie go sparsować.
+                dt = datetime.fromisoformat(next_rotate_at_raw)
+                update_data['pin_next_rotate_at'] = dt.isoformat()
+            except Exception:
+                flash('Nieprawidłowy format daty/godziny następnej rotacji PIN.', 'danger')
+                return redirect(url_for('admin.settings'))
+        else:
+            # jeśli puste - usuń ustawienie, automat wróci do last_rotate + interwał
+            update_data['pin_next_rotate_at'] = None
+
         if pin:
             if not pin.isdigit() or len(pin) != 6:
                 flash('PIN musi składać się z 6 cyfr.', 'danger')
                 return redirect(url_for('admin.settings'))
             update_data['view_pin'] = pin
             from .db_firestore import _warsaw_now
-            update_data['pin_last_rotate'] = _warsaw_now()
-        
+            now = _warsaw_now()
+            update_data['pin_last_rotate'] = now
+            # Jeżeli admin zmienia PIN ręcznie, a auto-rotate jest włączone,
+            # to ustawiamy kolejny termin wg interwału (automat przejmuje).
+            try:
+                rh = int(update_data.get('pin_rotate_hours', 24) or 24)
+            except Exception:
+                rh = 24
+            if auto_rotate:
+                update_data['pin_next_rotate_at'] = (now + timedelta(hours=rh)).isoformat()
+
         update_config(**update_data)
+
+        # Zapis list: jedna wartość na linię
+        if owners_raw:
+            owners_list = [l.strip() for l in owners_raw.splitlines() if l.strip()]
+            update_list_setting('owners', owners_list)
+        if magazyny_raw:
+            magazyny_list = [l.strip() for l in magazyny_raw.splitlines() if l.strip()]
+            update_list_setting('magazyny_names', magazyny_list)
+
         flash('Ustawienia zostały zapisane.', 'success')
         return redirect(url_for('admin.settings'))
-            
+
     config = get_config()
-    return render_template('admin/settings.html', config=config)
-
-
+    owners = get_list_setting('owners')
+    magazyny_names = get_list_setting('magazyny_names')
+    return render_template('admin/settings.html', config=config, owners=owners, magazyny_names=magazyny_names)
 

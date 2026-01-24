@@ -41,7 +41,7 @@
                             {% if loan.item and loan.item.oficjalna_ewidencja == 'Tak' %}
                                 <span class="badge text-bg-success" title="W oficjalnej ewidencji">Tak</span>
                             {% else %}
-                                <span class="badge text-bg-light text-muted" title="Brak w oficjalnej ewidencji">Nie</span>
+                                <span class="badge border text-body-secondary" title="Brak w oficjalnej ewidencji">Nie</span>
                             {% endif %}
                         </td>
                         <td>
@@ -61,7 +61,16 @@
                                     <button type="submit" class="btn btn-success btn-sm">Zwróć</button>
                                 </form>
                             {% else %}
-                                -
+                                {% if session.get('user_role') == 'admin' %}
+                                    <form method="POST" action="{{ url_for('views.loan_delete', loan_id=loan.id, history=1) }}"
+                                          style="display:inline;"
+                                          onsubmit="return confirm('Usunąć historyczne wypożyczenie? Tej operacji nie da się cofnąć.');">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">Usuń</button>
+                                    </form>
+                                {% else %}
+                                    -
+                                {% endif %}
                             {% endif %}
                         </td>
                     </tr>

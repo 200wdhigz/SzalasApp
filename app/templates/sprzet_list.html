@@ -74,6 +74,18 @@
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <label for="owner" class="form-label">Własność</label>
+                    <select name="owner" id="owner" class="form-select">
+                        <option value="">Wszystkie</option>
+                        <option value="Szczep" {% if selected_filters.owner == 'Szczep' %}selected{% endif %}>Szczep</option>
+                        <option value="Leśnicy" {% if selected_filters.owner == 'Leśnicy' %}selected{% endif %}>Leśnicy</option>
+                        <option value="Leśne duszki" {% if selected_filters.owner == 'Leśne duszki' %}selected{% endif %}>Leśne duszki</option>
+                        <option value="Szkrzaty" {% if selected_filters.owner == 'Szkrzaty' %}selected{% endif %}>Szkrzaty</option>
+                        <option value="Leśne Błotniaczki" {% if selected_filters.owner == 'Leśne Błotniaczki' %}selected{% endif %}>Leśne Błotniaczki</option>
+                        <option value="Rota" {% if selected_filters.owner == 'Rota' %}selected{% endif %}>Rota</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label for="oficjalna_ewidencja" class="form-label">Oficjalna ewidencja</label>
                     <select name="oficjalna_ewidencja" id="oficjalna_ewidencja" class="form-select">
                         <option value="">Wszystkie</option>
@@ -165,27 +177,9 @@
     {% endif %}
 
     <div class="mb-3">
-        <div class="dropdown d-inline-block">
-            <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown"
-                    aria-expanded="false">
-                <i class="bi bi-download"></i> Eksportuj
-            </button>
-            <ul class="dropdown-menu">
-                <li><a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='csv', **selected_filters) }}">CSV</a></li>
-                <li><a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='xlsx', **selected_filters) }}">Excel (.xlsx)</a>
-                </li>
-                <li><a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='docx', **selected_filters) }}">Word (.docx)</a>
-                </li>
-                <li><a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='pdf', **selected_filters) }}">PDF</a></li>
-                <li>
-                    <a class="dropdown-item"
-                       href="{{ url_for('views.export_sprzet', format='qr', **selected_filters) }}">PDF (QR + ID)</a></li>
-            </ul>
-        </div>
+        <a class="btn btn-success" href="{{ url_for('views.sprzet_export_config', **selected_filters) }}">
+            <i class="bi bi-download"></i> Eksportuj
+        </a>
         <script>
             function submitExport(format) {
                 const form = document.createElement('form');
@@ -222,12 +216,14 @@
             }
         </script>
         {% if IS_QUARTERMASTER %}
-            <a href="{{ url_for('views.sprzet_add') }}" class="btn btn-outline-primary ms-2">
-                <i class="bi bi-plus-circle"></i> Dodaj Sprzęt
-            </a>
-            <a href="{{ url_for('views.sprzet_import') }}" class="btn btn-outline-info ms-2">
-                <i class="bi bi-file-earmark-arrow-up"></i> Importuj
-            </a>
+            <div class="btn-group ms-2" role="group" aria-label="Szybkie akcje">
+                <a href="{{ url_for('views.sprzet_add', return=request.query_string.decode('utf-8'), parent_id=(parent_item.id if parent_item else None)) }}" class="btn btn-outline-primary">
+                    <i class="bi bi-plus-circle"></i> Dodaj Sprzęt
+                </a>
+                <a href="{{ url_for('views.sprzet_import') }}" class="btn btn-outline-info">
+                    <i class="bi bi-file-earmark-arrow-up"></i> Importuj
+                </a>
+            </div>
         {% endif %}
         <div class="dropdown d-inline-block ms-2">
             <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown"
@@ -248,6 +244,22 @@
             </ul>
         </div>
     </div>
+
+    {% if parent_item %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <a href="{{ url_for('views.sprzet_list', parent_id=parent_item.parent_id) if parent_item.parent_id else url_for('views.sprzet_list') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Powrót do nadrzędnego
+            </a>
+            <a href="{{ url_for('views.sprzet_card', sprzet_id=parent_item.id) }}" class="btn btn-outline-primary">
+                <i class="bi bi-eye"></i> Otwórz kartę miejsca
+            </a>
+            {% if IS_QUARTERMASTER %}
+                <a href="{{ url_for('views.sprzet_add', parent_id=parent_item.id, return=request.query_string.decode('utf-8')) }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Dodaj element tutaj
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
 
     {% if sprzet_list %}
 
@@ -287,6 +299,7 @@
                     <th data-column="category">Kategoria</th>
                     <th data-column="name">Nazwa / Typ</th>
                     <th data-column="info">Informacje / Stan</th>
+                    <th data-column="owner">Własność</th>
                     <th data-column="qty">Ilość</th>
                     <th data-column="unit">Jedn.</th>
                     <th data-column="location">Lokalizacja</th>
@@ -382,6 +395,7 @@
                                 <br><span class="badge text-bg-danger">Wypożyczone</span>
                             {% endif %}
                         </td>
+                        <td data-column="owner">{{ item.owner or '' }}</td>
                         <td data-column="location">
                             {% if item.magazyn_id %}
                                 <a href="{{ url_for('views.sprzet_list', parent_id=item.magazyn_id) }}">{{ item.magazyn_display }}</a>
@@ -411,7 +425,7 @@
                                         <i class="bi bi-card-list"></i>
                                     </a>
                                     {% if IS_QUARTERMASTER %}
-                                        <a href="{{ url_for('views.sprzet_edit', sprzet_id=item.id) }}"
+                                        <a href="{{ url_for('views.sprzet_edit', sprzet_id=item.id, return=request.query_string.decode('utf-8')) }}"
                                            class="btn btn-warning btn-sm" title="Edytuj">
                                             <i class="bi bi-pencil"></i>
                                         </a>
@@ -420,6 +434,7 @@
                                               style="display:inline;"
                                               onsubmit="return confirm('Czy na pewno chcesz usunąć ten element?');">
                                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                            <input type="hidden" name="return_query" value="{{ request.query_string.decode('utf-8') }}">
                                             <button type="submit" class="btn btn-danger btn-sm" title="Usuń">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -495,6 +510,7 @@
                         {id: 'category', name: 'Kategoria', visible: true},
                         {id: 'name', name: 'Nazwa / Typ', visible: true},
                         {id: 'info', name: 'Informacje / Stan', visible: true},
+                        {id: 'owner', name: 'Własność', visible: false},
                         {id: 'qty', name: 'Ilość', visible: false},
                         {id: 'unit', name: 'Jedn.', visible: false},
                         {id: 'location', name: 'Lokalizacja', visible: true},
