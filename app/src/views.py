@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app, jsonify
 import os
 import uuid
 import json
@@ -1638,6 +1638,49 @@ def sprzet_export_config():
     Docelowo przekierowuje do /sprzet/export/<format> z parametrami columns=...
     """
     return render_template('sprzet_export_config.html')
+
+
+@views_bp.route('/sprzet/export/presets')
+@login_required
+def sprzet_export_presets():
+    """Zwraca listę dostępnych presetów eksportu w formacie JSON.
+    
+    Presety definiują zestawy kolumn do eksportu. Mogą być wbudowane (systemowe)
+    lub per-użytkownik (z Firestore - w przyszłości).
+    """
+    # Wbudowane presety (systemowe)
+    builtin_presets = [
+        {
+            'id': 'all_csv_header',
+            'name': 'Wszystkie kolumny (nagłówek CSV)',
+            'columns': [
+                'oficjalna_ewidencja', 'informacje', 'historia', 'uwagi',
+                'category', 'parent_id', 'nazwa', 'zdjecia', 'id', 'return',
+                'ilosc', 'jednostka', 'sprawny', 'owner', 'czyWraca'
+            ],
+            'is_system': True
+        },
+        {
+            'id': 'basic',
+            'name': 'Podstawowe',
+            'columns': [
+                'id', 'category', 'nazwa', 'owner', 'ilosc', 'jednostka', 'magazyn_display'
+            ],
+            'is_system': True
+        },
+        {
+            'id': 'qr_links',
+            'name': 'QR - szybkie linki',
+            'columns': [
+                'id', 'category', 'nazwa', 'qr_url', 'qr_png_url'
+            ],
+            'is_system': True
+        }
+    ]
+    
+    return jsonify({
+        'presets': builtin_presets
+    })
 
 
 @views_bp.route('/sprzet/export/<format>')
