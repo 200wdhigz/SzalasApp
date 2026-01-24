@@ -12,18 +12,33 @@ CATEGORIES = {
     'NAMIOT': 'namiot',
     'PRZEDMIOT': 'przedmiot',
     'ZELASTWO': 'zelastwo',
-    'KANADYJKI': 'kanadyjki'
+    'KANADYJKI': 'kanadyjki',
+    'MATERACE': 'materace',
 }
 
-MAGAZYNY_NAMES = [
-    'Esperanto',
-    'Obozowa/magazynek',
-    'Obozowa/skrzynie',
-    'Obozowa/piwnica',
-    'Leśniczy/strych',
-    'Leśniczy/schody',
-    'Leśniczy/magazynek'
-]
+DEFAULT_APP_LISTS = {
+    # Właściciele (jednostki) sprzętu
+    'owners': [
+        'Szczep',
+        'Leśnicy',
+        'Leśne duszki',
+        'Szkrzaty',
+        'Leśne Błotniaczki',
+        'Rota',
+    ],
+    # Podpowiedzi nazw magazynów/obszarów
+    'magazyny_names': [
+        'Esperanto',
+        'Obozowa/magazynek',
+        'Obozowa/skrzynie',
+        'Obozowa/piwnica',
+        'Leśniczy/strych',
+        'Leśniczy/schody',
+        'Leśniczy/magazynek'
+    ],
+    # Statusy usterek
+    'usterki_statuses': ['oczekuje', 'w trakcie', 'naprawiona', 'odrzucona'],
+}
 
 def _warsaw_now():
     """Zwraca bieżący czas lokalny dla Polski (Europe/Warsaw) jako datetime timezone-aware."""
@@ -242,13 +257,19 @@ def set_item(collection: str, item_id: str, data: dict):
     return item_id
 
 def add_item(collection: str, data: dict):
-    """Dodaje nowy dokument do kolekcji."""
+    """Dodaje element do kolekcji.
+
+    Jeśli `data` zawiera pole `id`, traktujemy je jako ID dokumentu.
+    To umożliwia testom i importom tworzenie przewidywalnych rekordów.
+    """
     db = get_firestore_client()
-    if collection == COLLECTION_USTERKI and 'data_zgloszenia' not in data:
-        data['data_zgloszenia'] = _warsaw_now()
-    
-    _, doc_ref = db.collection(collection).add(data)
-    return doc_ref.id
+    doc_id = (data or {}).get('id')
+    if doc_id:
+        db.collection(collection).document(str(doc_id)).set({k: v for k, v in data.items() if k != 'id'})
+        return str(doc_id)
+
+    doc_ref = db.collection(collection).add(data)
+    return doc_ref[1].id
 
 def delete_item(collection: str, item_id: str):
     """Usuwa dokument z kolekcji."""
@@ -289,3 +310,51 @@ def update_config(**kwargs):
     from . import get_firestore_client
     db = get_firestore_client()
     db.collection('config').document('app_settings').set(kwargs, merge=True)
+
+def get_list_setting(key: str) -> list[str]:
+    """Zwraca listę z ustawień aplikacji w Firestore (config/app_settings).
+
+    Jeśli brak w bazie albo wartość jest nieprawidłowa/zasilona starym typem,
+    zwraca bezpieczny fallback z DEFAULT_APP_LISTS.
+    """
+    cfg = get_config() or {}
+    val = cfg.get(key)
+    if isinstance(val, list):
+        # normalizuj: stringi, bez pustych, trim
+        out: list[str] = []
+        seen = set()
+        for x in val:
+            if x is None:
+                continue
+            s = str(x).strip()
+            if not s:
+                continue
+            if s in seen:
+                continue
+            out.append(s)
+            seen.add(s)
+        if out:
+            return out
+    # fallback
+    return list(DEFAULT_APP_LISTS.get(key, []))
+
+
+def update_list_setting(key: str, values: list[str]):
+    """Zapisuje listę do config/app_settings jako ustawienie aplikacji."""
+    if values is None:
+        values = []
+    cleaned: list[str] = []
+    seen = set()
+    for v in values:
+        if v is None:
+            continue
+        s = str(v).strip()
+        if not s or s in seen:
+            continue
+        cleaned.append(s)
+        seen.add(s)
+    update_config(**{key: cleaned})
+
+# Kompatybilność wsteczna: historycznie część widoków importowała MAGAZYNY_NAMES.
+# Źródłem prawdy jest config/app_settings (klucz: magazyny_names).
+MAGAZYNY_NAMES = get_list_setting('magazyny_names')

@@ -1,0 +1,369 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2 class="mb-3">Eksport sprzętu</h2>
+
+    <div class="alert alert-info">
+        Wybierz format i kolumny do wyeksportowania. Domyślnie podpowiadamy kolumny z ustawień tabeli (menu „Kolumny”).
+    </div>
+
+    <form id="exportConfigForm" method="GET" action="#" class="row g-3">
+        <div class="col-12 col-lg-5">
+            <label for="format" class="form-label">Format eksportu</label>
+            <select id="format" class="form-select">
+                <option value="csv">CSV</option>
+                <option value="xlsx">Excel (.xlsx)</option>
+                <option value="docx">Word (.docx)</option>
+                <option value="pdf">PDF</option>
+            </select>
+            <div class="form-text">
+                PDF eksportuje tabelę; jeśli chcesz QR w eksporcie tabelkowym, dodaj kolumnę <code>qr_url</code> lub <code>qr_png_url</code>.
+            </div>
+
+            <div class="mt-3">
+                <label for="preset" class="form-label">Presety eksportu</label>
+                <div class="input-group">
+                    <select id="preset" class="form-select">
+                        <option value="">(brak)</option>
+                    </select>
+                    <button type="button" class="btn btn-outline-secondary" id="applyPresetBtn">Zastosuj</button>
+                </div>
+                <div class="form-text">
+                    Preset szybko ustawia zestaw kolumn. Nadal możesz ręcznie zmienić zaznaczenia.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-7">
+            <label class="form-label">Kolumny</label>
+            <div id="columnsContainer" class="border rounded p-2 bg-body-tertiary">
+                 <div class="text-muted small">Ładowanie kolumn…</div>
+             </div>
+             <div class="d-flex gap-2 mt-2 flex-wrap">
+                 <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllCols">Zaznacz wszystkie</button>
+                 <button type="button" class="btn btn-sm btn-outline-secondary" id="selectNoneCols">Odznacz wszystkie</button>
+                 <button type="button" class="btn btn-sm btn-outline-secondary" id="restoreFromTableCols">Przywróć z ustawień tabeli</button>
+             </div>
+            <div class="form-text">
+                Kolumny zapisujemy jako nazwy pól w eksporcie (np. <code>owner</code>, <code>category</code>). Jeśli wybierzesz kolumnę, której nie ma w danych, zostanie pusta.
+            </div>
+        </div>
+
+        {# zachowujemy wszystkie parametry z listy jako hidden #}
+        {% for key, value in request.args.items() %}
+            <input type="hidden" name="{{ key }}" value="{{ value }}">
+        {% endfor %}
+
+        <div class="col-12 d-flex gap-2 flex-wrap">
+            <button type="submit" class="btn btn-success">Eksportuj</button>
+            <a class="btn btn-outline-secondary" href="{{ url_for('views.sprzet_list', **request.args) }}">Wróć do listy</a>
+        </div>
+    </form>
+
+    <script>
+        (function () {
+            // Konfiguracja kolumn tabeli (to są identyfikatory kolumn w UI listy sprzet_list.html)
+            // UWAGA: key w localStorage może się zmieniać wraz z wersją schematu.
+            const STORAGE_KEY_CONFIG = 'sprzet_list_column_config_v3';
+
+            // Mapowanie: id kolumny w tabeli -> nazwa pola w eksporcie
+            // (export_sprzet eksportuje raw dict z Firestore; część pól jest 1:1)
+            const COLUMN_MAP = {
+                'id': 'id',
+                'category': 'category',
+                'name': 'nazwa',
+                'info': 'informacje',
+                'owner': 'owner',
+                'qty': 'ilosc',
+                'unit': 'jednostka',
+                'location': 'magazyn_display',
+                'destination': 'przeznaczenie',
+                'condition': 'stan_ogolny',
+                'ewidencja': 'oficjalna_ewidencja'
+            };
+
+            const DEFAULT_EXPORT_COLUMNS = [
+                'id', 'category', 'nazwa', 'owner', 'ilosc', 'jednostka', 'magazyn_display'
+            ];
+            const container = document.getElementById('columnsContainer');
+            const form = document.getElementById('exportConfigForm');
+            const formatEl = document.getElementById('format');
+            const selectAllBtn = document.getElementById('selectAllCols');
+            const selectNoneBtn = document.getElementById('selectNoneCols');
+            const restoreBtn = document.getElementById('restoreFromTableCols');
+            const presetEl = document.getElementById('preset');
+            const applyPresetBtn = document.getElementById('applyPresetBtn');
+
+            function readTableConfig() {
+                const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
+                if (!saved) return null;
+                try {
+                    const conf = JSON.parse(saved);
+                    return Array.isArray(conf) ? conf : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function getSuggestedExportColumnsFromTable() {
+                const conf = readTableConfig();
+                if (!conf) return null;
+
+                // widoczne kolumny z UI -> pola eksportu
+                const visibleIds = conf.filter(c => c && c.visible).map(c => c.id);
+                const cols = [];
+                visibleIds.forEach(id => {
+                    const mapped = COLUMN_MAP[id];
+                    if (mapped && !cols.includes(mapped)) cols.push(mapped);
+                });
+                return cols;
+            }
+
+            function renderGroupedCheckboxes(groups, checkedColumns) {
+                container.innerHTML = '';
+
+                const checked = new Set(checkedColumns || []);
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'vstack gap-3';
+
+                Object.keys(groups).forEach(groupName => {
+                    const cols = groups[groupName] || [];
+                    if (!cols.length) return;
+
+                    const card = document.createElement('div');
+                    card.className = 'border rounded p-2';
+
+                    const title = document.createElement('div');
+                    title.className = 'fw-semibold mb-2';
+                    title.textContent = groupName;
+                    card.appendChild(title);
+
+                    const list = document.createElement('div');
+                    list.className = 'row g-2';
+
+                    cols.forEach(col => {
+                        const colDiv = document.createElement('div');
+                        colDiv.className = 'col-12 col-sm-6 col-lg-4';
+
+                        const id = 'col_' + groupName.replace(/\W+/g, '_') + '_' + col;
+                        const wrapperChk = document.createElement('div');
+                        wrapperChk.className = 'form-check';
+
+                        const input = document.createElement('input');
+                        input.className = 'form-check-input export-col';
+                        input.type = 'checkbox';
+                        input.id = id;
+                        input.value = col;
+                        input.checked = checked.has(col);
+
+                        const label = document.createElement('label');
+                        label.className = 'form-check-label';
+                        label.setAttribute('for', id);
+                        label.textContent = col;
+
+                        wrapperChk.appendChild(input);
+                        wrapperChk.appendChild(label);
+                        colDiv.appendChild(wrapperChk);
+                        list.appendChild(colDiv);
+                    });
+
+                    card.appendChild(list);
+                    wrapper.appendChild(card);
+                });
+
+                container.appendChild(wrapper);
+            }
+
+            function getAllExportableColumnsByGroup() {
+                // Grupy dopasowane do kategorii w aplikacji.
+                // Uwaga: backend eksportuje "surowe" pola z Firestore, więc tu operujemy nazwami pól.
+                const groups = {
+                    'Ogólne': [
+                        // Kolumny ogólne + wszystkie pola, które mogą wystąpić w eksporcie CSV
+                        // (np. z importów / starszych danych)
+                        'id', 'category', 'nazwa',
+                        'owner',
+                        'ilosc', 'jednostka',
+                        'sprawny',
+                        'magazyn_display', 'lokalizacja', 'parent_id',
+                        'oficjalna_ewidencja',
+                        'typ', 'informacje', 'uwagi', 'historia',
+                        'przeznaczenie', 'stan_ogolny',
+                        'zdjecia',
+                        // kompatybilność: pole "return" z CSV (nazwa koliduje z JS keyword, więc tylko jako string)
+                        'return',
+                        // kompatybilność: historyczne pole "czyWraca" (importy)
+                        'czyWraca',
+                         // linki/QR (wirtualne)
+                         'qr_url', 'qr_png_url'
+                     ],
+                    'Magazyn': [
+                        'gps_lat', 'gps_lng', 'lokalizacja'
+                    ],
+                    'Półka / skrzynia': [
+                        'informacje'
+                    ],
+                    'Namiot': [
+                        'typ', 'wodoszczelnosc', 'stan_ogolny', 'zapalki',
+                        'kolor_dachu', 'kolor_bokow'
+                    ],
+                    'Przedmiot': [
+                        'sprawny'
+                    ],
+                    'Żelastwo': [
+                        'typ_zelastwa', 'do_czego', 'sprawny'
+                    ],
+                    'Kanadyjki': [
+                        'material', 'sprawny'
+                    ],
+                    'Materace': [
+                        'sprawny'
+                    ]
+                };
+
+                // usuń duplikaty między grupami (np. 'typ' w Ogólne i Namiot) –
+                // zostaw w Ogólne, a w specyficznych usuń, żeby UI było czytelne.
+                const general = new Set(groups['Ogólne'] || []);
+                Object.keys(groups).forEach(k => {
+                    if (k === 'Ogólne') return;
+                    groups[k] = (groups[k] || []).filter(c => !general.has(c));
+                });
+
+                // posortuj kolumny w obrębie grup i usuń puste
+                Object.keys(groups).forEach(k => {
+                    groups[k] = (groups[k] || []).filter(Boolean);
+                });
+
+                return groups;
+            }
+
+            function getCheckedColumns() {
+                return Array.from(document.querySelectorAll('.export-col'))
+                    .filter(i => i.checked)
+                    .map(i => i.value);
+            }
+
+            function setAllChecked(val) {
+                Array.from(document.querySelectorAll('.export-col')).forEach(i => i.checked = val);
+            }
+
+            function setCheckedColumns(cols) {
+                const set = new Set(cols || []);
+                Array.from(document.querySelectorAll('.export-col')).forEach(i => i.checked = set.has(i.value));
+            }
+
+            async function loadPresets() {
+                try {
+                    const res = await fetch("{{ url_for('views.sprzet_export_presets') }}", {credentials: 'same-origin'});
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const presets = (data && data.presets) ? data.presets : [];
+
+                    // Wypełnij select
+                    if (presetEl) {
+                        // zachowaj pierwszą opcję (brak)
+                        presets.forEach(p => {
+                            const opt = document.createElement('option');
+                            opt.value = p.id;
+                            opt.textContent = p.name;
+                            opt.dataset.columns = JSON.stringify(p.columns || []);
+                            presetEl.appendChild(opt);
+                        });
+                    }
+                } catch (e) {
+                    // bez presetów – nic nie robimy
+                }
+            }
+
+            function applyPresetFromSelect() {
+                if (!presetEl) return;
+                const opt = presetEl.options[presetEl.selectedIndex];
+                if (!opt || !opt.value) return;
+                let cols = [];
+                try {
+                    cols = JSON.parse(opt.dataset.columns || '[]');
+                } catch (e) {
+                    cols = [];
+                }
+                if (cols && cols.length) {
+                    setCheckedColumns(cols);
+                }
+            }
+
+            function updateColumnsUiState() {
+                const fmt = (formatEl.value || '').toLowerCase();
+                // Nie ma już specjalnego formatu QR – zawsze wybór kolumn jest aktywny.
+                void fmt;
+                container.style.opacity = '1';
+                container.style.pointerEvents = 'auto';
+                selectAllBtn.disabled = false;
+                selectNoneBtn.disabled = false;
+                restoreBtn.disabled = false;
+            }
+
+            // init
+            const groups = getAllExportableColumnsByGroup();
+            const suggested = getSuggestedExportColumnsFromTable();
+            const initial = (suggested && suggested.length) ? suggested : DEFAULT_EXPORT_COLUMNS;
+            renderGroupedCheckboxes(groups, initial);
+            updateColumnsUiState();
+
+            loadPresets();
+
+            formatEl.addEventListener('change', updateColumnsUiState);
+
+            selectAllBtn.addEventListener('click', function () {
+                setAllChecked(true);
+            });
+            selectNoneBtn.addEventListener('click', function () {
+                setAllChecked(false);
+            });
+            restoreBtn.addEventListener('click', function () {
+                const s = getSuggestedExportColumnsFromTable();
+                setCheckedColumns((s && s.length) ? s : DEFAULT_EXPORT_COLUMNS);
+            });
+
+            if (applyPresetBtn) {
+                applyPresetBtn.addEventListener('click', function () {
+                    applyPresetFromSelect();
+                });
+            }
+
+            // Jeśli ktoś ręcznie klika checkboxy w grupach, niech szybkie checkboxy też się aktualizują
+            container.addEventListener('change', function (e) {
+                const t = e && e.target;
+                if (t && t.classList && t.classList.contains('export-col')) {
+                    // Synchronizacja pól wspólnych występujących w kilku grupach (np. sprawny)
+                    // Jeśli użytkownik kliknie 'sprawny' w jednej grupie, zaznacz/odznacz wszystkie pozostałe.
+                    if (t.value === 'sprawny') {
+                        const val = !!t.checked;
+                        Array.from(document.querySelectorAll('.export-col[value="sprawny"]')).forEach(cb => {
+                            cb.checked = val;
+                        });
+                    }
+                }
+            });
+
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const fmt = (formatEl.value || '').toLowerCase();
+                const baseAction = "{{ url_for('views.export_sprzet', format='__FMT__') }}".replace('__FMT__', fmt);
+
+                const url = new URL(baseAction, window.location.origin);
+
+                // skopiuj istniejące query params (filtry) z hidden inputs
+                Array.from(form.querySelectorAll('input[type="hidden"]')).forEach(h => {
+                    if (!h.name) return;
+                    url.searchParams.append(h.name, h.value);
+                });
+
+                const cols = getCheckedColumns();
+                cols.forEach(c => url.searchParams.append('columns', c));
+
+                window.location.href = url.toString();
+            });
+        })();
+    </script>
+{% endblock %}

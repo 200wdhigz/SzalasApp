@@ -5,8 +5,8 @@ import os
 # Dodaj folder 'app' do ścieżki, aby importy działały
 sys.path.append(os.path.join(os.getcwd(), 'app'))
 
-# Popraw ścieżkę do credentials dla testu, jeśli uruchamiamy z roota
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(os.getcwd(), 'credentials', 'service-account.json')
+# Popraw ścieżkę do credentials dla testu, jeżeli uruchamiamy z roota
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\uzyt\PycharmProjects\SzalasApp\credentials\service-account.json"
 
 from src import create_app
 from src.db_firestore import update_config

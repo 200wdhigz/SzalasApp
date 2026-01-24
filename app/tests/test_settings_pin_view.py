@@ -5,8 +5,8 @@ import os
 # Dodaj folder 'app' do ścieżki, aby importy działały
 sys.path.append(os.path.join(os.getcwd(), 'app'))
 
-# Popraw ścieżkę do credentials dla testu, jeśli uruchamiamy z roota
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(os.getcwd(), 'credentials', 'service-account.json')
+# Popraw ścieżkę do credentials dla testu, jeżeli uruchamiamy z roota
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\uzyt\PycharmProjects\SzalasApp\credentials\service-account.json"
 
 from src import create_app
 from src.db_firestore import update_config
@@ -38,6 +38,17 @@ class SettingsPinViewTestCase(unittest.TestCase):
         # ale my chcemy go sprawdzić w treści strony (np. w badge lub dedykowanym polu).
         html_content = response.data.decode('utf-8')
         self.assertIn(test_pin, html_content)
+
+    def test_settings_has_next_rotate_field(self):
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 'test_admin'
+            sess['user_role'] = 'admin'
+            sess['is_admin'] = True
+
+        response = self.client.get('/admin/settings')
+        self.assertEqual(response.status_code, 200)
+        html_content = response.data.decode('utf-8')
+        self.assertIn('name="pin_next_rotate_at"', html_content)
 
 if __name__ == '__main__':
     unittest.main()

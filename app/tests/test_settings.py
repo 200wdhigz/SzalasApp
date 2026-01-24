@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.join(os.getcwd(), 'app'))
 
 # Fix the path to credentials for test if running from root
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(os.getcwd(), 'credentials', 'service-account.json')
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\uzyt\PycharmProjects\SzalasApp\credentials\service-account.json"
 
 from src import create_app
 from src.db_firestore import update_config
@@ -49,6 +49,19 @@ class SettingsTemplateTestCase(unittest.TestCase):
 
         with self.app.app_context():
             update_config(pin_last_rotate="2026-01-15 12:00:00")
+
+        response = self.client.get('/admin/settings')
+        self.assertEqual(response.status_code, 200)
+
+    def test_settings_page_renders_with_pin_next_rotate_at(self):
+        """Tests if the settings page renders correctly when pin_next_rotate_at is set."""
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 'test_admin'
+            sess['user_role'] = 'admin'
+            sess['is_admin'] = True
+
+        with self.app.app_context():
+            update_config(pin_next_rotate_at="2026-01-24T14:30:00")
 
         response = self.client.get('/admin/settings')
         self.assertEqual(response.status_code, 200)

@@ -2,11 +2,23 @@
 
 {% block content %}
     <div class="container mt-4">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <a href="{{ (url_for('views.sprzet_list') ~ '?' ~ return_query) if return_query else url_for('views.sprzet_list') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Wróć do katalogu
+            </a>
+            {% if sprzet %}
+                <a href="{{ url_for('views.sprzet_card', sprzet_id=sprzet.id) }}" class="btn btn-outline-primary">
+                    <i class="bi bi-eye"></i> Karta sprzętu
+                </a>
+            {% endif %}
+        </div>
+
         <h2 class="mb-4">{% if sprzet %}Edytuj Sprzęt: {{ sprzet.id }}{% else %}Dodaj Nowy Sprzęt{% endif %}</h2>
 
         <div class="card shadow">
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="return" value="{{ return_query or '' }}">
                     <div class="row g-3">
                         <div class="col-md-4" id="id_field_container">
                             <label for="id" class="form-label">ID (np. MA01, PO01, SP01)</label>
@@ -28,7 +40,7 @@
                             <label for="parent_id" class="form-label">Element nadrzędny</label>
                             <input type="text" name="parent_id" id="parent_id" class="form-control"
                                    list="parent_suggestions"
-                                   value="{{ sprzet.parent_id if sprzet else '' }}"
+                                   value="{{ sprzet.parent_id if sprzet else (prefill_parent_id or '') }}"
                                    placeholder="Wyszukaj ID lub nazwę...">
                             <datalist id="parent_suggestions">
                                 <option value="">Brak (Global)</option>
@@ -46,6 +58,35 @@
                             <label for="magazyn_photo" class="form-label">Zdjęcia Magazynu</label>
                             <p class="text-muted small">Zdjęcia dla magazynu zarządza się tak samo jak dla zwykłego
                                 sprzętu (poniżej).</p>
+                        </div>
+
+                        {# --- WŁAŚCICIEL / WŁASNOŚĆ --- #}
+                        {# owner_default: tylko dla MAGAZYN oraz POLKA/SKRZYNIA - domyślna wartość dla dzieci #}
+                        <div class="col-md-4 category-field field-magazyn field-polka_skrzynia">
+                            <label for="owner_default" class="form-label">Domyślny właściciel (dla elementów podrzędnych)</label>
+                            <select name="owner_default" id="owner_default" class="form-select">
+                                <option value="" {% if not sprzet or not sprzet.owner_default %}selected{% endif %}>— brak —</option>
+                                {% for o in owner_suggestions or [] %}
+                                    <option value="{{ o }}" {% if sprzet and sprzet.owner_default == o %}selected{% endif %}>{{ o }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Nowo dodawane elementy wewnątrz domyślnie dostaną tę wartość (ale na elemencie można ją zmienić).</div>
+                        </div>
+
+                        {# owner: dla elementów typu namiot/przedmiot/żelastwo/kanadyjki/materace #}
+                        <div class="col-md-4 category-field field-namiot field-przedmiot field-zelastwo field-kanadyjki field-materace">
+                            <label for="owner" class="form-label">Właściciel</label>
+                            <select name="owner" id="owner" class="form-select" required>
+                                <option value="" disabled {% if not sprzet or not sprzet.owner %}selected{% endif %}>— wybierz właściciela —</option>
+                                {% for o in owner_suggestions or [] %}
+                                    <option value="{{ o }}"
+                                            {% if sprzet and sprzet.owner == o %}selected{% endif %}
+                                            {% if (not sprzet or not sprzet.owner) and default_owner and default_owner == o %}selected{% endif %}>
+                                        {{ o }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Pole wymagane.</div>
                         </div>
 
                         <!-- Pola dla MAGAZYN -->
@@ -257,6 +298,26 @@
                             <div class="form-text">Dla kanadyjek dozwolone są tylko sztuki.</div>
                         </div>
 
+                        <!-- Pola dla MATERACE (analogiczne do kanadyjek) -->
+                        <div class="col-md-4 category-field field-materace">
+                            <label for="typ_materaca" class="form-label">Typ materaca</label>
+                            <input type="text" name="typ_materaca" id="typ_materaca" class="form-control"
+                                   value="{{ sprzet.typ_materaca if sprzet else '' }}" placeholder="Np. dmuchany / piankowy" />
+                        </div>
+                        <div class="col-md-4 category-field field-materace">
+                            <label for="ilosc_materace" class="form-label">Ilość</label>
+                            <div class="input-group">
+                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_materace" class="form-control"
+                                       value="{{ sprzet.ilosc if sprzet and sprzet.ilosc is not none else '' }}" list="qty_suggestions_materace">
+                                <span class="input-group-text">szt.</span>
+                            </div>
+                            <datalist id="qty_suggestions_materace">
+                                {% for v in qty_suggestions_materace or [] %}
+                                    <option value="{{ v }}"></option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
                         <!-- Pola wspólne dla niskich poziomów -->
                         <div class="col-md-3 common-fields">
                             <label for="sprawny" class="form-label">Sprawny?</label>
@@ -352,7 +413,7 @@
 
             // Zarządzanie polem ID (tylko przy dodawaniu)
             if (!isEdit) {
-                if (['zelastwo', 'kanadyjki', 'magazyn', 'przedmiot'].includes(category)) {
+                if (['zelastwo', 'kanadyjki', 'materace', 'magazyn', 'przedmiot'].includes(category)) {
                     idInput.disabled = true;
                     idInput.value = '';
                     idInput.placeholder = "ID zostanie wygenerowane automatycznie";
@@ -372,7 +433,7 @@
             });
             if (magPhotoField) magPhotoField.style.display = 'none';
 
-            // Pokaż pola dla wybranej kategorii i włącz je
+            // Pokaż pola dla wybranej kategorii and włącz je
             const activeFields = document.querySelectorAll('.field-' + category);
             activeFields.forEach(f => {
                 f.style.display = 'block';

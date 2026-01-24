@@ -5,11 +5,19 @@ import os
 # Dodaj folder 'app' do ścieżki, aby importy działały
 sys.path.append(os.path.join(os.getcwd(), 'app'))
 
-# Popraw ścieżkę do credentials dla testu, jeśli uruchamiamy z roota
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(os.getcwd(), 'credentials', 'service-account.json')
+# Popraw ścieżkę do credentials dla testu, jeżeli uruchamiamy z roota
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\uzyt\PycharmProjects\SzalasApp\credentials\service-account.json"
 
 from src import create_app
-from src.db_firestore import update_config, add_item, COLLECTION_SPRZET, COLLECTION_USTERKI, COLLECTION_WYPOZYCZENIA
+from src.db_firestore import (
+    update_config,
+    add_item,
+    delete_item,
+    get_items_by_filter,
+    COLLECTION_SPRZET,
+    COLLECTION_USTERKI,
+    COLLECTION_WYPOZYCZENIA,
+)
 
 class RestrictedPinAccessTestCase(unittest.TestCase):
     def setUp(self):
@@ -18,6 +26,8 @@ class RestrictedPinAccessTestCase(unittest.TestCase):
         self.app.config['WTF_CSRF_ENABLED'] = False
         self.client = self.app.test_client()
         
+        self._loan_id = None
+
         # Ustawienie testowego PINu
         with self.app.app_context():
             update_config(view_pin='123456', pin_auto_rotate=False)
@@ -39,12 +49,41 @@ class RestrictedPinAccessTestCase(unittest.TestCase):
                 'status': 'oczekuje'
             })
             # Dodaj aktywne wypożyczenie z danymi kontaktowymi
-            add_item(COLLECTION_WYPOZYCZENIA, {
-                'item_id': self.sprzet_id,
-                'przez_kogo': 'Jan Kowalski',
-                'kontakt': '123-456-789',
-                'status': 'active'
-            })
+            self._loan_id = add_item(COLLECTION_WYPOZYCZENIA, {
+                 'item_id': self.sprzet_id,
+                 'przez_kogo': 'Jan Kowalski',
+                 'kontakt': '123-456-789',
+                 'status': 'active'
+             })
+
+    def tearDown(self):
+        # Usuwaj dane testowe niezależnie od wyniku testu.
+        with self.app.app_context():
+            # usuń wypożyczenie (po id jeśli znamy; jeśli nie, znajdź po item_id)
+            try:
+                if self._loan_id:
+                    delete_item(COLLECTION_WYPOZYCZENIA, self._loan_id)
+                else:
+                    loans = get_items_by_filter(COLLECTION_WYPOZYCZENIA, 'item_id', '==', getattr(self, 'sprzet_id', ''))
+                    for l in loans or []:
+                        if l.get('status') == 'active':
+                            delete_item(COLLECTION_WYPOZYCZENIA, l['id'])
+            except Exception:
+                pass
+
+            # usuń usterkę
+            try:
+                if getattr(self, 'usterka_id', None):
+                    delete_item(COLLECTION_USTERKI, self.usterka_id)
+            except Exception:
+                pass
+
+            # usuń sprzęt
+            try:
+                if getattr(self, 'sprzet_id', None):
+                    delete_item(COLLECTION_SPRZET, self.sprzet_id)
+            except Exception:
+                pass
 
     def _login_via_pin(self):
         return self.client.post('/pin', data={'pin': '123456'}, follow_redirects=True)
