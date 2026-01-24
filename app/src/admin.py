@@ -5,7 +5,7 @@ import string
 import os
 from datetime import datetime, timedelta
 
-from .auth import admin_required, quartermaster_required
+from .auth import admin_required, quartermaster_required, rotate_pin_if_due
 from .db_firestore import (
     get_all_logs, add_log, restore_item, get_config, update_config
 )
@@ -420,7 +420,7 @@ def settings():
         if next_rotate_at_raw:
             try:
                 # datetime-local zwraca np. 2026-01-24T14:30
-                # Zapisujemy jako ISO string; get_or_rotate_pin umie go sparsować.
+                # Zapisujemy jako ISO string; rotate_pin_if_due umie go sparsować.
                 dt = datetime.fromisoformat(next_rotate_at_raw)
                 update_data['pin_next_rotate_at'] = dt.isoformat()
             except Exception:
@@ -460,6 +460,7 @@ def settings():
         flash('Ustawienia zostały zapisane.', 'success')
         return redirect(url_for('admin.settings'))
 
+    rotate_pin_if_due()
     config = get_config()
     owners = get_list_setting('owners')
     magazyny_names = get_list_setting('magazyny_names')
