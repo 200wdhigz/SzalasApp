@@ -1,3 +1,5 @@
+import re
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app, jsonify
 import os
 import uuid
@@ -495,7 +497,9 @@ def sprzet_add():
             existing_ids = {s.get('id') for s in get_all_sprzet() if s.get('id')}
             sprzet_id = generate_unique_magazyn_id(magazyn_name, existing_ids)
         else:
-            sprzet_id = request.form.get('id', '').strip().upper()
+            dozwolone_znaki = {' ':'_','Ą':'A','Ę':'E','Ć':'C','Ź':'Z','Ż':'Z'}
+            sprzet_id = request.form.get('id', '').strip().upper().translate(str.maketrans(dozwolone_znaki))
+            sprzet_id = re.sub(r'[^0-9A-Z_]','',sprzet_id)
 
         if not sprzet_id:
             flash('Błąd: Nie wygenerowano lub nie podano ID.', 'danger')
@@ -688,6 +692,16 @@ def sprzet_import():
                         'category', 'parent_id', 'nazwa', 'zdjecia',
                         'ilosc', 'jednostka', 'sprawny', 'owner',
                         'return'
+                    }
+
+                    allowed_fields_category = {
+                        "MAGAZYN": {"owner_default", "nazwa", "gps_lat", "gps_lon", "uwagi", "informacje", "historia"},
+                        "POLKA": {'parent_id', "owner_default", "nazwa", "uwagi", "informacje", "historia"},
+                        "NAMIOT": {"owner", "typ", "wodoszczelnosc", "stan_ogolny", "przeznaczenie", "zakup", "przejecie", "kolor_dachu", "kolor_bokow", "znak_szczegolny","zapalki", "czyWraca", "oficjalna_ewidencja", "uwagi", "historia", "sprawny"},
+                        "PRZEDMIOT": {"parent_id", "owner", "nazwa", "ilosc", "sprawny", "czyWraca", "oficjalna_ewidencja", "uwagi", "historia"},
+                        "ZELASTWO": {"do_czego", "typ_zelastwa", "sprawny", "oficjalna_ewidencja", "czyWraca", "uwagi", "historia", "jednostka", "ilosc", "owner", "parent_id"},
+                        "KANADYJKI": {"parent_id","owner","material","ilosc","sprawny","czyWraca","oficjalna_ewidencja","uwagi","historia","jednostka"},
+                        "MATERACE": {"parent_id","owner","material","ilosc","sprawny","czyWraca","oficjalna_ewidencja","uwagi","historia"}
                     }
                     row_dict = row.to_dict()
                     new_data = {}

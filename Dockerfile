@@ -51,4 +51,4 @@ USER appuser
 EXPOSE ${PORT}
 
 # Run with Gunicorn for production
-CMD ["/bin/sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 4 --threads 2 --timeout 120 --access-logfile - --error-logfile - app:app"]
+CMD ["/bin/sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} --timeout 120 --access-logfile - --error-logfile - app:app"]
