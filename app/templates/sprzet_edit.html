@@ -3,7 +3,8 @@
 {% block content %}
     <div class="container mt-4">
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-            <a href="{{ (url_for('views.sprzet_list') ~ '?' ~ return_query) if return_query else url_for('views.sprzet_list') }}" class="btn btn-outline-secondary">
+            <a href="{{ (url_for('views.sprzet_list') ~ '?' ~ return_query) if return_query else url_for('views.sprzet_list') }}"
+               class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Wróć do katalogu
             </a>
             {% if sprzet %}
@@ -23,6 +24,7 @@
                         <div class="col-md-4" id="id_field_container">
                             <label for="id" class="form-label">ID (np. MA01, PO01, SP01)</label>
                             <input type="text" name="id" id="id" class="form-control"
+                                   pattern="[0-9a-zA-Z_]+"
                                    value="{{ sprzet.id if sprzet else '' }}" {% if sprzet %}readonly{% endif %}
                                    placeholder="Zostaw puste dla auto-ID (żelastwo/kanadyjki/przedmiot/magazyn)"
                                    title="ID musi składać się z dwóch wielkich liter i co najmniej dwóch cyfr (np. NA01)">
@@ -63,21 +65,29 @@
                         {# --- WŁAŚCICIEL / WŁASNOŚĆ --- #}
                         {# owner_default: tylko dla MAGAZYN oraz POLKA/SKRZYNIA - domyślna wartość dla dzieci #}
                         <div class="col-md-4 category-field field-magazyn field-polka_skrzynia">
-                            <label for="owner_default" class="form-label">Domyślny właściciel (dla elementów podrzędnych)</label>
+                            <label for="owner_default" class="form-label">Domyślny właściciel (dla elementów
+                                podrzędnych)</label>
                             <select name="owner_default" id="owner_default" class="form-select">
-                                <option value="" {% if not sprzet or not sprzet.owner_default %}selected{% endif %}>— brak —</option>
+                                <option value="" {% if not sprzet or not sprzet.owner_default %}selected{% endif %}>—
+                                    brak —
+                                </option>
                                 {% for o in owner_suggestions or [] %}
-                                    <option value="{{ o }}" {% if sprzet and sprzet.owner_default == o %}selected{% endif %}>{{ o }}</option>
+                                    <option value="{{ o }}"
+                                            {% if sprzet and sprzet.owner_default == o %}selected{% endif %}>{{ o }}</option>
                                 {% endfor %}
                             </select>
-                            <div class="form-text">Nowo dodawane elementy wewnątrz domyślnie dostaną tę wartość (ale na elemencie można ją zmienić).</div>
+                            <div class="form-text">Nowo dodawane elementy wewnątrz domyślnie dostaną tę wartość (ale na
+                                elemencie można ją zmienić).
+                            </div>
                         </div>
 
                         {# owner: dla elementów typu namiot/przedmiot/żelastwo/kanadyjki/materace #}
                         <div class="col-md-4 category-field field-namiot field-przedmiot field-zelastwo field-kanadyjki field-materace">
                             <label for="owner" class="form-label">Właściciel</label>
                             <select name="owner" id="owner" class="form-select" required>
-                                <option value="" disabled {% if not sprzet or not sprzet.owner %}selected{% endif %}>— wybierz właściciela —</option>
+                                <option value="" disabled {% if not sprzet or not sprzet.owner %}selected{% endif %}>—
+                                    wybierz właściciela —
+                                </option>
                                 {% for o in owner_suggestions or [] %}
                                     <option value="{{ o }}"
                                             {% if sprzet and sprzet.owner == o %}selected{% endif %}
@@ -183,8 +193,10 @@
                         <div class="col-md-6 category-field field-namiot">
                             <label for="zapalki" class="form-label">Zapałki</label>
                             <select name="zapalki" id="zapalki" class="form-select">
-                                <option value="5" {% if sprzet and sprzet.zapalki == '5' %}selected{% endif %}>5</option>
-                                <option value="6" {% if sprzet and sprzet.zapalki == '6' %}selected{% endif %}>6</option>
+                                <option value="5" {% if sprzet and sprzet.zapalki == '5' %}selected{% endif %}>5
+                                </option>
+                                <option value="6" {% if sprzet and sprzet.zapalki == '6' %}selected{% endif %}>6
+                                </option>
                             </select>
                         </div>
 
@@ -200,10 +212,12 @@
                                 <input type="text" name="ilosc" id="ilosc" class="form-control"
                                        value="{{ sprzet.ilosc if sprzet else '' }}" placeholder="np. 10">
                                 <select name="jednostka" id="jednostka" class="form-select" style="max-width: 120px;">
-                                    <option value=".szt" {% if sprzet and sprzet.jednostka == '.szt' %}selected{% endif %}>
+                                    <option value=".szt"
+                                            {% if sprzet and sprzet.jednostka == '.szt' %}selected{% endif %}>
                                         .szt
                                     </option>
-                                    <option value=".m" {% if sprzet and sprzet.jednostka == '.m' %}selected{% endif %}>.m
+                                    <option value=".m" {% if sprzet and sprzet.jednostka == '.m' %}selected{% endif %}>
+                                        .m
                                     </option>
                                     <option value=".m×.m"
                                             {% if sprzet and sprzet.jednostka == '.m×.m' %}selected{% endif %}>.m×.m
@@ -249,7 +263,8 @@
                         <div class="col-md-4 category-field field-zelastwo">
                             <label class="form-label">Ilość</label>
                             <div class="input-group">
-                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_zelastwo" class="form-control"
+                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_zelastwo"
+                                       class="form-control"
                                        list="qty_suggestions_zelastwo"
                                        value="{{ sprzet.ilosc if sprzet else '' }}"
                                        placeholder="np. 1">
@@ -258,9 +273,15 @@
                                         <option value="{{ v }}"></option>
                                     {% endfor %}
                                 </datalist>
-                                <select name="jednostka" id="jednostka_zelastwo" class="form-select" style="max-width: 110px;">
-                                    <option value="zest." {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'zest.' %}selected{% endif %}>zest.</option>
-                                    <option value="szt." {% if sprzet and sprzet.jednostka == 'szt.' %}selected{% endif %}>szt.</option>
+                                <select name="jednostka" id="jednostka_zelastwo" class="form-select"
+                                        style="max-width: 110px;">
+                                    <option value="zest."
+                                            {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'zest.' %}selected{% endif %}>
+                                        zest.
+                                    </option>
+                                    <option value="szt."
+                                            {% if sprzet and sprzet.jednostka == 'szt.' %}selected{% endif %}>szt.
+                                    </option>
                                 </select>
                             </div>
                             <div class="form-text">Domyślnie zestaw.</div>
@@ -282,7 +303,8 @@
                         <div class="col-md-4 category-field field-kanadyjki">
                             <label class="form-label">Ilość</label>
                             <div class="input-group">
-                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_kanadyjki" class="form-control"
+                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_kanadyjki"
+                                       class="form-control"
                                        list="qty_suggestions_kanadyjki"
                                        value="{{ sprzet.ilosc if sprzet else '' }}"
                                        placeholder="np. 4">
@@ -291,8 +313,12 @@
                                         <option value="{{ v }}"></option>
                                     {% endfor %}
                                 </datalist>
-                                <select name="jednostka" id="jednostka_kanadyjki" class="form-select" style="max-width: 110px;">
-                                    <option value="szt." {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'szt.' %}selected{% endif %}>szt.</option>
+                                <select name="jednostka" id="jednostka_kanadyjki" class="form-select"
+                                        style="max-width: 110px;">
+                                    <option value="szt."
+                                            {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'szt.' %}selected{% endif %}>
+                                        szt.
+                                    </option>
                                 </select>
                             </div>
                             <div class="form-text">Dla kanadyjek dozwolone są tylko sztuki.</div>
@@ -302,13 +328,16 @@
                         <div class="col-md-4 category-field field-materace">
                             <label for="typ_materaca" class="form-label">Typ materaca</label>
                             <input type="text" name="typ_materaca" id="typ_materaca" class="form-control"
-                                   value="{{ sprzet.typ_materaca if sprzet else '' }}" placeholder="Np. dmuchany / piankowy" />
+                                   value="{{ sprzet.typ_materaca if sprzet else '' }}"
+                                   placeholder="Np. dmuchany / piankowy"/>
                         </div>
                         <div class="col-md-4 category-field field-materace">
                             <label for="ilosc_materace" class="form-label">Ilość</label>
                             <div class="input-group">
-                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_materace" class="form-control"
-                                       value="{{ sprzet.ilosc if sprzet and sprzet.ilosc is not none else '' }}" list="qty_suggestions_materace">
+                                <input type="number" min="0" step="1" name="ilosc" id="ilosc_materace"
+                                       class="form-control"
+                                       value="{{ sprzet.ilosc if sprzet and sprzet.ilosc is not none else '' }}"
+                                       list="qty_suggestions_materace">
                                 <span class="input-group-text">szt.</span>
                             </div>
                             <datalist id="qty_suggestions_materace">
@@ -342,8 +371,13 @@
                         <div class="col-md-3 common-fields">
                             <label for="oficjalna_ewidencja" class="form-label">Oficjalna ewidencja?</label>
                             <select name="oficjalna_ewidencja" id="oficjalna_ewidencja" class="form-select">
-                                <option value="Tak" {% if sprzet and sprzet.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>Tak</option>
-                                <option value="Nie" {% if not sprzet or sprzet.oficjalna_ewidencja == 'Nie' or not sprzet.oficjalna_ewidencja %}selected{% endif %}>Nie</option>
+                                <option value="Tak"
+                                        {% if sprzet and sprzet.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>Tak
+                                </option>
+                                <option value="Nie"
+                                        {% if not sprzet or sprzet.oficjalna_ewidencja == 'Nie' or not sprzet.oficjalna_ewidencja %}selected{% endif %}>
+                                    Nie
+                                </option>
                             </select>
                         </div>
 
