@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 # Załaduj zmienne środowiskowe
 load_dotenv(app_root / '.env')
 
-from src import _init_firebase_admin, get_firestore_client
+from src import _init_firebase_admin
 from src.db_users import get_all_users, update_user
 
 def migrate_users_to_authentik(dry_run=True, provider='all'):
