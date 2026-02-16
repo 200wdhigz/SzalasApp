@@ -383,7 +383,7 @@ def authentik_callback():
             redirect_uri=redirect_uri
         )
 
-        token = client.fetch_token(
+        client.fetch_token(
             AUTHENTIK_TOKEN_ENDPOINT,
             code=code,
             client_secret=AUTHENTIK_CLIENT_SECRET
