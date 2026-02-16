@@ -46,7 +46,12 @@ ALLOWED_MICROSOFT_DOMAINS = os.getenv('MICROSOFT_ALLOWED_DOMAINS', 'zhp.net.pl,z
 # Authentik OAuth Configuration
 AUTHENTIK_CLIENT_ID = os.getenv('AUTHENTIK_CLIENT_ID')
 AUTHENTIK_CLIENT_SECRET = os.getenv('AUTHENTIK_CLIENT_SECRET')
-AUTHENTIK_BASE_URL = os.getenv('AUTHENTIK_BASE_URL', 'https://authentik.example.com')
+AUTHENTIK_BASE_URL = os.getenv('AUTHENTIK_BASE_URL')
+if not AUTHENTIK_BASE_URL or AUTHENTIK_BASE_URL == "https://authentik.example.com":
+    raise RuntimeError(
+        "AUTHENTIK_BASE_URL environment variable must be set to your Authentik instance URL "
+        "and must not use the placeholder 'https://authentik.example.com'."
+    )
 AUTHENTIK_AUTHORIZATION_ENDPOINT = f"{AUTHENTIK_BASE_URL}/application/o/authorize/"
 AUTHENTIK_TOKEN_ENDPOINT = f"{AUTHENTIK_BASE_URL}/application/o/token/"
 AUTHENTIK_USERINFO_ENDPOINT = f"{AUTHENTIK_BASE_URL}/application/o/userinfo/"
