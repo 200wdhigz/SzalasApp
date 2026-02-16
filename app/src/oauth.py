@@ -7,9 +7,9 @@ from firebase_admin import auth as firebase_auth
 
 from . import GOOGLE_API_KEY
 from .db_users import (
-    get_user_by_google_id, get_user_by_microsoft_id, get_user_by_uid,
-    create_user, link_google_account, link_microsoft_account,
-    unlink_google_account, unlink_microsoft_account, update_user_name
+    get_user_by_google_id, get_user_by_microsoft_id, get_user_by_authentik_id, get_user_by_uid,
+    create_user, link_google_account, link_microsoft_account, link_authentik_account,
+    unlink_google_account, unlink_microsoft_account, unlink_authentik_account, update_user_name
 )
 from .db_firestore import get_logs_by_user
 from .auth import login_required
@@ -42,6 +42,14 @@ MICROSOFT_USERINFO_ENDPOINT = "https://graph.microsoft.com/v1.0/me"
 
 # Parse allowed Microsoft domains from environment variable
 ALLOWED_MICROSOFT_DOMAINS = os.getenv('MICROSOFT_ALLOWED_DOMAINS', 'zhp.net.pl,zhp.pl').split(',')
+
+# Authentik OAuth Configuration
+AUTHENTIK_CLIENT_ID = os.getenv('AUTHENTIK_CLIENT_ID')
+AUTHENTIK_CLIENT_SECRET = os.getenv('AUTHENTIK_CLIENT_SECRET')
+AUTHENTIK_BASE_URL = os.getenv('AUTHENTIK_BASE_URL', 'https://authentik.example.com')
+AUTHENTIK_AUTHORIZATION_ENDPOINT = f"{AUTHENTIK_BASE_URL}/application/o/authorize/"
+AUTHENTIK_TOKEN_ENDPOINT = f"{AUTHENTIK_BASE_URL}/application/o/token/"
+AUTHENTIK_USERINFO_ENDPOINT = f"{AUTHENTIK_BASE_URL}/application/o/userinfo/"
 
 
 def get_redirect_uri(provider):
@@ -311,6 +319,133 @@ def microsoft_callback():
 
 
 # =======================================================================
+#                       AUTHENTIK OAUTH
+# =======================================================================
+
+@oauth_bp.route('/authentik')
+def authentik_login():
+    """Inicjuje proces logowania przez Authentik OAuth."""
+    if not AUTHENTIK_CLIENT_ID or not AUTHENTIK_CLIENT_SECRET:
+        flash('Authentik OAuth nie jest skonfigurowany.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    # Generuj state dla bezpieczeństwa CSRF
+    state = secrets.token_urlsafe(32)
+    session['oauth_state'] = state
+
+    # Zapisz, czy to jest proces linkowania
+    if 'user_id' in session:
+        session['oauth_linking'] = True
+
+    redirect_uri = get_redirect_uri('authentik')
+
+    client = OAuth2Session(
+        AUTHENTIK_CLIENT_ID,
+        redirect_uri=redirect_uri,
+        scope='openid email profile'
+    )
+
+    authorization_url, state = client.create_authorization_url(
+        AUTHENTIK_AUTHORIZATION_ENDPOINT,
+        state=state
+    )
+
+    return redirect(authorization_url)
+
+
+@oauth_bp.route('/authentik/callback')
+def authentik_callback():
+    """Obsługuje callback z Authentik OAuth."""
+    # Sprawdź state dla ochrony CSRF
+    state = request.args.get('state')
+    if state != session.get('oauth_state'):
+        flash('Błąd weryfikacji stanu OAuth.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    # Usuń state z sesji
+    session.pop('oauth_state', None)
+
+    code = request.args.get('code')
+    if not code:
+        flash('Błąd podczas logowania przez Authentik.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    redirect_uri = get_redirect_uri('authentik')
+
+    try:
+        client = OAuth2Session(
+            AUTHENTIK_CLIENT_ID,
+            redirect_uri=redirect_uri
+        )
+
+        token = client.fetch_token(
+            AUTHENTIK_TOKEN_ENDPOINT,
+            code=code,
+            client_secret=AUTHENTIK_CLIENT_SECRET
+        )
+
+        # Pobierz informacje o użytkowniku
+        resp = client.get(AUTHENTIK_USERINFO_ENDPOINT)
+        user_info = resp.json()
+
+        authentik_id = user_info.get('sub')  # Authentik używa 'sub' jako ID
+        email = user_info.get('email')
+        given_name = user_info.get('given_name') or (user_info.get('name', '').split()[0] if user_info.get('name') else None)
+        family_name = user_info.get('family_name') or (user_info.get('name', '').split()[-1] if user_info.get('name') and len(user_info.get('name', '').split()) > 1 else None)
+
+        if not authentik_id or not email:
+            flash('Nie udało się pobrać informacji o użytkowniku z Authentik.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        # Sprawdź, czy to proces linkowania
+        if session.get('oauth_linking'):
+            session.pop('oauth_linking', None)
+            current_user_id = session.get('user_id')
+
+            # Sprawdź, czy to konto Authentik nie jest już powiązane z innym użytkownikiem
+            existing_user = get_user_by_authentik_id(authentik_id)
+            if existing_user and existing_user['id'] != current_user_id:
+                flash('To konto Authentik jest już powiązane z innym użytkownikiem.', 'danger')
+                return redirect(url_for('oauth.account'))
+
+            # Powiąż konto Authentik z aktualnym użytkownikiem i zaktualizuj imię/nazwisko
+            link_authentik_account(current_user_id, authentik_id)
+            # Aktualizuj imię i nazwisko jeśli są dostępne
+            if given_name or family_name:
+                update_user_name(current_user_id, first_name=given_name, last_name=family_name)
+            flash('Konto Authentik zostało pomyślnie powiązane.', 'success')
+            return redirect(url_for('oauth.account'))
+
+        # Proces logowania
+        # Sprawdź, czy użytkownik z tym Authentik ID już istnieje
+        user = get_user_by_authentik_id(authentik_id)
+
+        if user:
+            # Sprawdź, czy konto jest aktywne
+            if not user.get('active', True):
+                flash('Twoje konto zostało wyłączone. Skontaktuj się z administratorem.', 'danger')
+                return redirect(url_for('auth.login'))
+
+            # Zaloguj użytkownika
+            session['user_id'] = user['id']
+            session['is_admin'] = user.get('is_admin', False)
+            session['user_role'] = user.get('role', 'admin' if session['is_admin'] else 'reporter')
+            session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('email')
+            flash('Pomyślnie zalogowano przez Authentik!', 'success')
+            return redirect(url_for('views.sprzet_list'))
+        else:
+            # Nowy użytkownik - w tym systemie tylko admin może tworzyć użytkowników
+            flash('Nie znaleziono konta powiązanego z tym kontem Authentik. Poproś administratora o utworzenie konta.', 'warning')
+            return redirect(url_for('auth.login'))
+
+    except Exception as e:
+        # Log the error internally but don't expose details to user
+        print(f'Authentik OAuth error: {str(e)}')
+        flash('Wystąpił błąd podczas logowania przez Authentik.', 'danger')
+        return redirect(url_for('auth.login'))
+
+
+# =======================================================================
 #                       ACCOUNT MANAGEMENT
 # =======================================================================
 
@@ -364,6 +499,25 @@ def unlink_microsoft():
     
     unlink_microsoft_account(user_id)
     flash('Konto Microsoft zostało rozłączone.', 'success')
+    return redirect(url_for('oauth.account'))
+
+
+@oauth_bp.route('/account/unlink/authentik', methods=['POST'])
+@login_required
+def unlink_authentik():
+    """Rozłącza konto Authentik od konta użytkownika."""
+    if not validate_csrf_token():
+        return redirect(url_for('oauth.account'))
+
+    user_id = session.get('user_id')
+    user = get_user_by_uid(user_id)
+
+    if not user or not user.get('authentik_id'):
+        flash('Brak powiązanego konta Authentik.', 'warning')
+        return redirect(url_for('oauth.account'))
+
+    unlink_authentik_account(user_id)
+    flash('Konto Authentik zostało rozłączone.', 'success')
     return redirect(url_for('oauth.account'))
 
 
