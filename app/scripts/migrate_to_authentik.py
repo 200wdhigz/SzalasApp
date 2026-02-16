@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv(app_root / '.env')
 
 from src import _init_firebase_admin
-from src.db_users import get_all_users, update_user
+from src.db_users import get_all_users
 
 def migrate_users_to_authentik(dry_run=True, provider='all'):
     """
