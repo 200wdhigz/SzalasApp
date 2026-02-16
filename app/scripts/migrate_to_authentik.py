@@ -9,7 +9,6 @@ Użycie:
     python migrate_to_authentik.py --provider google  # Migruj tylko użytkowników Google
 """
 
-import os
 import sys
 from pathlib import Path
 
