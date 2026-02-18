@@ -143,6 +143,9 @@ def create_app():
 
         Jeśli chcesz wymusić sprawdzenie zależności (readiness), ustaw:
         HEALTHCHECK_STRICT=true
+
+        Endpoint uruchamia też sprawdzenie rotacji PIN-u (rotate_pin_if_due),
+        dzięki czemu PIN może być rotowany co 5 minut na bazie ping-ów.
         """
         strict = _is_truthy(os.getenv("HEALTHCHECK_STRICT"))
         try:
@@ -150,6 +153,11 @@ def create_app():
                 if not _apps:
                     raise RuntimeError("Firebase Admin not initialized")
                 firestore.client()
+
+            # Sprawdź i wykonaj rotację PIN-u jeśli to wymagane
+            from .auth import rotate_pin_if_due
+            rotate_pin_if_due()
+
             return {
                 'status': 'healthy',
                 'service': 'SzalasApp',
