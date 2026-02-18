@@ -169,6 +169,33 @@ python scripts/nazwa_skryptu.py
 - 📧 **NOWE:** Automatyczne wysyłanie haseł emailem przy resecie (przez admina)
 - 💡 **NOWE:** Inteligentne komunikaty błędów przy logowaniu
 - 📊 Eksport danych do CSV, XLSX, DOCX i PDF
+- 📱 **NOWE:** Progressive Web App (PWA) - instalacja na urządzeniach
+- 🔒 **NOWE:** Gotowość do HTTPS z Nginx Proxy Manager
+
+## HTTPS i PWA
+
+Aplikacja jest przygotowana do pracy z HTTPS przez reverse proxy (np. Nginx Proxy Manager):
+
+**Quick Start:**
+1. Ustaw w `.env`:
+   ```env
+   USE_PROXY_FIX=True
+   PREFERRED_URL_SCHEME=https
+   APP_URL=https://twoja-domena.pl
+   ```
+2. Skonfiguruj Nginx Proxy Manager z Let's Encrypt
+3. Aplikacja automatycznie wykryje HTTPS i włączy bezpieczne cookies
+
+**Dokumentacja:**
+- [`HTTPS_QUICK_START.md`](HTTPS_QUICK_START.md) - Szybka konfiguracja (5 min)
+- [`HTTPS_NGINX_PROXY_MANAGER.md`](HTTPS_NGINX_PROXY_MANAGER.md) - Pełna dokumentacja
+- [`ENV_EXAMPLES.md`](ENV_EXAMPLES.md) - Przykłady konfiguracji
+
+**PWA (Progressive Web App):**
+- Użytkownicy mogą zainstalować aplikację na swoich urządzeniach
+- Działa offline z cache'owaniem
+- Ikona na ekranie głównym/pulpicie
+- Zobacz: [`PWA_QUICK_START.md`](PWA_QUICK_START.md)
 
 ## Konfiguracja OAuth
 
