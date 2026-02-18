@@ -1,0 +1,86 @@
+version: '3.8'
+
+# Docker Compose configuration with Nginx Proxy Manager for HTTPS
+# This setup includes:
+# - Nginx Proxy Manager (reverse proxy with SSL/Let's Encrypt)
+# - Szałas App (Flask application)
+
+services:
+  # Nginx Proxy Manager - handles HTTPS/SSL
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - '80:80'      # HTTP (redirects to HTTPS)
+      - '443:443'    # HTTPS
+      - '81:81'      # Admin UI (http://localhost:81)
+    environment:
+      # Database configuration (SQLite by default)
+      DB_SQLITE_FILE: "/data/database.sqlite"
+    volumes:
+      - ./npm-data:/data
+      - ./npm-letsencrypt:/etc/letsencrypt
+    networks:
+      - proxy-network
+    healthcheck:
+      test: ["CMD", "/usr/bin/check-health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Szałas App - Flask application
+  szalas-app:
+    build: .
+    container_name: szalas-app
+    restart: unless-stopped
+    environment:
+      # Flask Configuration
+      - DEBUG=False
+      - PORT=8080
+      - HOST=0.0.0.0
+      - SECRET_KEY=${SECRET_KEY}
+
+      # Reverse Proxy Configuration
+      - USE_PROXY_FIX=True
+      - PREFERRED_URL_SCHEME=https
+      - APP_URL=${APP_URL:-https://localhost}
+
+      # Google Cloud / Firebase
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=${GOOGLE_CLOUD_STORAGE_BUCKET_NAME}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+
+      # Other configurations
+      - RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
+      - RECAPTCHA_PROJECT_ID=${RECAPTCHA_PROJECT_ID}
+
+      # Gunicorn Configuration
+      - GUNICORN_WORKERS=4
+      - GUNICORN_THREADS=2
+      - GUNICORN_LOG_LEVEL=info
+    expose:
+      - "8080"
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./app/.env:/app/.env:ro
+    networks:
+      - proxy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - nginx-proxy-manager
+
+networks:
+  proxy-network:
+    driver: bridge
+
+volumes:
+  npm-data:
+  npm-letsencrypt:
+

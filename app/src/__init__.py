@@ -1,5 +1,6 @@
 from flask import Flask, session
 from firebase_admin import credentials, initialize_app, firestore, _apps
+from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 import secrets
 
@@ -70,6 +71,28 @@ def create_app():
     template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
     app = Flask("SzalasApp", template_folder=template_dir)
     app.secret_key = os.getenv('SECRET_KEY')
+
+    # Konfiguracja dla reverse proxy (Nginx Proxy Manager, etc.)
+    # To pozwala Flask prawidłowo rozpoznać prawdziwy adres IP klienta
+    # oraz schemat protokołu (http/https) za proxy
+    use_proxy_fix = _is_truthy(os.getenv('USE_PROXY_FIX', 'True'))
+    if use_proxy_fix:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=1,        # X-Forwarded-For (adres IP klienta)
+            x_proto=1,      # X-Forwarded-Proto (http/https)
+            x_host=1,       # X-Forwarded-Host (domena)
+            x_prefix=1      # X-Forwarded-Prefix (prefix URL)
+        )
+        app.logger.info("ProxyFix middleware enabled for reverse proxy support")
+
+    # Konfiguracja bezpiecznych cookies dla HTTPS
+    preferred_scheme = os.getenv('PREFERRED_URL_SCHEME', 'http')
+    if preferred_scheme == 'https':
+        app.config['SESSION_COOKIE_SECURE'] = True  # Cookie tylko przez HTTPS
+        app.config['SESSION_COOKIE_HTTPONLY'] = True  # Brak dostępu z JavaScript
+        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+        app.logger.info("Secure cookies enabled for HTTPS")
 
     @app.context_processor
     def inject_vars():
@@ -147,5 +170,22 @@ def create_app():
     def well_known(filename):
         """Serves .well-known files."""
         return app.send_static_file(os.path.join('.well-known', filename))
+
+    @app.route('/service-worker.js')
+    def service_worker():
+        """Serves the service worker from root path with correct MIME type."""
+        from flask import send_from_directory
+        response = send_from_directory('static', 'service-worker.js')
+        response.headers['Content-Type'] = 'application/javascript'
+        response.headers['Service-Worker-Allowed'] = '/'
+        return response
+
+    @app.route('/manifest.json')
+    def manifest():
+        """Serves the PWA manifest with correct MIME type."""
+        from flask import send_from_directory
+        response = send_from_directory('static', 'manifest.json')
+        response.headers['Content-Type'] = 'application/manifest+json'
+        return response
 
     return app
