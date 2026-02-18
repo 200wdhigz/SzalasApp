@@ -8,6 +8,42 @@
             <div class="card-body">
                 <p>Wybierz plik .csv lub .xlsx. Nagłówki powinny odpowiadać polom w bazie (np. ID, Typ, Wodoszczelność,
                     Lokalizacja itp.).</p>
+
+                <div class="alert alert-secondary">
+                    <div class="fw-semibold mb-2">Rozpoznawane nagłówki (zalecane: snake_case)</div>
+                    <div class="small">
+                        <div class="mb-2">
+                            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('views.sprzet_import_template_csv') }}">Pobierz szablon CSV</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('views.sprzet_import_template_xlsx') }}">Pobierz szablon XLSX</a>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12 col-lg-6">
+                                <div class="fw-semibold">Podstawowe</div>
+                                <code>id, category, parent_id, nazwa, owner, sprawny, ilosc, jednostka, oficjalna_ewidencja, informacje, uwagi, historia, przeznaczenie, lokalizacja</code>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="fw-semibold">Namioty / dodatkowe</div>
+                                <code>typ, wodoszczelnosc, stan_ogolny, zapalki, kolor_dachu, kolor_bokow, czyWraca, return, zdjecia</code>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="fw-semibold">Kanadyjki</div>
+                                <code>material</code>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="fw-semibold">Żelastwo</div>
+                                <code>typ_zelastwa, do_czego</code>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="fw-semibold">Magazyny (mapa)</div>
+                                <code>gps_lat, gps_lng</code>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="fw-semibold">Równoważne nagłówki PL (historyczne)</div>
+                                <code>ID, Typ, Nazwa, Informacje, Uwagi, Uwagi konserwacyjne, Historia, Przeznaczenie, Magazyn, Lokalizacja, Wodoszczelność, Stan ogólny, Zapałki, Kolor dachu, Kolor boków, Właściciel, Sprawny, Ilość, Jednostka</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <form method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="file" class="form-label">Plik danych</label>

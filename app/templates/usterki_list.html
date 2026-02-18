@@ -72,6 +72,12 @@
                            href="{{ url_for('views.export_usterki', format='pdf', **selected_filters) }}">PDF</a></li>
                 </ul>
             </div>
+
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-box-seam"></i> Katalog sprzętu
+                </a>
+            </div>
         </div>
 
         {% if usterki %}
@@ -139,7 +145,7 @@
                                     </td>
                                 {% endif %}
                                 <td>
-                                    <a href="{{ url_for('views.sprzet_list', parent_id=usterka.sprzet_id) }}"
+                                    <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}"
                                        class="fw-bold text-decoration-none">
                                         {{ usterka.sprzet_id }}
                                     </a>
@@ -175,7 +181,7 @@
                                     {% if usterka.oficjalna_ewidencja == 'Tak' %}
                                         <span class="badge text-bg-success" title="W oficjalnej ewidencji">Tak</span>
                                     {% else %}
-                                        <span class="badge text-bg-light text-muted" title="Brak w oficjalnej ewidencji">Nie</span>
+                                        <span class="badge border text-body-secondary" title="Brak w oficjalnej ewidencji">Nie</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-end">

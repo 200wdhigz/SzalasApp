@@ -57,12 +57,14 @@
         /* --- Map slide in carousel (warehouse) --- */
         #sprzetCarousel .carousel-item.map-slide {
             height: 100%;
+            position: relative;
+            overflow: hidden;
         }
 
         #sprzetCarousel .carousel-item.map-slide .map-wrap {
             width: 100%;
             height: 100%;
-            min-height: 400px;
+            min-height: 0; /* ważne: nie rozpychaj karuzeli */
         }
 
         #sprzetCarousel .carousel-item.map-slide .map-wrap iframe {
@@ -110,7 +112,8 @@
 
     <div class="container mt-5">
         <div class="mb-3">
-            <a href="{{ url_for('views.sprzet_list') }}" class="btn btn-outline-secondary">
+            {% set return_query = request.args.get('return') %}
+            <a href="{{ (url_for('views.sprzet_list') ~ '?' ~ return_query) if return_query else (url_for('views.sprzet_list', parent_id=sprzet.parent_id) if sprzet.parent_id else (url_for('views.sprzet_list', parent_id=sprzet.magazyn_id) if sprzet.magazyn_id else url_for('views.sprzet_list'))) }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Powrót do katalogu
             </a>
         </div>
@@ -182,6 +185,7 @@
                                             <div class="carousel-caption d-lg-none" style="bottom: 20px;">
                                                 <form action="{{ url_for('views.quick_photo', sprzet_id=sprzet.id) }}" method="POST" enctype="multipart/form-data" id="quickPhotoForm">
                                                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                                    <input type="hidden" name="return" value="{{ return_query or '' }}">
                                                     <input type="file" name="foto" id="quickPhotoInput" accept="image/*" capture="environment" style="display: none;" onchange="this.form.submit()">
                                                     <button type="button" class="btn btn-primary btn-lg shadow-lg" onclick="document.getElementById('quickPhotoInput').click()">
                                                         <i class="bi bi-camera-fill"></i> Zrób zdjęcie
@@ -317,18 +321,21 @@
                                     </button>
                                     <form action="{{ url_for('views.quick_photo', sprzet_id=sprzet.id) }}" method="POST" enctype="multipart/form-data" class="d-none">
                                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="return" value="{{ return_query or '' }}">
                                         <input type="file" name="foto" id="quickPhotoInputHeader" accept="image/*" capture="environment" onchange="this.form.submit()">
                                     </form>
 
-                                    <a href="{{ url_for('views.sprzet_edit', sprzet_id=sprzet.id) }}"
+                                    <a href="{{ url_for('views.sprzet_edit', sprzet_id=sprzet.id, return=return_query) }}"
                                        class="btn btn-outline-light" title="Edytuj sprzęt">
                                         <i class="bi bi-pencil-square"></i>
                                     </a>
+
                                     <form method="POST"
                                           action="{{ url_for('views.sprzet_delete', sprzet_id=sprzet.id) }}"
                                           style="display:inline;"
                                           onsubmit="return confirm('Czy na pewno chcesz usunąć ten element?');">
                                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="return_query" value="{{ return_query or '' }}">
                                         <button type="submit" class="btn btn-outline-light" title="Usuń sprzęt">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -376,6 +383,15 @@
 
                             {{ render_field('Oficjalna ewidencja', sprzet.oficjalna_ewidencja or 'Nie') }}
 
+                            {% if sprzet.owner %}
+                                {{ render_field('Właściciel', sprzet.owner) }}
+                            {% endif %}
+
+                            {# Informacje: mogą dotyczyć każdego elementu (nie tylko półka/szkrzynia) #}
+                            {% if sprzet.informacje %}
+                                {{ render_field('Informacje', sprzet.informacje, is_full=True) }}
+                            {% endif %}
+
                             {# Category specific fields #}
                             {% if sprzet.category == 'namiot' %}
                                 {{ render_field('Typ', sprzet.typ) }}
@@ -397,7 +413,7 @@
                                 {{ render_field('Materiał', sprzet.material) }}
                                 {{ render_field('Ilość', (sprzet.ilosc | string) ~ ' ' ~ (sprzet.jednostka or '')) }}
                             {% elif sprzet.category == 'polka_skrzynia' %}
-                                {{ render_field('Informacje', sprzet.informacje, is_full=True) }}
+                                {# informację wyświetlamy wyżej dla wszystkich kategorii #}
                             {% elif sprzet.category == 'magazyn' %}
                                 {{ render_field('GPS Lat', sprzet.gps_lat) }}
                                 {{ render_field('GPS Lng', sprzet.gps_lng) }}
@@ -433,7 +449,6 @@
                 </div>
 
                 {% if session.get('user_id') %}
-                    <!-- Formularz zgłaszania usterki - widoczny tylko na małych ekranach (mobile) -->
                     <div class="card shadow-sm mb-4 d-lg-none">
                         <div class="card-header bg-danger text-white">
                             <h4 class="mb-0">Zgłoś Nową Usterkę dla {{ sprzet.id | upper }}</h4>
@@ -921,23 +936,20 @@
                 if (mapInitialized) return;
                 const lat = {{ sprzet.gps_lat }};
                 const lng = {{ sprzet.gps_lng }};
-                const mapOptions = {
-                    center: {lat: lat, lng: lng},
-                    zoom: 15,
-                    mapTypeId: 'hybrid'
-                };
-                // Używamy iframe jako prostszej metody osadzenia mapy bez klucza API JS (lub jeśli użytkownik chce interaktywną)
-                // Ale dla pełnej interaktywności bez klucza API Google Maps JS SDK jest trudne.
-                // Zastosujemy link do osadzenia Google Maps w iframe.
-                const mapContainer = document.getElementById('map');
-                mapContainer.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0"
-                src="https://www.google.com/maps/embed/v1/view?key={{ GOOGLE_MAPS_API_KEY }}&center=${lat},${lng}&zoom=18&maptype=satellite" allowfullscreen></iframe>`;
 
-                // Jeśli nie ma klucza API, fallback do prostej mapy:
-                if (!"{{ GOOGLE_MAPS_API_KEY }}") {
+                const mapContainer = document.getElementById('map');
+
+                // Jeśli jest klucz Google Maps, pokaż marker/pineskę na koordynatach.
+                // `place` + `q=lat,lng` renderuje pin na mapie.
+                if ("{{ GOOGLE_MAPS_API_KEY }}") {
                     mapContainer.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0"
-                    src="https://maps.google.com/maps?q=${lat},${lng}&t=k&z=17&ie=UTF8&iwloc=&output=embed" allowfullscreen></iframe>`;
+                        src="https://www.google.com/maps/embed/v1/place?key={{ GOOGLE_MAPS_API_KEY }}&q=${lat},${lng}&zoom=18&maptype=satellite" allowfullscreen></iframe>`;
+                } else {
+                    // Fallback bez klucza (publiczne embed) – też pokaże pinezkę.
+                    mapContainer.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0"
+                        src="https://maps.google.com/maps?q=${lat},${lng}&t=k&z=17&ie=UTF8&iwloc=&output=embed" allowfullscreen></iframe>`;
                 }
+
                 mapInitialized = true;
             }
 

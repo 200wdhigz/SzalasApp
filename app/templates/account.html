@@ -156,11 +156,41 @@
                                 {% endif %}
                             </div>
                         </div>
+
+                        <!-- Authentik Account -->
+                        <div class="d-flex align-items-center justify-content-between mb-3 p-3 border rounded">
+                            <div>
+                                <i class="bi bi-shield-check text-info fs-4 me-2"></i>
+                                <strong>Authentik</strong>
+                                {% if user.authentik_id %}
+                                    <span class="badge text-bg-success ms-2">Połączone</span>
+                                {% else %}
+                                    <span class="badge text-bg-secondary ms-2">Niepołączone</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                {% if user.authentik_id %}
+                                    <form method="POST" action="{{ url_for('oauth.unlink_authentik') }}"
+                                          style="display: inline;">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                onclick="return confirm('Czy na pewno chcesz rozłączyć konto Authentik?');">
+                                            <i class="bi bi-x-circle"></i> Rozłącz
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <a href="{{ url_for('oauth.authentik_login') }}"
+                                       class="btn btn-sm btn-outline-success">
+                                        <i class="bi bi-plus-circle"></i> Połącz
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
 
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i>
-                        <strong>Wskazówka:</strong> Powiąż swoje konto z Google lub Microsoft, aby móc logować się za
+                        <strong>Wskazówka:</strong> Powiąż swoje konto z Google, Microsoft lub Authentik, aby móc logować się za
                         pomocą tych dostawców.
                     </div>
 
@@ -168,7 +198,7 @@
 
                     <div class="mb-4">
                         <h5 class="text-muted">Zmiana hasła</h5>
-                        {% if user.google_id or user.microsoft_id %}
+                        {% if user.google_id or user.microsoft_id or user.authentik_id %}
                             <div class="alert alert-info">
                                 <i class="bi bi-info-circle"></i>
                                 Masz powiązane konto OAuth. Możesz ustawić hasło, aby móc logować się również hasłem.

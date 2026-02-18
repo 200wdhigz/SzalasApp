@@ -22,6 +22,7 @@ except Exception:
     pass
 
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
 GOOGLE_PROJECT_ID = os.getenv('GOOGLE_PROJECT_ID')
 GOOGLE_CLOUD_STORAGE_BUCKET_NAME = os.getenv('GOOGLE_CLOUD_STORAGE_BUCKET_NAME')
 
@@ -119,6 +120,7 @@ def create_app():
             csrf_token=generate_csrf_token,
             hasattr=hasattr,
             QR_ALLOWED_HOSTS=qr_allowed_hosts,
+            GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY,
         )
 
     _init_firebase_admin()

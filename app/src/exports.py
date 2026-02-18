@@ -68,6 +68,13 @@ def apply_zhp_template_docx(document, title):
 
 def export_to_csv(data, filename):
     df = pd.DataFrame(data)
+    # Usuń całkowicie puste wiersze (np. gdy w danych pojawi się {} lub rekord z samymi pustymi wartościami)
+    # To naprawia problem „pustego wiersza” na końcu CSV.
+    if not df.empty:
+        df = df.dropna(how='all')
+        # dodatkowo usuń wiersze gdzie wszystkie pola są pustymi stringami
+        df = df.replace(r'^\s*$', pd.NA, regex=True).dropna(how='all')
+        df = df.reset_index(drop=True)
     output = BytesIO()
     df.to_csv(output, index=False, encoding='utf-8-sig')
     output.seek(0)

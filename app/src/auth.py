@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from . import GOOGLE_API_KEY
 from .db_users import get_user_by_uid, create_user
+from .db_firestore import _warsaw_now, get_config, update_config  # re-export dla testów i spójnego użycia czasu
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/')
 
@@ -56,6 +57,26 @@ def quartermaster_required(f):
         if session.get('user_role') not in ['quartermaster', 'admin']:
             flash('Ta strona wymaga uprawnień kwatermistrza.', 'danger')
             return redirect(url_for('views.sprzet_list'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def pin_restricted_required(f):
+    """Dekorator: dostęp tylko dla pełnego logowania (user_id).
+
+    Użytkownik zalogowany PINem jest uwierzytelniony (login_required), ale ma ograniczony dostęp.
+    Dla widoków listowych/administracyjnych blokujemy PIN i przekierowujemy na home.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Najpierw wymuś jakąkolwiek autoryzację (login lub PIN), inaczej daj PIN login.
+        if 'user_id' not in session and not session.get('is_pin_authenticated'):
+            return redirect(url_for('auth.pin_login', next=request.full_path))
+
+        # Jeśli jest PIN, ale nie ma pełnego user_id => blok.
+        if session.get('is_pin_authenticated') and 'user_id' not in session:
+            flash('Ta strona wymaga pełnego logowania.', 'warning')
+            return redirect(url_for('views.home'))
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -157,42 +178,105 @@ def logout():
     flash('Wylogowano pomyślnie.', 'info')
     return redirect(url_for('views.home'))
 
-def get_or_rotate_pin():
-    from .db_firestore import get_config, update_config, _warsaw_now
+def _warsaw_tz():
+    """Strefa Europe/Warsaw – nigdy None (fallback na astimezone)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo('Europe/Warsaw')
+    except Exception:
+        pass
+    n = _warsaw_now()
+    if getattr(n, 'tzinfo', None) is not None:
+        return n.tzinfo
+    return datetime.now().astimezone().tzinfo
+
+
+def get_current_pin():
+    """Zwraca aktualny PIN z configu. Tworzy go tylko gdy brak. Nigdy nie obraca."""
     config = get_config()
     pin = config.get('view_pin')
-    auto_rotate = config.get('pin_auto_rotate', False)
-    last_rotate = config.get('pin_last_rotate')
-    rotate_hours = config.get('pin_rotate_hours', 24)  # Default to 24 hours
-    
-    now = _warsaw_now()
-    
-    # Jeśli PIN nie istnieje, wygeneruj go
     if not pin:
+        rotate_hours = config.get('pin_rotate_hours', 24)
         pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
-        update_config(view_pin=pin, pin_last_rotate=now)
-        return pin
-        
-    # Jeśli auto_rotate jest włączone i minął czas
-    if auto_rotate and last_rotate:
-        # Convert last_rotate to datetime if it's a string
-        if isinstance(last_rotate, str):
-            try:
-                last_rotate = datetime.fromisoformat(last_rotate)
-            except (ValueError, TypeError):
-                # If conversion fails, treat as if last_rotate doesn't exist
-                last_rotate = None
-        if last_rotate and now - last_rotate > timedelta(hours=rotate_hours):
-            pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
-            update_config(view_pin=pin, pin_last_rotate=now)
-            
+        now = _warsaw_now()
+        update_config(
+            view_pin=pin,
+            pin_last_rotate=now,
+            pin_next_rotate_at=(now + timedelta(hours=int(rotate_hours) if rotate_hours else 24)),
+        )
     return pin
+
+
+def rotate_pin_if_due():
+    """Jeśli auto_rotate włączone i minął termin – generuje nowy PIN i zapisuje w configu.
+    Wywoływane przy GET /admin/settings, nigdy przy logowaniu PIN."""
+    config = get_config()
+    if not config.get('pin_auto_rotate'):
+        return
+    pin = config.get('view_pin')
+    if not pin:
+        return
+    last_rotate = config.get('pin_last_rotate')
+    next_rotate_at = config.get('pin_next_rotate_at')
+    rotate_hours = config.get('pin_rotate_hours', 24)
+
+    wtz = _warsaw_tz()
+    now = _warsaw_now()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=wtz)
+    else:
+        now = now.astimezone(wtz)
+
+    def _to_dt(val):
+        if not val:
+            return None
+        if hasattr(val, 'tzinfo'):
+            return val
+        if isinstance(val, str):
+            try:
+                return datetime.fromisoformat(val)
+            except Exception:
+                return None
+        return None
+
+    def _to_warsaw_aware(dt):
+        if dt is None or wtz is None:
+            return None
+        if hasattr(dt, 'timestamp'):
+            try:
+                ts = dt.timestamp()
+                tz = getattr(dt, 'tzinfo', None)
+                dt = datetime.fromtimestamp(ts, tz=tz) if tz else datetime.fromtimestamp(ts, tz=wtz)
+            except Exception:
+                pass
+        if getattr(dt, 'tzinfo', None) is None:
+            return dt.replace(tzinfo=wtz)
+        return dt.astimezone(wtz)
+
+    last_rotate_dt = _to_warsaw_aware(_to_dt(last_rotate))
+    next_rotate_dt = _to_warsaw_aware(_to_dt(next_rotate_at))
+
+    should_rotate = False
+    if next_rotate_dt and now >= next_rotate_dt:
+        should_rotate = True
+    elif last_rotate_dt:
+        hrs = int(rotate_hours) if rotate_hours else 24
+        if now - last_rotate_dt > timedelta(hours=hrs):
+            should_rotate = True
+
+    if should_rotate:
+        pin = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+        update_config(
+            view_pin=pin,
+            pin_last_rotate=now,
+            pin_next_rotate_at=(now + timedelta(hours=int(rotate_hours) if rotate_hours else 24)),
+        )
 
 @auth_bp.route('/pin', methods=['GET', 'POST'])
 def pin_login():
     if request.method == 'POST':
         entered_pin = request.form.get('pin')
-        actual_pin = get_or_rotate_pin()
+        actual_pin = get_current_pin()
         
         if entered_pin == actual_pin:
             session['is_pin_authenticated'] = True

@@ -46,6 +46,15 @@ def get_user_by_microsoft_id(microsoft_id: str):
         return _get_doc_data(docs[0])
     return None
 
+def get_user_by_authentik_id(authentik_id: str):
+    """Pobiera użytkownika po Authentik ID."""
+    db = get_firestore_client()
+    query = db.collection(COLLECTION_USERS).where(filter=firestore.FieldFilter('authentik_id', '==', authentik_id)).limit(1)
+    docs = list(query.stream())
+    if docs:
+        return _get_doc_data(docs[0])
+    return None
+
 def get_all_users():
     """Pobiera wszystkich użytkowników."""
     db = get_firestore_client()
@@ -64,6 +73,7 @@ def create_user(uid: str, email: str, is_admin: bool = False, role: str = 'repor
         'last_name': last_name,
         'google_id': None,
         'microsoft_id': None,
+        'authentik_id': None,
         'created_at': _warsaw_now(),
         'updated_at': _warsaw_now()
     }
@@ -91,6 +101,14 @@ def link_microsoft_account(uid: str, microsoft_id: str):
 def unlink_microsoft_account(uid: str):
     """Rozłącza konto użytkownika z kontem Microsoft."""
     update_user(uid, microsoft_id=None)
+
+def link_authentik_account(uid: str, authentik_id: str):
+    """Łączy konto użytkownika z kontem Authentik."""
+    update_user(uid, authentik_id=authentik_id)
+
+def unlink_authentik_account(uid: str):
+    """Rozłącza konto użytkownika z kontem Authentik."""
+    update_user(uid, authentik_id=None)
 
 def set_user_active_status(uid: str, active: bool):
     """Ustawia status aktywności użytkownika."""

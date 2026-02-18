@@ -36,6 +36,10 @@
                             <i class="bi bi-microsoft"></i> Zaloguj przez Microsoft (ZHP)
                         </a>
 
+                        <a href="{{ url_for('oauth.authentik_login') }}" class="btn btn-outline-info w-100 mb-2">
+                            <i class="bi bi-shield-check"></i> Zaloguj przez Authentik
+                        </a>
+
                         <hr>
                         <a href="{{ url_for('auth.pin_login') }}" class="btn btn-warning w-100">
                             <i class="bi bi-shield-lock"></i> Wejdź za pomocą kodu PIN

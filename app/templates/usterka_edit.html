@@ -8,8 +8,20 @@
             </div>
             <div class="card-body">
 
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <a href="{{ url_for('views.usterka_card', usterka_id=usterka.id) }}" class="btn btn-outline-primary">
+                        <i class="bi bi-eye"></i> Karta usterki
+                    </a>
+                    <a href="{{ url_for('views.usterki_list') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Lista usterek
+                    </a>
+                    <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-box-seam"></i> Karta sprzętu
+                    </a>
+                </div>
+
                 <p><strong>ID Sprzętu:</strong>
-                    <a href="{{ url_for('views.sprzet_list', parent_id=usterka.sprzet_id) }}"
+                    <a href="{{ url_for('views.sprzet_card', sprzet_id=usterka.sprzet_id) }}"
                        class="text-primary">{{ usterka.sprzet_id }}</a>
                 </p>
                 <p><strong>Zgłoszono przez:</strong>
