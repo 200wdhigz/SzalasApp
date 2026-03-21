@@ -39,6 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
+          import os
           import re
           from pathlib import Path
 
@@ -50,7 +51,7 @@ jobs:
           tag = f"v{version}"
 
           # GitHub Actions: write outputs to the file path stored in $GITHUB_OUTPUT
-          out = Path.cwd() / 'GITHUB_OUTPUT'
+          out = Path(os.environ['GITHUB_OUTPUT'])
           with out.open('a', encoding='utf-8') as f:
               f.write(f"version={version}\n")
               f.write(f"tag={tag}\n")
@@ -65,10 +66,12 @@ jobs:
           set -euo pipefail
           TAG='${{ steps.compute.outputs.tag }}'
           if [ -z "$TAG" ]; then
-            echo "Computed TAG is empty - failing early."
-            exit 1
+            echo "create=false" >> "$GITHUB_OUTPUT"
+            echo "Computed TAG is empty - skipping release."
+            exit 0
           fi
-          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+          # Check both local and remote tags so reruns don't fail when tag already exists upstream.
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null || git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
             echo "create=false" >> "$GITHUB_OUTPUT"
             echo "Tag ${TAG} already exists - skipping release."
           else
