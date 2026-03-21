@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from . import GOOGLE_PROJECT_ID, GOOGLE_CLOUD_STORAGE_BUCKET_NAME
+from urllib.parse import urlparse, unquote
 
 def get_storage_client():
     """Zwraca klienta Google Cloud Storage."""
@@ -20,20 +21,54 @@ def get_storage_client():
 import datetime
 
 def extract_blob_name(url: str) -> str:
-    """Wyciąga blob_name z URL GCS (usuwa parametry podpisu)."""
+    """Wyciąga bezpiecznie blob_name z URL GCS (usuwa parametry podpisu).
+
+    Zasady bezpieczeństwa:
+    - Parsuje URL przez urllib.parse zamiast dopasowań substring.
+    - Wymaga hosta storage.googleapis.com (ew. alt: *.storage.googleapis.com).
+    - Weryfikuje, że ścieżka zaczyna się od /<bucket>/...
+    - Zwraca nazwę blob po unquote, odrzuca niebezpieczne wzorce (.., wiodący '/').
+    """
     if not url or not GOOGLE_CLOUD_STORAGE_BUCKET_NAME:
         return ""
 
     try:
-        if 'https://storage.googleapis.com' in url:
-            # Rozdzielamy po nazwie bucketa
-            parts = url.split(f"{GOOGLE_CLOUD_STORAGE_BUCKET_NAME}/")
-            if len(parts) > 1:
-                blob_name = parts[1].split('?')[0]
-                return blob_name
+        parsed = urlparse(url)
+        host = (parsed.hostname or '').lower()
+        if not host:
+            return ""
+
+        # Dozwolone hosty GCS dla signed URL-i
+        allowed_hosts = {
+            'storage.googleapis.com',
+        }
+        if host not in allowed_hosts and not host.endswith('.storage.googleapis.com'):
+            return ""
+
+        # Ścieżka w formacie /<bucket>/<blob_path>
+        path = parsed.path or ''
+        # Usuń ewentualny wiodący '/'
+        if path.startswith('/'):
+            path = path[1:]
+
+        # Musi zaczynać się od nazwy bucketa + '/'
+        bucket_prefix = f"{GOOGLE_CLOUD_STORAGE_BUCKET_NAME}/"
+        if not path.startswith(bucket_prefix):
+            return ""
+
+        blob_part = path[len(bucket_prefix):]
+        # Usuń ewentualny query z oryginalnego URL-a (na wszelki wypadek)
+        blob_part = blob_part.split('?', 1)[0]
+        blob_name = unquote(blob_part).strip()
+
+        # Podstawowa sanityzacja – nie dopuszczaj do wstecznych przejść i pustych nazw
+        if not blob_name or blob_name.startswith('/') or '..' in blob_name.split('/'):
+            return ""
+
+        return blob_name
     except Exception:
         print(f"Error extracting blob name from {url}")
-    return ""
+        return ""
 
 def generate_signed_url(blob_name: str) -> str:
     """Generuje Signed URL (V4) dla obiektu w GCS."""

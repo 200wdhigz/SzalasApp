@@ -134,6 +134,13 @@ def create_app():
     app.register_blueprint(oauth_bp)
     app.register_blueprint(admin_bp)
 
+    # Seed domyślnych osiągnięć (gdy kolekcja pusta); best-effort, brak twardego błędu przy starcie
+    try:
+        from .achievements_service import ensure_seeded as _ensure_achievements_seeded
+        _ensure_achievements_seeded()
+    except Exception as _seed_err:
+        app.logger.warning(f"Achievements seed skipped: {_seed_err}")
+
     @app.route('/health')
     def health_check():
         """Health check endpoint.
@@ -172,13 +179,14 @@ def create_app():
                 'strict': strict,
             }, 200
         except Exception as e:
+            # Nie ujawniamy szczegółów wyjątku w odpowiedzi HTTP (info leakage)
             app.logger.error(f"Health check failed: {e}")
             return {
                 'status': 'unhealthy',
                 'service': 'SzalasApp',
                 'firebase_initialized': bool(_apps),
                 'strict': strict,
-                'error': str(e)
+                'error': 'internal error'
             }, 503
 
     @app.route('/.well-known/<path:filename>')

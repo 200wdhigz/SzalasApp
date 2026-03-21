@@ -621,6 +621,12 @@ def sprzet_add():
 
             set_item(COLLECTION_SPRZET, sprzet_id, data)
             add_log(session.get('user_id'), 'add', 'sprzet', sprzet_id, after=data)
+            # Automatyczne osiągnięcia – dodanie elementu (z opcjonalnym filtrem kategorii)
+            try:
+                from .achievements_service import maybe_award_on_item_created
+                maybe_award_on_item_created(session.get('user_id'), data.get('category'))
+            except Exception as _ach_err:
+                current_app.logger.warning(f"Achievements check (item_created) failed: {_ach_err}")
             flash(f'Sprzęt {sprzet_id} został dodany.', 'success')
             # Po dodaniu wróć do kontekstu listy, jeśli był podany
             if return_query:
@@ -905,6 +911,13 @@ def sprzet_edit(sprzet_id):
 
         update_sprzet(sprzet_id, **data)
         add_log(session.get('user_id'), 'edit', 'sprzet', sprzet_id, before=before_data, after=data)
+        # Automatyczne osiągnięcia – edycja elementu (z opcjonalnym filtrem kategorii)
+        try:
+            from .achievements_service import maybe_award_on_item_edited
+            _cat = data.get('category') or sprzet.get('category')
+            maybe_award_on_item_edited(session.get('user_id'), _cat)
+        except Exception as _ach_err:
+            current_app.logger.warning(f"Achievements check (item_edited) failed: {_ach_err}")
         flash(f'Sprzęt {sprzet_id} został zaktualizowany.', 'success')
         # Przekaż return dalej na kartę, żeby 'Powrót do katalogu' wracał do właściwego miejsca.
         if return_query:
@@ -990,6 +1003,12 @@ def sprzet_card(sprzet_id):
                     }
                     doc_ref.set(data)
                     add_log(session.get('user_id'), 'add', 'usterka', doc_ref.id, data)
+                    # Automatyczne osiągnięcia – pierwszy raport / 5 raportów
+                    try:
+                        from .achievements_service import maybe_award_on_report_created
+                        maybe_award_on_report_created(session.get('user_id'))
+                    except Exception as _ach_err:
+                        current_app.logger.warning(f"Achievements check (report_created) failed: {_ach_err}")
                     flash(f'Usterka dla {sprzet_id} została zgłoszona!', 'success')
             except Exception as e:
                 flash(f'Błąd: {e}', 'danger')
@@ -1387,6 +1406,19 @@ def usterka_edit(usterka_id):
 
         update_usterka(usterka_id, **data)
         add_log(session.get('user_id'), 'edit', 'usterka', usterka_id, before=before_data, after=data)
+
+        # Automatyczne osiągnięcia – pomoc w rozwiązaniu cudzej usterki
+        try:
+            if is_quartermaster:
+                new_status = data.get('status')
+                old_status = before_data.get('status')
+                actor_uid = session.get('user_id')
+                owner_uid = usterka.get('user_id')
+                if new_status == 'naprawiona' and old_status != 'naprawiona' and owner_uid and owner_uid != actor_uid:
+                    from .achievements_service import maybe_award_on_help_resolve
+                    maybe_award_on_help_resolve(actor_uid, usterka)
+        except Exception as _ach_err:
+            current_app.logger.warning(f"Achievements check (help_resolve) failed: {_ach_err}")
         flash(f'Usterka {usterka_id} zaktualizowana.', 'success')
         return redirect(url_for('views.usterka_card', usterka_id=usterka_id))
 
@@ -1523,6 +1555,12 @@ def loan_add(item_id):
         }
         add_loan(data)
         add_log(session.get('user_id'), 'loan', 'sprzet', item_id, after=data)
+        # Automatyczne osiągnięcia – przypisz po e‑mailu w polu 'kontakt'
+        try:
+            from .achievements_service import maybe_award_on_loan_created
+            maybe_award_on_loan_created(data.get('kontakt'))
+        except Exception as _ach_err:
+            current_app.logger.warning(f"Achievements check (loan_created) failed: {_ach_err}")
         flash(f'Wypożyczono {item_id}.', 'success')
         return redirect(url_for('views.loans_list'))
     
@@ -1568,6 +1606,12 @@ def loan_return(loan_id):
             return redirect(url_for('views.loans_list'))
 
     mark_loan_returned(loan_id)
+    # Automatyczne osiągnięcia – szybki zwrot (dla wypożyczającego)
+    try:
+        from .achievements_service import maybe_award_on_loan_return
+        maybe_award_on_loan_return(loan)
+    except Exception as _ach_err:
+        current_app.logger.warning(f"Achievements check (loan_return) failed: {_ach_err}")
     flash('Przedmiot został zwrócony.', 'success')
     return redirect(url_for('views.loans_list'))
 
@@ -1636,6 +1680,7 @@ def user_profile(user_id):
     """Wyświetla profil użytkownika."""
     from .db_users import get_user_by_uid
     from .db_firestore import get_logs_by_user
+    from .achievements_service import get_achievements_defs_map, get_user_achievements_progress
 
     user = get_user_by_uid(user_id)
     if not user:
@@ -1650,7 +1695,22 @@ def user_profile(user_id):
     for log in logs:
         log['user_name'] = user_name
 
-    return render_template('user_profile.html', user_info=user, logs=logs)
+    # Progres osiągnięć
+    feats = (user or {}).get('features') or {}
+    achievements_progress = []
+    if feats.get('achievements_enabled'):
+        try:
+            achievements_progress = get_user_achievements_progress(user_id)
+        except Exception:
+            achievements_progress = []
+
+    return render_template(
+        'user_profile.html',
+        user_info=user,
+        logs=logs,
+        achievements_defs=get_achievements_defs_map(),
+        achievements_progress=achievements_progress,
+    )
 
 @views_bp.route('/sprzet/zestawienie')
 @pin_restricted_required

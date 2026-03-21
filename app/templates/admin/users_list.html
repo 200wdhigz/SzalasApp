@@ -6,7 +6,7 @@
             <div class="card shadow-lg mt-4">
                 <div class="card-header text-bg-danger d-flex justify-content-between align-items-center">
                     <h4 class="mb-0"><i class="bi bi-people"></i> Zarządzanie Użytkownikami</h4>
-                    <div class="btn-group">
+                    <div>
                         <form method="POST" action="{{ url_for('admin.users_sync') }}" style="display: inline;"
                               class="me-2">
                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -14,9 +14,16 @@
                                 <i class="bi bi-arrow-repeat"></i> Synchronizuj
                             </button>
                         </form>
-                        <a href="{{ url_for('admin.user_new') }}" class="btn btn-light">
-                            <i class="bi bi-plus-circle"></i> Nowy Użytkownik
-                        </a>
+                        <div class="btn-group">
+                            {% if session.get('user_role') == 'admin' %}
+                                <a href="{{ url_for('admin.achievements_defs_list') }}" class="btn btn-outline-light">
+                                    <i class="bi bi-trophy"></i> Osiągnięcia (definicje)
+                                </a>
+                            {% endif %}
+                            <a href="{{ url_for('admin.user_new') }}" class="btn btn-light">
+                                <i class="bi bi-plus-circle"></i> Nowy Użytkownik
+                            </a>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -109,6 +116,13 @@
                                                    class="btn btn-sm btn-outline-primary" title="Edytuj">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
+
+                                                {% if session.get('user_role') == 'admin' %}
+                                                    <a href="{{ url_for('admin.user_achievements', user_id=user.id) }}"
+                                                       class="btn btn-sm btn-outline-secondary" title="Osiągnięcia">
+                                                        <i class="bi bi-trophy"></i>
+                                                    </a>
+                                                {% endif %}
 
                                                 {% if user.active and not user.firebase_disabled %}
                                                     <form method="POST"

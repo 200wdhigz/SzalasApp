@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card shadow-lg mt-4">
+      <div class="card-header text-bg-danger d-flex justify-content-between align-items-center">
+        <h4 class="mb-0"><i class="bi bi-trophy"></i> Osiągnięcia — definicje</h4>
+        <div class="btn-group">
+          <a href="{{ url_for('admin.achievements_new') }}" class="btn btn-light">
+            <i class="bi bi-plus-circle"></i> Nowe Osiągnięcie
+          </a>
+          <a href="{{ url_for('admin.users_list') }}" class="btn btn-outline-light">
+            <i class="bi bi-people"></i> Użytkownicy
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if achievements %}
+          <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nazwa</th>
+                  <th>Opis</th>
+                  <th>Ikona</th>
+                  <th>Warunek</th>
+                  <th>Włączone</th>
+                  <th>Ukryte</th>
+                  <th>Kolejność</th>
+                  <th class="text-end">Akcje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for a in achievements %}
+                  <tr>
+                    <td><code>{{ a.id }}</code></td>
+                    <td>{{ a.name }}</td>
+                    <td class="small">{{ a.description }}</td>
+                    <td>{{ a.icon or '🏅' }}</td>
+                    <td>
+                      {% set c = a.condition or {} %}
+                      {% if c.type == 'event_count' %}
+                        <span class="badge text-bg-secondary">{{ c.type }}</span>
+                        <small class="text-muted">{{ c.event }} ≥ {{ c.threshold }}</small>
+                      {% elif c.type in ['speedy_return', 'help_resolve'] %}
+                        <span class="badge text-bg-secondary">{{ c.type }}</span>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if a.enabled %}
+                        <span class="badge text-bg-success">TAK</span>
+                      {% else %}
+                        <span class="badge text-bg-warning">NIE</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if a.secret %}
+                        <span class="badge text-bg-dark">TAK</span>
+                      {% else %}
+                        <span class="badge text-bg-secondary">NIE</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ a.order or 0 }}</td>
+                    <td class="text-end">
+                      <a href="{{ url_for('admin.achievements_edit', achievement_id=a.id) }}" class="btn btn-sm btn-outline-primary me-1">
+                        <i class="bi bi-pencil"></i>
+                      </a>
+                      <form method="POST" action="{{ url_for('admin.achievements_delete', achievement_id=a.id) }}" style="display:inline;">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Usunąć osiągnięcie {{ a.name }}?');">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="alert alert-info"><i class="bi bi-info-circle"></i> Brak zdefiniowanych osiągnięć.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

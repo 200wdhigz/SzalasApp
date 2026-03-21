@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
+from urllib.parse import urlparse
 from firebase_admin import auth as firebase_auth
 import secrets
 import string
@@ -14,7 +15,13 @@ from .db_firestore import get_list_setting, update_list_setting
 from .db_users import (
     get_all_users, get_user_by_uid, update_user,
     set_user_active_status, set_user_admin_status, create_user,
-    delete_user, sync_users_from_firebase_auth
+    delete_user, sync_users_from_firebase_auth,
+    set_user_feature_flag, get_user_achievements_map,
+    add_user_achievement, remove_user_achievement,
+)
+from .db_firestore import (
+    get_all_achievements, get_achievements_map,
+    set_achievement_def, delete_item, COLLECTION_ACHIEVEMENTS
 )
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -212,6 +219,7 @@ def user_edit(user_id):
         first_name = request.form.get('first_name', '').strip()
         last_name = request.form.get('last_name', '').strip()
         new_email = request.form.get('email', '').strip()
+        achievements_enabled = request.form.get('achievements_enabled') == 'on'
 
         if not new_email:
             flash('Email jest wymagany.', 'danger')
@@ -245,7 +253,13 @@ def user_edit(user_id):
 
             # Aktualizuj custom claims w Firebase Auth
             firebase_auth.set_custom_user_claims(user_id, {'admin': is_admin})
-            
+
+            # Flaga eksperymentalna: osiągnięcia
+            try:
+                set_user_feature_flag(user_id, 'achievements_enabled', achievements_enabled)
+            except Exception as e:
+                current_app.logger.warning(f"Nie udało się zaktualizować flagi osiągnięć: {e}")
+
             flash(f'Użytkownik został zaktualizowany.', 'success')
             return redirect(url_for('admin.users_list'))
         
@@ -297,6 +311,289 @@ def user_enable(user_id):
         flash(f'Wystąpił błąd podczas włączania konta: {str(e)}', 'danger')
     
     return redirect(url_for('admin.users_list'))
+
+
+# =======================================================================
+#                       OSIĄGNIĘCIA (EXPERIMENTAL)
+# =======================================================================
+
+@admin_bp.route('/users/<user_id>/achievements', methods=['GET', 'POST'])
+@admin_required
+def user_achievements(user_id):
+    """Zarządzanie osiągnięciami użytkownika (tylko ADMIN)."""
+    # Podstawowa weryfikacja istnienia użytkownika
+    user = get_user_by_uid(user_id)
+    if not user:
+        flash('Nie znaleziono użytkownika.', 'danger')
+        return redirect(url_for('admin.users_list'))
+
+    # Przetwarzanie akcji (POST)
+    if request.method == 'POST':
+        if not validate_csrf_token():
+            return redirect(url_for('admin.user_achievements', user_id=user_id))
+
+        action = request.form.get('action')
+        achievement_id = request.form.get('achievement_id', '').strip()
+
+        # Przełączanie flagi funkcji
+        if action == 'toggle_feature':
+            enable = request.form.get('achievements_enabled') == 'on'
+            try:
+                set_user_feature_flag(user_id, 'achievements_enabled', enable)
+                flash('Zaktualizowano ustawienie: osiągnięcia.', 'success')
+            except Exception as e:
+                flash(f'Błąd podczas zapisu ustawienia: {e}', 'danger')
+            return redirect(url_for('admin.user_achievements', user_id=user_id))
+
+        # Operacje na osiągnięciach
+        valid_ids = set(get_achievements_map().keys())
+        if achievement_id and achievement_id in valid_ids:
+            try:
+                if action == 'grant':
+                    add_user_achievement(user_id, achievement_id)
+                    flash('Osiągnięcie przyznane.', 'success')
+                elif action == 'revoke':
+                    remove_user_achievement(user_id, achievement_id)
+                    flash('Osiągnięcie odebrane.', 'warning')
+            except Exception as e:
+                flash(f'Błąd podczas aktualizacji osiągnięcia: {e}', 'danger')
+        else:
+            if action in ('grant', 'revoke'):
+                flash('Nieprawidłowe ID osiągnięcia.', 'danger')
+
+        return redirect(url_for('admin.user_achievements', user_id=user_id))
+
+    # GET – przygotowanie danych do widoku
+    achievements_map = get_user_achievements_map(user_id)
+    features = user.get('features', {}) or {}
+    achievements_list = get_all_achievements()
+    return render_template(
+        'admin/user_achievements.html',
+        user=user,
+        achievements=achievements_list,
+        achievements_map=achievements_map,
+        features=features,
+    )
+
+
+# =======================================================================
+#                       OSIĄGNIĘCIA — DEFINICJE (ADMIN)
+# =======================================================================
+
+def _slugify(text: str) -> str:
+    import re
+    text = (text or '').strip().lower()
+    # zamień polskie znaki i inne diakrytyki w prosty sposób
+    repl = {
+        'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z'
+    }
+    text = ''.join(repl.get(ch, ch) for ch in text)
+    text = re.sub(r'[^a-z0-9]+', '-', text)
+    text = re.sub(r'-{2,}', '-', text).strip('-')
+    return text or 'achiev'
+
+
+@admin_bp.route('/achievements', methods=['GET'])
+@admin_required
+def achievements_defs_list():
+    """Lista definicji osiągnięć (z bazy)."""
+    items = get_all_achievements()
+    return render_template('admin/achievements_list.html', achievements=items)
+
+
+@admin_bp.route('/achievements/new', methods=['GET', 'POST'])
+@admin_required
+def achievements_new():
+    """Dodawanie nowej definicji osiągnięcia (z warunkami)."""
+    if request.method == 'POST':
+        if not validate_csrf_token():
+            return redirect(url_for('admin.achievements_new'))
+
+        aid = (request.form.get('id') or '').strip()
+        name = (request.form.get('name') or '').strip()
+        description = (request.form.get('description') or '').strip()
+        icon = (request.form.get('icon') or '').strip() or '🏅'
+        enabled = request.form.get('enabled') == 'on'
+        secret = request.form.get('secret') == 'on'
+        order = request.form.get('order')
+        try:
+            order = int(order) if order not in (None, '') else None
+        except ValueError:
+            order = None
+
+        condition_type = (request.form.get('condition_type') or '').strip()
+        event = (request.form.get('event') or '').strip()
+        threshold = request.form.get('threshold')
+        category = (request.form.get('category') or '').strip()
+        try:
+            threshold = int(threshold) if (threshold not in (None, '') and condition_type in ('event_count','item_add_count','item_edit_count')) else None
+        except ValueError:
+            threshold = None
+
+        if not name:
+            flash('Nazwa osiągnięcia jest wymagana.', 'danger')
+            return render_template('admin/achievement_form.html')
+
+        if not aid:
+            aid = _slugify(name)
+
+        # Zbuduj definicję z warunkami
+        condition = None
+        if condition_type == 'event_count':
+            if event not in ('report_created', 'loan_created'):
+                flash('Dla event_count dozwolone zdarzenia: report_created lub loan_created.', 'danger')
+                return render_template('admin/achievement_form.html')
+            if threshold is None or threshold <= 0:
+                flash('Dla event_count wymagany jest próg (liczba >= 1).', 'danger')
+                return render_template('admin/achievement_form.html')
+            condition = {
+                'type': 'event_count',
+                'event': event,
+                'threshold': threshold,
+            }
+        elif condition_type in ('item_add_count', 'item_edit_count'):
+            if threshold is None or threshold <= 0:
+                flash('Dla liczników dodawania/edycji wymagany jest próg (liczba >= 1).', 'danger')
+                return render_template('admin/achievement_form.html')
+            condition = {
+                'type': condition_type,
+                'threshold': threshold,
+            }
+            if category:
+                condition['category'] = category
+        elif condition_type in ('speedy_return', 'help_resolve'):
+            # Event informacyjny (może być użyty w przyszłości), ale nie jest wymagany
+            condition = {
+                'type': condition_type,
+                'event': 'loan_return' if condition_type == 'speedy_return' else 'help_resolve'
+            }
+        else:
+            flash('Nieprawidłowy typ warunku.', 'danger')
+            return render_template('admin/achievement_form.html')
+
+        data = {
+            'id': aid,
+            'name': name,
+            'description': description,
+            'icon': icon,
+            'enabled': enabled,
+            'secret': secret,
+            'order': order if order is not None else 9999,
+            'condition': condition,
+        }
+        try:
+            set_achievement_def(aid, data)
+            flash('Dodano nowe osiągnięcie.', 'success')
+            return redirect(url_for('admin.achievements_defs_list'))
+        except Exception as e:
+            flash(f'Błąd podczas zapisu osiągnięcia: {e}', 'danger')
+            return render_template('admin/achievement_form.html', achievement=data)
+
+    return render_template('admin/achievement_form.html')
+
+
+@admin_bp.route('/achievements/<achievement_id>/delete', methods=['POST'])
+@admin_required
+def achievements_delete(achievement_id):
+    if not validate_csrf_token():
+        return redirect(url_for('admin.achievements_defs_list'))
+    try:
+        delete_item(COLLECTION_ACHIEVEMENTS, achievement_id)
+        flash('Osiągnięcie zostało usunięte.', 'warning')
+    except Exception as e:
+        flash(f'Nie udało się usunąć osiągnięcia: {e}', 'danger')
+    return redirect(url_for('admin.achievements_defs_list'))
+
+
+@admin_bp.route('/achievements/<achievement_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def achievements_edit(achievement_id):
+    """Edycja istniejącej definicji osiągnięcia."""
+    ach_map = get_achievements_map()
+    achievement = ach_map.get(achievement_id)
+    if not achievement:
+        flash('Nie znaleziono osiągnięcia.', 'danger')
+        return redirect(url_for('admin.achievements_defs_list'))
+
+    if request.method == 'POST':
+        if not validate_csrf_token():
+            return redirect(url_for('admin.achievements_edit', achievement_id=achievement_id))
+
+        name = (request.form.get('name') or '').strip()
+        description = (request.form.get('description') or '').strip()
+        icon = (request.form.get('icon') or '').strip() or (achievement.get('icon') or '🏅')
+        enabled = request.form.get('enabled') == 'on'
+        secret = request.form.get('secret') == 'on'
+        order = request.form.get('order')
+        try:
+            order = int(order) if order not in (None, '') else (achievement.get('order') or 9999)
+        except ValueError:
+            order = achievement.get('order') or 9999
+
+        condition_type = (request.form.get('condition_type') or '').strip()
+        event = (request.form.get('event') or '').strip()
+        threshold = request.form.get('threshold')
+        category = (request.form.get('category') or '').strip()
+        try:
+            threshold = int(threshold) if (threshold not in (None, '') and condition_type in ('event_count','item_add_count','item_edit_count')) else None
+        except ValueError:
+            threshold = None
+
+        if not name:
+            flash('Nazwa osiągnięcia jest wymagana.', 'danger')
+            return render_template('admin/achievement_form.html', achievement=achievement, edit=True)
+
+        condition = None
+        if condition_type == 'event_count':
+            if event not in ('report_created', 'loan_created'):
+                flash('Dla event_count dozwolone zdarzenia: report_created lub loan_created.', 'danger')
+                return render_template('admin/achievement_form.html', achievement=achievement, edit=True)
+            if threshold is None or threshold <= 0:
+                flash('Dla event_count wymagany jest próg (liczba >= 1).', 'danger')
+                return render_template('admin/achievement_form.html', achievement=achievement, edit=True)
+            condition = {
+                'type': 'event_count',
+                'event': event,
+                'threshold': threshold,
+            }
+        elif condition_type in ('item_add_count', 'item_edit_count'):
+            if threshold is None or threshold <= 0:
+                flash('Dla liczników dodawania/edycji wymagany jest próg (liczba >= 1).', 'danger')
+                return render_template('admin/achievement_form.html', achievement=achievement, edit=True)
+            condition = {
+                'type': condition_type,
+                'threshold': threshold,
+            }
+            if category:
+                condition['category'] = category
+        elif condition_type in ('speedy_return', 'help_resolve'):
+            condition = {
+                'type': condition_type,
+                'event': 'loan_return' if condition_type == 'speedy_return' else 'help_resolve'
+            }
+        else:
+            flash('Nieprawidłowy typ warunku.', 'danger')
+            return render_template('admin/achievement_form.html', achievement=achievement, edit=True)
+
+        data = {
+            'id': achievement_id,  # ID niezmienne podczas edycji
+            'name': name,
+            'description': description,
+            'icon': icon,
+            'enabled': enabled,
+            'secret': secret,
+            'order': order,
+            'condition': condition,
+        }
+        try:
+            set_achievement_def(achievement_id, data)
+            flash('Zapisano zmiany osiągnięcia.', 'success')
+            return redirect(url_for('admin.achievements_defs_list'))
+        except Exception as e:
+            flash(f'Błąd podczas zapisu: {e}', 'danger')
+            return render_template('admin/achievement_form.html', achievement=data, edit=True)
+
+    return render_template('admin/achievement_form.html', achievement=achievement, edit=True)
 
 
 @admin_bp.route('/users/<user_id>/reset-password', methods=['POST'])
@@ -465,7 +762,29 @@ def log_restore(log_id):
     else:
         flash(message, 'danger')
     
-    return redirect(request.referrer or url_for('views.logs_list'))
+    return safe_redirect_back('views.logs_list')
+
+
+def safe_redirect_back(fallback_endpoint: str):
+    """Bezpieczny redirect po akcji POST.
+
+    Jeżeli nagłówek Referer wskazuje ten sam host, wykonaj redirect do niego,
+    inaczej zawsze przekieruj do zdefiniowanego endpointu fallback.
+    """
+    try:
+        ref = request.referrer
+        if ref:
+            ref_url = urlparse(ref)
+            # Porównaj hosty (uwzględniając reverse proxy, Flask użyje Host z żądania)
+            if ref_url.hostname and ref_url.hostname.lower() == (request.host.split(':')[0]).lower():
+                # Utrzymujemy tylko ścieżkę + query, by nie zmieniać schematu/hosta
+                target = ref_url.path or '/'
+                if ref_url.query:
+                    target = f"{target}?{ref_url.query}"
+                return redirect(target)
+    except Exception:
+        pass
+    return redirect(url_for(fallback_endpoint))
 
 
 @admin_bp.route('/settings', methods=['GET', 'POST'])
