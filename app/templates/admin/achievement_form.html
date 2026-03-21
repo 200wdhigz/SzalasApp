@@ -58,6 +58,9 @@
                 <option value="event_count" {% if c.type == 'event_count' %}selected{% endif %}>Liczba zdarzeń (próg)</option>
                 <option value="speedy_return" {% if c.type == 'speedy_return' %}selected{% endif %}>Szybki zwrot (tego samego dnia)</option>
                 <option value="help_resolve" {% if c.type == 'help_resolve' %}selected{% endif %}>Pomocna dłoń (naprawa cudzej usterki)</option>
+                <option value="item_add_count" {% if c.type == 'item_add_count' %}selected{% endif %}>Liczba dodanych elementów (sprzęt)</option>
+                <option value="item_edit_count" {% if c.type == 'item_edit_count' %}selected{% endif %}>Liczba edycji elementów (sprzęt)</option>
+                <option value="log_count" {% if c.type == 'log_count' %}selected{% endif %}>Liczba logów (z opcjonalnym filtrowaniem)</option>
               </select>
             </div>
             <div class="col-md-3 mb-3">
@@ -67,12 +70,30 @@
                 <option value="report_created" {% if c.event == 'report_created' %}selected{% endif %}>Zgłoszenie usterki</option>
                 <option value="loan_created" {% if c.event == 'loan_created' %}selected{% endif %}>Dodanie wypożyczenia</option>
               </select>
-              <div class="form-text">Dla „Liczby zdarzeń”.</div>
+              <div class="form-text">Dla „Liczby zdarzeń (event_count)”.</div>
             </div>
             <div class="col-md-3 mb-3">
               <label for="threshold" class="form-label">Próg</label>
-              <input type="number" id="threshold" name="threshold" class="form-control" placeholder="np. 5" value="{{ c.threshold if c and c.type == 'event_count' else '' }}">
-              <div class="form-text">Wymagany dla „Liczby zdarzeń”.</div>
+              <input type="number" id="threshold" name="threshold" class="form-control" placeholder="np. 5" value="{{ c.threshold if c and (c.type in ['event_count','item_add_count','item_edit_count','log_count']) else '' }}">
+              <div class="form-text">Wymagany dla: „Liczby zdarzeń”, „Liczby dodanych elementów”, „Liczby edycji”, „Liczby logów”.</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="category" class="form-label">Kategoria sprzętu (opcjonalnie)</label>
+              <input type="text" id="category" name="category" class="form-control" placeholder="np. namiot / przedmiot / zelastwo / kanadyjki / materace / magazyn / polka_skrzynia" value="{{ c.category if c and c.category else '' }}">
+              <div class="form-text">Dotyczy typów: „Liczba dodanych elementów”, „Liczba edycji”, oraz „Liczba logów” (gdy target_type = sprzet). Pozostaw puste, aby zliczać we wszystkich kategoriach.</div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="action" class="form-label">Akcja logu (opcjonalnie)</label>
+              <input type="text" id="action" name="action" class="form-control" placeholder="np. add / edit / delete / import / loan / bulk_edit" value="{{ c.action if c and c.action else '' }}">
+              <div class="form-text">Dotyczy „Liczby logów”. Pozostaw puste, aby nie filtrować po typie akcji.</div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="target_type" class="form-label">Typ obiektu (opcjonalnie)</label>
+              <input type="text" id="target_type" name="target_type" class="form-control" placeholder="np. sprzet / usterka / wypozyczenie" value="{{ c.target_type if c and c.target_type else '' }}">
+              <div class="form-text">Dotyczy „Liczby logów”. Dla kategorii ustaw <code>sprzet</code>.</div>
             </div>
           </div>
 
@@ -89,4 +110,54 @@
     </div>
   </div>
 </div>
+<script>
+  (function() {
+    const typeEl = document.getElementById('condition_type');
+    const eventEl = document.getElementById('event');
+    const thresholdEl = document.getElementById('threshold');
+    const categoryEl = document.getElementById('category');
+    const actionEl = document.getElementById('action');
+    const targetTypeEl = document.getElementById('target_type');
+
+    function setEnabled(el, enabled) {
+      if (!el) return;
+      el.disabled = !enabled;
+      if (!enabled) {
+        // Nie czyść wartości automatycznie przy edycji istniejących — tylko zablokuj edycję
+      }
+    }
+
+    function updateConditionUI() {
+      const t = typeEl ? typeEl.value : '';
+      const isEventCount = t === 'event_count';
+      const isItemAdd = t === 'item_add_count';
+      const isItemEdit = t === 'item_edit_count';
+      const isBinary = (t === 'speedy_return' || t === 'help_resolve');
+      const isLogCount = t === 'log_count';
+
+      setEnabled(eventEl, isEventCount);
+      // Próg wymagany dla event_count i liczników item*
+      setEnabled(thresholdEl, (isEventCount || isItemAdd || isItemEdit || isLogCount));
+      // Kategoria dla item* oraz (opcjonalnie) dla log_count gdy target_type=sprzet
+      setEnabled(categoryEl, (isItemAdd || isItemEdit || isLogCount));
+      // Pola dla log_count
+      setEnabled(actionEl, isLogCount);
+      setEnabled(targetTypeEl, isLogCount);
+
+      // Dodatkowo ustaw atrybut required dynamicznie (bez narzucania przy edycji binarnych)
+      if (thresholdEl) {
+        thresholdEl.required = (isEventCount || isItemAdd || isItemEdit || isLogCount);
+      }
+      if (eventEl) {
+        eventEl.required = isEventCount;
+      }
+    }
+
+    if (typeEl) {
+      typeEl.addEventListener('change', updateConditionUI);
+      // Inicjalizacja na załadowaniu
+      updateConditionUI();
+    }
+  })();
+</script>
 {% endblock %}

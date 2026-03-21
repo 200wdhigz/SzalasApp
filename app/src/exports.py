@@ -216,9 +216,9 @@ def export_qr_codes_pdf(data, filename, base_url):
     if not data:
         elements.append(Paragraph("Brak danych do wygenerowania kodów QR.", styles['Normal']))
     else:
-        # Parametry siatki (np. 3 kolumny, 4 rzędy na stronę)
+        # Parametry siatki: 3 kolumny × 8 rzędów na stronę (A4 pion)
         cols = 3
-        rows_per_page = 4
+        rows_per_page = 8
         items_per_page = cols * rows_per_page
 
         # Create a new style to avoid modifying the shared style object
@@ -255,11 +255,11 @@ def export_qr_codes_pdf(data, filename, base_url):
                 # Tworzenie komórki etykiety
                 img = Image(img_buffer, width=40 * mm, height=40 * mm)
 
-                # Zawartość etykiety: ID na górze, potem QR
+                # Zawartość etykiety: najpierw QR, pod spodem ID
                 label_content = [
-                    Paragraph(f"<b>{item_id}</b>", id_style),
+                    img,
                     Spacer(1, 1 * mm),
-                    img
+                    Paragraph(f"<b>{item_id}</b>", id_style),
                 ]
 
                 current_row.append(label_content)
@@ -275,12 +275,20 @@ def export_qr_codes_pdf(data, filename, base_url):
                 table_data.append(current_row)
 
             if table_data:
-                # Tabela z liniami cięcia (grid)
-                t = Table(table_data, colWidths=[60 * mm] * cols, rowHeights=[55 * mm] * len(table_data))
+                # Kolumny i wiersze wyliczamy pod A4 i marginesy (10 mm z każdej strony)
+                # Szerokość treści ~190 mm => 190/3 ≈ 63.3 mm, wysokość treści ~277 mm => 277/8 ≈ 34.6 mm
+                col_w = (190 / 3.0) * mm
+                row_h = (277 / 8.0) * mm
+                # Zmniejsz trochę rozmiar kodu QR, żeby zostawić miejsce na podpis i padding
+                # (powyżej ustawiliśmy 40×40 mm, to mieści się w komórce ~63×34 mm – zmniejszymy, by się nie ściskało)
+                # Uwaga: faktyczny obraz ustawiony wyżej na 40×40 mm – to rozmiar końcowy w komórce.
+
+                # Tabela z subtelnymi ramkami (grid) – „ramka” dla każdej etykiety
+                t = Table(table_data, colWidths=[col_w] * cols, rowHeights=[row_h] * len(table_data))
                 t.setStyle(TableStyle([
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey), # Linie cięcia
+                    ('GRID', (0, 0), (-1, -1), 0.75, colors.black), # Ramki
                     ('TOPPADDING', (0, 0), (-1, -1), 2 * mm),
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 2 * mm),
                 ]))

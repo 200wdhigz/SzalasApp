@@ -141,6 +141,7 @@ def get_user_achievements_progress(uid: str) -> list[Dict[str, Any]]:
                 current = reports_count
             elif event == 'loan_created':
                 current = loans_count
+            # Wyświetlany progres jest „docięty” do progu, aby po zdobyciu widniało np. 5/5 i 100%
             progress = _clamp(current, 0, target)
         elif ctype in ('item_add_count', 'item_edit_count'):
             threshold = _safe_int(cond.get('threshold'), 1)
@@ -150,6 +151,14 @@ def get_user_achievements_progress(uid: str) -> list[Dict[str, Any]]:
                 current = _count_user_item_adds(uid, category)
             else:
                 current = _count_user_item_edits(uid, category)
+            progress = _clamp(int(current or 0), 0, target)
+        elif ctype == 'log_count':
+            threshold = _safe_int(cond.get('threshold'), 1)
+            target = max(1, threshold)
+            action = (cond.get('action') or '').strip() or None
+            target_type = (cond.get('target_type') or '').strip() or None
+            category = (cond.get('category') or '').strip() or None
+            current = _count_user_logs(uid, action=action, target_type=target_type, category=category)
             progress = _clamp(int(current or 0), 0, target)
         elif ctype in ('speedy_return', 'help_resolve'):
             # Progres binarny — 1 gdy już zdobyto
@@ -161,6 +170,10 @@ def get_user_achievements_progress(uid: str) -> list[Dict[str, Any]]:
             target = 1
 
         percent = 0 if target <= 0 else int(round(100 * (progress / float(target))))
+        # Jeżeli odznaka jest już zdobyta – zawsze pokazuj pełny pasek (np. 5/5 i 100%)
+        if earned and target >= 1:
+            progress = target
+            percent = 100
         masked = bool(a.get('secret')) and not earned
 
         items.append({
@@ -179,6 +192,45 @@ def get_user_achievements_progress(uid: str) -> list[Dict[str, Any]]:
         })
 
     return items
+
+
+def maybe_award_all_for_user(uid: str):
+    """Retro‑aktywna ewaluacja wszystkich osiągnięć dla użytkownika.
+
+    Używane przy włączeniu funkcji osiągnięć lub przy pierwszym wejściu na profil,
+    aby automatycznie przyznać odznaki spełnione już wcześniej (np. 5 zgłoszeń itp.).
+
+    Zakres retro-awardu w tej wersji:
+    - event_count: report_created, loan_created — na podstawie aktualnych zliczeń.
+    - item_add_count, item_edit_count — na podstawie dziennika aktywności (logs).
+    - Warunki binarne zależne od pojedynczego zdarzenia w przeszłości (np. speedy_return,
+      help_resolve) nie są obecnie liczony historycznie bez dodatkowych danych o czasie zwrotu/
+      autorstwie — pozostają przyznawane podczas przyszłych zdarzeń zgodnie z hookami.
+    """
+    if not uid or not _is_feature_enabled(uid):
+        return
+
+    # Zliczenia bazowe
+    email = _get_user_email(uid)
+    try:
+        reports_count = _get_user_reports_count(uid)
+    except Exception:
+        reports_count = 0
+    try:
+        loans_count = _get_loans_count_for_contact(email or '') if email else 0
+    except Exception:
+        loans_count = 0
+
+    # Przyznaj spełnione progi dla liczników zgłoszeń i wypożyczeń
+    _award_event_count(uid, 'report_created', reports_count)
+    _award_event_count(uid, 'loan_created', loans_count)
+
+    # Przyznaj spełnione progi dla dodawań/edycji sprzętu (dla wszystkich kategorii)
+    _award_item_adds(uid, None)
+    _award_item_edits(uid, None)
+
+    # Przyznaj spełnione progi dla `log_count` (dla wszystkich kombinacji filtrów z definicji)
+    _award_log_counts(uid)
 
 
 def _award_event_count(uid: str, event_name: str, count_value: int):
@@ -256,6 +308,108 @@ def _count_user_item_edits(uid: str, category: Optional[str] = None) -> int:
         return cnt
     except Exception:
         return 0
+
+
+def _count_user_logs(uid: str, action: Optional[str] = None, target_type: Optional[str] = None, category: Optional[str] = None) -> int:
+    """Zlicza logi użytkownika z opcjonalnymi filtrami.
+
+    - action: typ akcji (np. add/edit/import/delete/loan/bulk_edit/restore itp.)
+    - target_type: typ obiektu (np. sprzet/usterka/wypozyczenie)
+    - category: dla target_type == 'sprzet' próbuje dopasować po before/after.category
+    """
+    if not uid:
+        return 0
+    # Zbuduj podstawowe filtry wspierane zapytaniem Firestore
+    filters = [('user_id', '==', uid)]
+    if action:
+        filters.append(('action', '==', action))
+    if target_type:
+        filters.append(('target_type', '==', target_type))
+    try:
+        logs = get_items_by_filters(COLLECTION_LOGS, filters)
+    except Exception:
+        logs = []
+    if not category:
+        return len(logs or [])
+    # Gdy wskazano kategorię – policz tylko te, gdzie pasuje kategoria po edycji lub przed
+    cat = (category or '').strip()
+    cnt = 0
+    for lg in logs or []:
+        after = (lg or {}).get('after') or {}
+        before = (lg or {}).get('before') or {}
+        if (after.get('category') == cat) or (before.get('category') == cat):
+            cnt += 1
+    return cnt
+
+
+def _award_log_counts(uid: str):
+    """Przyznaje osiągnięcia typu `log_count` spełnione dla użytkownika.
+
+    Optymalizacja: grupuje definicje wg (action, target_type, category) i liczy raz na grupę.
+    """
+    defs = []
+    combos = set()
+    for a in _iter_enabled_defs():
+        cond = (a or {}).get('condition') or {}
+        if cond.get('type') == 'log_count':
+            action = (cond.get('action') or '').strip() or None
+            target_type = (cond.get('target_type') or '').strip() or None
+            category = (cond.get('category') or '').strip() or None
+            defs.append((a, action, target_type, category, cond))
+            combos.add((action, target_type, category))
+    if not defs:
+        return
+    # policz dla wszystkich kombinacji wymaganych przez definicje
+    counts: Dict[tuple, int] = {}
+    for combo in combos:
+        a, t, c = combo
+        counts[combo] = _count_user_logs(uid, action=a, target_type=t, category=c)
+    # oceń progi
+    for a, action, target_type, category, cond in defs:
+        thr = _safe_int(cond.get('threshold'), 0)
+        val = counts.get((action, target_type, category), 0)
+        if thr and val >= thr:
+            maybe_award(uid, a.get('id'))
+
+
+def maybe_award_on_log(actor_uid: str, action: Optional[str], target_type: Optional[str], category: Optional[str] = None):
+    """Wywoływane po zapisaniu loga. Ewaluacja tylko definicji `log_count` dopasowanych do akcji.
+
+    Uwaga: puste (None) w definicji oznacza brak filtra; tutaj przekazane None oznacza „niezdefiniowano w zdarzeniu”
+    i może pasować do definicji, które również nie filtrują po tym polu.
+    """
+    if not actor_uid or not _is_feature_enabled(actor_uid):
+        return
+    # Zbierz tylko definicje, które potencjalnie pasują do bieżących parametrów
+    matched = []
+    for a in _iter_enabled_defs():
+        cond = (a or {}).get('condition') or {}
+        if cond.get('type') != 'log_count':
+            continue
+        c_action = (cond.get('action') or '').strip() or None
+        c_target = (cond.get('target_type') or '').strip() or None
+        c_cat = (cond.get('category') or '').strip() or None
+        # sprawdź dopasowanie: jeśli w definicji jest filtr, musi zgadzać się z parametrem
+        if c_action and c_action != (action or None):
+            continue
+        if c_target and c_target != (target_type or None):
+            continue
+        if c_cat and c_cat != (category or None):
+            continue
+        matched.append((a, c_action, c_target, c_cat, cond))
+    if not matched:
+        return
+    # Policz jednorazowo dla każdej kombinacji spośród dopasowanych
+    combos = {(m[1], m[2], m[3]) for m in matched}
+    counts: Dict[tuple, int] = {}
+    for combo in combos:
+        a_act, a_tgt, a_cat = combo
+        counts[combo] = _count_user_logs(actor_uid, action=a_act, target_type=a_tgt, category=a_cat)
+    for a, c_action, c_target, c_cat, cond in matched:
+        thr = _safe_int(cond.get('threshold'), 0)
+        val = counts.get((c_action, c_target, c_cat), 0)
+        if thr and val >= thr:
+            maybe_award(actor_uid, a.get('id'))
 
 
 def _award_item_adds(uid: str, category: Optional[str]):

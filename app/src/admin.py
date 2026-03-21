@@ -257,6 +257,13 @@ def user_edit(user_id):
             # Flaga eksperymentalna: osiągnięcia
             try:
                 set_user_feature_flag(user_id, 'achievements_enabled', achievements_enabled)
+                # Jeśli właśnie włączono osiągnięcia – retro‑aktywne przyznanie spełnionych odznak
+                if achievements_enabled:
+                    try:
+                        from .achievements_service import maybe_award_all_for_user
+                        maybe_award_all_for_user(user_id)
+                    except Exception as _e:
+                        current_app.logger.warning(f"Retro-award achievements failed for {user_id}: {_e}")
             except Exception as e:
                 current_app.logger.warning(f"Nie udało się zaktualizować flagi osiągnięć: {e}")
 
@@ -318,7 +325,7 @@ def user_enable(user_id):
 # =======================================================================
 
 @admin_bp.route('/users/<user_id>/achievements', methods=['GET', 'POST'])
-@admin_required
+@quartermaster_required
 def user_achievements(user_id):
     """Zarządzanie osiągnięciami użytkownika (tylko ADMIN)."""
     # Podstawowa weryfikacja istnienia użytkownika
@@ -340,6 +347,13 @@ def user_achievements(user_id):
             enable = request.form.get('achievements_enabled') == 'on'
             try:
                 set_user_feature_flag(user_id, 'achievements_enabled', enable)
+                # Po włączeniu – spróbuj nadać od razu spełnione osiągnięcia
+                if enable:
+                    try:
+                        from .achievements_service import maybe_award_all_for_user
+                        maybe_award_all_for_user(user_id)
+                    except Exception as _e:
+                        current_app.logger.warning(f"Retro-award achievements failed for {user_id}: {_e}")
                 flash('Zaktualizowano ustawienie: osiągnięcia.', 'success')
             except Exception as e:
                 flash(f'Błąd podczas zapisu ustawienia: {e}', 'danger')
@@ -425,8 +439,11 @@ def achievements_new():
         event = (request.form.get('event') or '').strip()
         threshold = request.form.get('threshold')
         category = (request.form.get('category') or '').strip()
+        # Nowe pola dla log_count
+        action = (request.form.get('action') or '').strip()
+        target_type = (request.form.get('target_type') or '').strip()
         try:
-            threshold = int(threshold) if (threshold not in (None, '') and condition_type in ('event_count','item_add_count','item_edit_count')) else None
+            threshold = int(threshold) if (threshold not in (None, '') and condition_type in ('event_count','item_add_count','item_edit_count','log_count')) else None
         except ValueError:
             threshold = None
 
@@ -459,6 +476,20 @@ def achievements_new():
                 'type': condition_type,
                 'threshold': threshold,
             }
+            if category:
+                condition['category'] = category
+        elif condition_type == 'log_count':
+            if threshold is None or threshold <= 0:
+                flash('Dla Liczby logów wymagany jest próg (liczba >= 1).', 'danger')
+                return render_template('admin/achievement_form.html')
+            condition = {
+                'type': 'log_count',
+                'threshold': threshold,
+            }
+            if action:
+                condition['action'] = action
+            if target_type:
+                condition['target_type'] = target_type
             if category:
                 condition['category'] = category
         elif condition_type in ('speedy_return', 'help_resolve'):
@@ -534,8 +565,10 @@ def achievements_edit(achievement_id):
         event = (request.form.get('event') or '').strip()
         threshold = request.form.get('threshold')
         category = (request.form.get('category') or '').strip()
+        action = (request.form.get('action') or '').strip()
+        target_type = (request.form.get('target_type') or '').strip()
         try:
-            threshold = int(threshold) if (threshold not in (None, '') and condition_type in ('event_count','item_add_count','item_edit_count')) else None
+            threshold = int(threshold) if (threshold not in (None, '') and condition_type in ('event_count','item_add_count','item_edit_count','log_count')) else None
         except ValueError:
             threshold = None
 
@@ -564,6 +597,20 @@ def achievements_edit(achievement_id):
                 'type': condition_type,
                 'threshold': threshold,
             }
+            if category:
+                condition['category'] = category
+        elif condition_type == 'log_count':
+            if threshold is None or threshold <= 0:
+                flash('Dla Liczby logów wymagany jest próg (liczba >= 1).', 'danger')
+                return render_template('admin/achievement_form.html', achievement=achievement, edit=True)
+            condition = {
+                'type': 'log_count',
+                'threshold': threshold,
+            }
+            if action:
+                condition['action'] = action
+            if target_type:
+                condition['target_type'] = target_type
             if category:
                 condition['category'] = category
         elif condition_type in ('speedy_return', 'help_resolve'):

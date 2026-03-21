@@ -44,8 +44,24 @@
                       {% if c.type == 'event_count' %}
                         <span class="badge text-bg-secondary">{{ c.type }}</span>
                         <small class="text-muted">{{ c.event }} ≥ {{ c.threshold }}</small>
+                      {% elif c.type == 'item_add_count' %}
+                        <span class="badge text-bg-secondary">{{ c.type }}</span>
+                        <small class="text-muted">dodania elementów ≥ {{ c.threshold }}{% if c.category %} (kategoria: {{ c.category }}){% endif %}</small>
+                      {% elif c.type == 'item_edit_count' %}
+                        <span class="badge text-bg-secondary">{{ c.type }}</span>
+                        <small class="text-muted">edycje elementów ≥ {{ c.threshold }}{% if c.category %} (kategoria: {{ c.category }}){% endif %}</small>
+                      {% elif c.type == 'log_count' %}
+                        <span class="badge text-bg-secondary">{{ c.type }}</span>
+                        <small class="text-muted">logi ≥ {{ c.threshold }}
+                          {% if c.action %}(akcja: {{ c.action }}){% endif %}
+                          {% if c.target_type %}(obiekt: {{ c.target_type }}){% endif %}
+                          {% if c.category %}(kategoria: {{ c.category }}){% endif %}
+                        </small>
                       {% elif c.type in ['speedy_return', 'help_resolve'] %}
                         <span class="badge text-bg-secondary">{{ c.type }}</span>
+                      {% elif c.type %}
+                        <span class="badge text-bg-secondary">{{ c.type }}</span>
+                        <small class="text-muted">{{ c }}</small>
                       {% else %}
                         <span class="text-muted">—</span>
                       {% endif %}
