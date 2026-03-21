@@ -58,6 +58,55 @@
             </div>
 
             <div class="col-md-8">
+                {% if user_info.features and user_info.features.achievements_enabled %}
+                    <div class="card shadow mb-4">
+                        <div class="card-header text-bg-success d-flex align-items-center">
+                            <h4 class="mb-0"><i class="bi bi-trophy"></i> Osiągnięcia</h4>
+                        </div>
+                        <div class="card-body">
+                            {% if achievements_progress %}
+                              <div class="row g-3">
+                                {% for a in achievements_progress %}
+                                  <div class="col-md-6 col-lg-4">
+                                    <div class="border rounded p-3 h-100">
+                                      <div class="d-flex align-items-center justify-content-between mb-2" style="font-size:1.2rem;">
+                                        <div class="d-flex align-items-center">
+                                          <span class="me-2">{{ '🔒' if a.masked else (a.icon or '🏅') }}</span>
+                                          <strong>{{ 'Ukryte osiągnięcie' if a.masked else a.name }}</strong>
+                                        </div>
+                                        {% if a.earned %}
+                                          <span class="badge text-bg-success">Zdobyte</span>
+                                        {% endif %}
+                                      </div>
+
+                                      {% if not a.masked %}
+                                        <div class="text-muted small mb-2">{{ a.description }}</div>
+                                      {% else %}
+                                        <div class="text-muted small mb-2">Zdobądź to osiągnięcie, aby odkryć szczegóły.</div>
+                                      {% endif %}
+
+                                      {% set pct = 0 %}
+                                      {% if not a.masked %}{% set pct = a.percent %}{% endif %}
+                                      {% set bar_class = 'bg-info' %}
+                                      {% if a.earned %}{% set bar_class = 'bg-success' %}{% endif %}
+                                      <div class="mb-1">
+                                        <progress value="{{ pct }}" max="100" class="w-100"></progress>
+                                      </div>
+                                      {% if not a.masked %}
+                                        <div class="text-muted small">{{ a.progress }} / {{ a.target }}</div>
+                                      {% endif %}
+                                    </div>
+                                  </div>
+                                {% endfor %}
+                              </div>
+                            {% else %}
+                              <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle"></i> Brak zdefiniowanych osiągnięć lub funkcja jest wyłączona.
+                              </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
                 {% if IS_QUARTERMASTER %}
                     <div class="card shadow">
                         <div class="card-header text-bg-dark d-flex justify-content-between align-items-center">

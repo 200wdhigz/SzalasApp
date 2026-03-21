@@ -53,6 +53,15 @@
                             </label>
                         </div>
 
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="achievements_enabled" name="achievements_enabled"
+                                   {% if (user.features and user.features.achievements_enabled) %}checked{% endif %}>
+                            <label class="form-check-label" for="achievements_enabled">
+                                Włącz osiągnięcia (eksperymentalne)
+                            </label>
+                            <div class="form-text">Pozwala przyznawać i wyświetlać odznaki użytkownika.</div>
+                        </div>
+
                         <hr>
 
                         <div class="mb-3">
@@ -78,6 +87,9 @@
                         <div class="d-flex justify-content-between">
                             <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">
                                 <i class="bi bi-arrow-left"></i> Anuluj
+                            </a>
+                            <a href="{{ url_for('admin.user_achievements', user_id=user.id) }}" class="btn btn-outline-primary">
+                                <i class="bi bi-trophy"></i> Osiągnięcia
                             </a>
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-check-circle"></i> Zapisz Zmiany

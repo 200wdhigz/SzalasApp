@@ -5,6 +5,7 @@ COLLECTION_SPRZET = 'sprzet'
 COLLECTION_USTERKI = 'usterki'
 COLLECTION_LOGS = 'logs'
 COLLECTION_WYPOZYCZENIA = 'wypozyczenia'
+COLLECTION_ACHIEVEMENTS = 'achievements'
 
 CATEGORIES = {
     'MAGAZYN': 'magazyn',
@@ -288,6 +289,116 @@ def delete_item(collection: str, item_id: str):
     """Usuwa dokument z kolekcji."""
     db = get_firestore_client()
     db.collection(collection).document(item_id).delete()
+
+# =======================================================================
+#                       OSIĄGNIĘCIA (DEFINICJE)
+# =======================================================================
+
+def get_all_achievements():
+    """Pobiera listę wszystkich osiągnięć z kolekcji achievements."""
+    db = get_firestore_client()
+    query = db.collection(COLLECTION_ACHIEVEMENTS).order_by('order', direction=firestore.Query.ASCENDING)
+    return [_get_doc_data(doc) for doc in query.stream()]
+
+
+def get_achievements_map() -> dict:
+    """Zwraca mapę id -> definicja osiągnięcia."""
+    items = get_all_achievements()
+    mp = {}
+    for it in items:
+        aid = it.get('id') or it.get('doc_id') or it.get('docId') or it.get('doc_id')
+        # _get_doc_data dokleja klucz 'id'
+        aid = it.get('id', aid)
+        if not aid:
+            continue
+        mp[str(aid)] = it
+    return mp
+
+
+def set_achievement_def(achievement_id: str, data: dict):
+    """Tworzy/aktualizuje definicję osiągnięcia."""
+    base = dict(data or {})
+    if 'id' not in base:
+        base['id'] = achievement_id
+    set_item(COLLECTION_ACHIEVEMENTS, achievement_id, base)
+
+
+def ensure_default_achievements_seeded():
+    """Zasila kolekcję achievements domyślnymi wpisami, tylko gdy pusta.
+
+    Wartości domyślne pochodzą z modułu app.src.achievements (MVP seed-only).
+    """
+    try:
+        db = get_firestore_client()
+        # Szybko sprawdź, czy istnieje cokolwiek
+        any_doc = next(iter(db.collection(COLLECTION_ACHIEVEMENTS).limit(1).stream()), None)
+        if any_doc is not None and any_doc.exists:
+            return  # już są zdefiniowane
+
+        # Wbudowane wartości domyślne (bez zależności od modułu achievements.py)
+        defaults = [
+            {
+                'id': 'first_report',
+                'name': 'Pierwsze Zgłoszenie',
+                'description': 'Użytkownik dodał swoje pierwsze zgłoszenie usterki.',
+                'icon': '🆕',
+            },
+            {
+                'id': 'five_reports',
+                'name': 'Reporter 5/5',
+                'description': 'Użytkownik dodał 5 zgłoszeń.',
+                'icon': '🥉',
+            },
+            {
+                'id': 'ten_borrows',
+                'name': 'Aktywny Wypożyczający',
+                'description': 'Użytkownik wypożyczył sprzęt 10 razy.',
+                'icon': '📦',
+            },
+            {
+                'id': 'speedy_return',
+                'name': 'Szybki Zwrot',
+                'description': 'Użytkownik zwrócił sprzęt tego samego dnia.',
+                'icon': '⚡',
+            },
+            {
+                'id': 'helping_hand',
+                'name': 'Pomocna Dłoń',
+                'description': 'Użytkownik pomógł rozwiązać zgłoszenie innej osoby.',
+                'icon': '🤝',
+            },
+        ]
+        order = 0
+        for a in defaults:
+            order += 1
+            # Zmapuj znane ID na domyślne warunki
+            cond = None
+            if a['id'] == 'first_report':
+                cond = {'type': 'event_count', 'event': 'report_created', 'threshold': 1}
+            elif a['id'] == 'five_reports':
+                cond = {'type': 'event_count', 'event': 'report_created', 'threshold': 5}
+            elif a['id'] == 'ten_borrows':
+                cond = {'type': 'event_count', 'event': 'loan_created', 'threshold': 10}
+            elif a['id'] == 'speedy_return':
+                cond = {'type': 'speedy_return', 'event': 'loan_return'}
+            elif a['id'] == 'helping_hand':
+                cond = {'type': 'help_resolve', 'event': 'help_resolve'}
+
+            payload = {
+                'id': a['id'],
+                'name': a['name'],
+                'description': a['description'],
+                'icon': a['icon'],
+                'enabled': True,
+                # Domyślnie osiągnięcia nie są sekretne/ukryte do czasu zdobycia
+                'secret': False,
+                'order': order,
+                'condition': cond,
+            }
+            set_item(COLLECTION_ACHIEVEMENTS, a['id'], payload)
+    except Exception:
+        # Nie wywalaj aplikacji jeśli seed się nie uda – to tylko ułatwienie startu.
+        pass
 
 # =======================================================================
 #                       WYPOŻYCZENIA

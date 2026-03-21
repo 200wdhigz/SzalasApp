@@ -74,6 +74,12 @@ def create_user(uid: str, email: str, is_admin: bool = False, role: str = 'repor
         'google_id': None,
         'microsoft_id': None,
         'authentik_id': None,
+        # Flagi funkcji eksperymentalnych
+        'features': {
+            'achievements_enabled': False,
+        },
+        # Mapa osiągnięć: achievement_id -> timestamp (RFC3339)
+        'achievements': {},
         'created_at': _warsaw_now(),
         'updated_at': _warsaw_now()
     }
@@ -136,6 +142,51 @@ def delete_user(uid: str):
     """Usuwa użytkownika z Firestore."""
     db = get_firestore_client()
     db.collection(COLLECTION_USERS).document(uid).delete()
+
+
+# =========================
+#  Osiągnięcia i funkcje  
+# =========================
+
+def set_user_feature_flag(uid: str, flag: str, value: bool):
+    """Ustawia (lub tworzy) flagę funkcji u użytkownika, np. features.achievements_enabled."""
+    db = get_firestore_client()
+    db.collection(COLLECTION_USERS).document(uid).update({
+        f'features.{flag}': value,
+        'updated_at': _warsaw_now(),
+    })
+
+
+def get_user_features(uid: str) -> dict:
+    """Zwraca słownik features użytkownika (może być pusty)."""
+    user = get_user_by_uid(uid)
+    return (user or {}).get('features', {}) or {}
+
+
+def get_user_achievements_map(uid: str) -> dict:
+    """Zwraca mapę osiągnięć użytkownika achievement_id -> timestamp (str)."""
+    user = get_user_by_uid(uid)
+    return (user or {}).get('achievements', {}) or {}
+
+
+def add_user_achievement(uid: str, achievement_id: str):
+    """Przyznaje użytkownikowi osiągnięcie (idempotentnie)."""
+    db = get_firestore_client()
+    # Ustaw timestamp tylko, jeśli brak – Firestore nie ma natywnego upsert dla nested bez odczytu,
+    # ale nadpisanie timestampem jest akceptowalne dla MVP.
+    db.collection(COLLECTION_USERS).document(uid).update({
+        f'achievements.{achievement_id}': _warsaw_now(),
+        'updated_at': _warsaw_now(),
+    })
+
+
+def remove_user_achievement(uid: str, achievement_id: str):
+    """Usuwa osiągnięcie użytkownika."""
+    db = get_firestore_client()
+    db.collection(COLLECTION_USERS).document(uid).update({
+        f'achievements.{achievement_id}': firestore.DELETE_FIELD,
+        'updated_at': _warsaw_now(),
+    })
 
 def sync_users_from_firebase_auth():
     """
