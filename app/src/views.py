@@ -30,6 +30,35 @@ views_bp = Blueprint('views', __name__, url_prefix='/')
 # Maksymalna liczba błędów pokazywanych użytkownikowi w bulk edit
 MAX_DISPLAYED_ERRORS = 5
 
+# Cache agregacji sprzętu: typy, lokalizacje, ewidencje (5 minut TTL)
+_sprzet_aggregates_cache = {
+    'typy': None,
+    'lokalizacje': None,
+    'wodoszczelnosci': None,
+    'ewidencje': None,
+    'cached_at': 0,
+    'ttl_seconds': 300  # 5 minut
+}
+
+
+def _get_cached_sprzet_aggregates():
+    """Zwraca cached agregacje sprzętu jeśli są świeże, inaczej None."""
+    from time import time
+    now = time()
+    if _sprzet_aggregates_cache['cached_at'] and (now - _sprzet_aggregates_cache['cached_at']) < _sprzet_aggregates_cache['ttl_seconds']:
+        return {k: v for k, v in _sprzet_aggregates_cache.items() if k not in ['cached_at', 'ttl_seconds']}
+    return None
+
+
+def _cache_sprzet_aggregates(typy, lokalizacje, wodoszczelnosci, ewidencje):
+    """Cache'uje agregacje sprzętu z timestamp."""
+    from time import time
+    _sprzet_aggregates_cache['typy'] = typy
+    _sprzet_aggregates_cache['lokalizacje'] = lokalizacje
+    _sprzet_aggregates_cache['wodoszczelnosci'] = wodoszczelnosci
+    _sprzet_aggregates_cache['ewidencje'] = ewidencje
+    _sprzet_aggregates_cache['cached_at'] = time()
+
 
 def _owners_list() -> list[str]:
     # preferuj konfigurację z Firestore; fallback jest w db_firestore.DEFAULT_APP_LISTS
@@ -248,6 +277,9 @@ def home():
 @views_bp.route('/sprzety')
 @pin_restricted_required
 def sprzet_list():
+    from time import perf_counter
+    start = perf_counter()
+    
     parent_id = request.args.get('parent_id')
     search_query = request.args.get('search')
     category = request.args.get('category')
@@ -276,11 +308,13 @@ def sprzet_list():
     if parent_id:
         filters.append(('parent_id', '==', parent_id))
 
+    start_firestore = perf_counter()
     if filters:
         items = get_items_by_filters(COLLECTION_SPRZET, filters, order_by='__name__', direction=firestore.Query.ASCENDING)
     else:
         # Jeśli nie ma filtrów ani parent_id, a nie jest to wyszukiwanie, pokaż tylko Magazyny
         items = get_all_sprzet(category=CATEGORIES['MAGAZYN']) if not search_query else get_all_sprzet()
+    after_firestore = perf_counter()
 
     # Wyszukiwanie lokalne (Firestore nie wspiera łatwo full-text search bez zewnętrznych usług)
     if search_query:
@@ -320,15 +354,32 @@ def sprzet_list():
 
         items = [i for i in items if _matches(i)]
 
-    # Pobieramy unikalne wartości do filtrów
-    all_items = get_all_sprzet()
-    typy = sorted(list(set(i.get('typ') for i in all_items if i.get('typ'))))
-    lokalizacje = sorted(list(set(i.get('lokalizacja') for i in all_items if i.get('lokalizacja'))))
-    wodoszczelnosci = sorted(list(set(i.get('wodoszczelnosc') for i in all_items if i.get('wodoszczelnosc'))))
-    ewidencje = sorted(list(set(i.get('oficjalna_ewidencja') for i in all_items if i.get('oficjalna_ewidencja'))))
-    kategorie = CATEGORIES
-
-    # Pobieramy mapę ID -> obiekt dla wszystkich sprzętów
+    # Pobieramy unikalne wartości do filtrów - z cache jeśli dostępne
+    start_agg = perf_counter()
+    cached_agg = _get_cached_sprzet_aggregates()
+    
+    if cached_agg:
+        typy = cached_agg['typy']
+        lokalizacje = cached_agg['lokalizacje']
+        wodoszczelnosci = cached_agg['wodoszczelnosci']
+        ewidencje = cached_agg['ewidencje']
+        agg_source = 'cache'
+    else:
+        all_items = get_all_sprzet()
+        typy = sorted(list(set(i.get('typ') for i in all_items if i.get('typ'))))
+        lokalizacje = sorted(list(set(i.get('lokalizacja') for i in all_items if i.get('lokalizacja'))))
+        wodoszczelnosci = sorted(list(set(i.get('wodoszczelnosc') for i in all_items if i.get('wodoszczelnosc'))))
+        ewidencje = sorted(list(set(i.get('oficjalna_ewidencja') for i in all_items if i.get('oficjalna_ewidencja'))))
+        _cache_sprzet_aggregates(typy, lokalizacje, wodoszczelnosci, ewidencje)
+        agg_source = 'firestore'
+        # Użyj all_items dla sprzet_map (zamiast drugiego get_all_sprzet())
+    
+    after_agg = perf_counter()
+    
+    # Pobieramy mapę ID -> obiekt dla wszystkich sprzętów (jeśli z cache, musimy pobrać raz więcej dla mapy)
+    if cached_agg:
+        all_items = get_all_sprzet()  # Musimy pobrać dla mapy hierarchii
+    
     sprzet_map = {s['id']: s for s in all_items if 'id' in s}
 
     # Dodajemy informację o nazwie magazynu nadrzędnego
@@ -358,12 +409,15 @@ def sprzet_list():
         # Ochrona danych osobowych dla Zgłaszającego
         if session.get('user_role') not in ['quartermaster', 'admin']:
             # Sprawdzamy czy jest jakieś aktywne wypożyczenie
-            active_loans = get_active_loans()
-            item_loans = [l for l in active_loans if l.get('item_id') == item['id']]
-            if item_loans:
-                item['is_loaned'] = True
-            else:
-                item['is_loaned'] = False
+            # (mapa będzie zbudowana raz, poza pętlą)
+            item['is_loaned'] = False  # default, będzie ustawione poniżej
+    
+    # Jeśli nie admin/quartermaster, dodaj flagi wypożyczeń raz (N+1 fix)
+    if items and session.get('user_role') not in ['quartermaster', 'admin']:
+        active_loans = get_active_loans()
+        loan_items = set(l.get('item_id') for l in active_loans)
+        for item in items:
+            item['is_loaned'] = item.get('id') in loan_items
 
     # Grupowanie Żelastwa i Kanadyjek (tylko jeśli nie jest to wyszukiwanie globalne i jesteśmy wewnątrz jakiegoś rodzica)
     grouped_items = []
@@ -462,13 +516,27 @@ def sprzet_list():
         else:
             parent_item['zdjecia_lista_url'] = list_equipment_photos(parent_id)
 
+    end = perf_counter()
+    
+    current_app.logger.info(
+        "sprzet_list timings: firestore=%.3fs aggregates=%.3fs(source=%s) total=%.3fs count=%s search=%s parent=%s filters=%s",
+        after_firestore - start_firestore,
+        after_agg - start_agg,
+        agg_source,
+        end - start,
+        len(items),
+        bool(search_query),
+        bool(parent_id),
+        len(filters),
+    )
+
     return render_template('sprzet_list.html',
                             sprzet_list=items,
                             typy=typy,
                             lokalizacje=lokalizacje,
                             wodoszczelnosci=wodoszczelnosci,
                             ewidencje=ewidencje,
-                            kategorie=kategorie,
+                            kategorie=CATEGORIES,
                             parent_item=parent_item,
                             selected_filters=request.args,
                             qr_url=os.getenv('QR_URL'))
@@ -1127,15 +1195,35 @@ def sprzet_qr_page(sprzet_id):
 @pin_restricted_required
 def usterki_list():
     """Panel administratora - lista wszystkich usterek."""
+    from time import perf_counter
+    start = perf_counter()
+    
     status = request.args.get('status')
     magazyn = request.args.get('magazyn')
     sprzet_id = request.args.get('sprzet_id')
     oficjalna_ewidencja = request.args.get('oficjalna_ewidencja')
+    
+    # Paginacja: 50 usterek na stronę
+    page = request.args.get('page', 1, type=int)
+    limit_per_page = 50
+    offset = (page - 1) * limit_per_page
 
-    usterki = get_all_usterki()
+    start_usterki = perf_counter()
+    usterki = get_all_usterki(limit=limit_per_page + 1, offset=offset)  # +1 aby wiedzieć czy jest następna strona
+    after_usterki = perf_counter()
+    
+    # Sprawdź czy jest następna strona
+    has_next = len(usterki) > limit_per_page
+    if has_next:
+        usterki = usterki[:limit_per_page]  # Obetnij do limit
+    
+    start_sprzet = perf_counter()
     sprzet_items = get_all_sprzet()
+    after_sprzet = perf_counter()
+    
     sprzet_map = {s['id']: s for s in sprzet_items}
 
+    start_filter = perf_counter()
     filtered_usterki = []
     for u in usterki:
         s = sprzet_map.get(u.get('sprzet_id'))
@@ -1143,7 +1231,7 @@ def usterki_list():
         u['magazyn'] = s.get('lokalizacja', 'N/A') if s else 'N/A' # Używamy lokalizacja jako magazyn
         u['oficjalna_ewidencja'] = s.get('oficjalna_ewidencja', 'Nie') if s else 'Nie'
 
-        # Filtrowanie w pamięci
+        # Filtrowanie w pamięci (minimalnie, bo już paginujemy)
         match = True
         if status and u.get('status') != status:
             match = False
@@ -1156,11 +1244,30 @@ def usterki_list():
 
         if match:
             filtered_usterki.append(u)
+    after_filter = perf_counter()
 
+    # Agregacje: limit do 50 usterek zamiast ALL dla szybkości
     statuses = sorted(list(set(u.get('status') for u in usterki if u.get('status'))))
     magazyny = sorted(list(set(s.get('lokalizacja') for s in sprzet_items if s.get('lokalizacja'))))
     ids_sprzetu = sorted(list(set(u.get('sprzet_id') for u in usterki if u.get('sprzet_id'))))
     ewidencje = sorted(list(set(u.get('oficjalna_ewidencja') for u in filtered_usterki if u.get('oficjalna_ewidencja'))))
+    
+    after_aggregates = perf_counter()
+    
+    current_app.logger.info(
+        "usterki_list timings: firestore_usterki=%.3fs firestore_sprzet=%.3fs "
+        "filter_map=%.3fs aggregates=%.3fs total=%.3fs count_usterki=%s count_sprzet=%s result=%s page=%s has_next=%s",
+        after_usterki - start_usterki,
+        after_sprzet - start_sprzet,
+        after_filter - start_filter,
+        after_aggregates - after_filter,
+        after_aggregates - start,
+        len(usterki),
+        len(sprzet_items),
+        len(filtered_usterki),
+        page,
+        has_next,
+    )
 
     return render_template('usterki_list.html',
                            usterki=filtered_usterki,
@@ -1168,7 +1275,10 @@ def usterki_list():
                            magazyny=magazyny,
                            ids_sprzetu=ids_sprzetu,
                            ewidencje=ewidencje,
-                           selected_filters=request.args)
+                           selected_filters=request.args,
+                           current_page=page,
+                           has_next_page=has_next,
+                           has_prev_page=page > 1)
 
 @views_bp.route('/usterka/<usterka_id>')
 @login_required
@@ -1451,9 +1561,12 @@ def loan_return(loan_id):
 @quartermaster_required
 def logs_list():
     """Wyświetla listę wszystkich logów (QUARTERMASTER/ADMIN)."""
+    from time import perf_counter
     from .db_firestore import get_all_logs, get_logs_count, get_logs_by_user, get_logs_by_target
     from .db_users import get_all_users
 
+    start = perf_counter()
+    
     page = request.args.get('page', 1, type=int)
     per_page = 50
     offset = (page - 1) * per_page
@@ -1461,6 +1574,7 @@ def logs_list():
     user_id_filter = request.args.get('user_id')
     target_id_filter = request.args.get('target_id')
 
+    start_logs = perf_counter()
     if user_id_filter:
         logs = get_logs_by_user(user_id_filter, limit=per_page, offset=offset)
         total_logs = get_logs_count(user_id=user_id_filter)
@@ -1470,14 +1584,29 @@ def logs_list():
     else:
         logs = get_all_logs(limit=per_page, offset=offset)
         total_logs = get_logs_count()
+    after_logs = perf_counter()
 
+    start_users = perf_counter()
     users = get_all_users()
     user_map = build_user_map(users)
+    after_users = perf_counter()
 
     for log in logs:
         log['user_name'] = user_map.get(log.get('user_id'), log.get('user_id', 'Nieznany'))
 
     total_pages = (total_logs + per_page - 1) // per_page
+    
+    end = perf_counter()
+    
+    current_app.logger.info(
+        "logs_list timings: firestore=%.3fs users=%.3fs total=%.3fs page=%s count=%s total_logs=%s",
+        after_logs - start_logs,
+        after_users - start_users,
+        end - start,
+        page,
+        len(logs),
+        total_logs,
+    )
 
     return render_template('logs.html', 
                            logs=logs, 
@@ -1513,6 +1642,9 @@ def user_profile(user_id):
 @pin_restricted_required
 def sprzet_zestawienie():
     """Widok zestawienia elementów (porównanie zasobów)."""
+    from time import perf_counter
+    start = perf_counter()
+    
     # Parametry dynamiczne
     cat_a = request.args.get('cat_a')
     cat_b = request.args.get('cat_b')
@@ -1527,7 +1659,9 @@ def sprzet_zestawienie():
         cat_a = CATEGORIES['KANADYJKI']
         cat_b = CATEGORIES['KANADYJKI']
 
+    start_firestore = perf_counter()
     items = get_all_sprzet()
+    after_firestore = perf_counter()
 
     # Filtrowanie po magazynie (opcjonalne)
     if magazyn_id:
@@ -1633,7 +1767,18 @@ def sprzet_zestawienie():
                     'status': 'ok' if diff == 0 else ('excess' if diff > 0 else 'shortage')
                 })
 
-    magazyny = [i for i in get_all_sprzet() if i.get('category') == CATEGORIES['MAGAZYN']]
+    # Magazyny - pobierz z już pobranej listy zamiast nowego get_all_sprzet()
+    magazyny = [i for i in items if i.get('category') == CATEGORIES['MAGAZYN']]
+    
+    end = perf_counter()
+    
+    current_app.logger.info(
+        "sprzet_zestawienie timings: firestore=%.3fs total=%.3fs count=%s preset=%s",
+        after_firestore - start_firestore,
+        end - start,
+        len(items),
+        preset or f"{cat_a}-{cat_b}",
+    )
 
     return render_template('sprzet_zestawienie.html',
                            summary=summary,

@@ -40,6 +40,25 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Ścieżki wyłączone z cache'owania (admin, API dynamiczne, logowanie)
+const EXCLUDE_FROM_CACHE = [
+  '/admin/',
+  '/api/',
+  '/auth/',
+  '/login',
+  '/logout',
+];
+
+// Sprawdź czy URL powinien być cache'owany
+function shouldCache(url) {
+  for (const pattern of EXCLUDE_FROM_CACHE) {
+    if (url.includes(pattern)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // Fetch - strategia Network First (zawsze próbuj pobrać z sieci)
 self.addEventListener('fetch', (event) => {
   // Ignoruj requesty poza GET
@@ -47,11 +66,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const isCacheable = shouldCache(event.request.url);
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Jeśli sukces, zaktualizuj cache
-        if (response && response.status === 200) {
+        // Jeśli sukces i URL powinien być cache'owany, zaktualizuj cache
+        if (response && response.status === 200 && isCacheable) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME)
             .then((cache) => {
