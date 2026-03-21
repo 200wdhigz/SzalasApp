@@ -41,20 +41,25 @@ self.addEventListener('activate', (event) => {
 });
 
 // Ścieżki wyłączone z cache'owania (admin, API dynamiczne, logowanie)
-const EXCLUDE_FROM_CACHE = [
-  '/admin/',
-  '/api/',
-  '/auth/',
+const EXCLUDE_FROM_CACHE_PREFIXES = [
+  '/admin',
+  '/api',
+  '/auth',
   '/login',
   '/logout',
 ];
 
 // Sprawdź czy URL powinien być cache'owany
 function shouldCache(url) {
-  for (const pattern of EXCLUDE_FROM_CACHE) {
-    if (url.includes(pattern)) {
-      return false;
+  try {
+    const pathname = new URL(url).pathname;
+    for (const prefix of EXCLUDE_FROM_CACHE_PREFIXES) {
+      if (pathname === prefix || pathname.startsWith(prefix + '/')) {
+        return false;
+      }
     }
+  } catch (e) {
+    return false;
   }
   return true;
 }

@@ -1204,20 +1204,26 @@ def usterki_list():
     sprzet_id = request.args.get('sprzet_id')
     oficjalna_ewidencja = request.args.get('oficjalna_ewidencja')
     
-    # Paginacja: 50 usterek na stronę
+    # Paginacja: 50 usterek na stronę, ale tylko gdy nie ma aktywnych filtrów
+    # (filtry w pamięci na obciętym zbiorze dają niekompletne wyniki)
+    any_filter_active = any([status, magazyn, sprzet_id, oficjalna_ewidencja])
     page = request.args.get('page', 1, type=int)
     page = max(page, 1)
     limit_per_page = 50
-    offset = (page - 1) * limit_per_page
 
     start_usterki = perf_counter()
-    usterki = get_all_usterki(limit=limit_per_page + 1, offset=offset)  # +1 aby wiedzieć czy jest następna strona
+    if any_filter_active:
+        # Pobierz wszystkie usterki, aby filtry działały na pełnym zbiorze
+        usterki = get_all_usterki()
+        has_next = False
+        page = 1
+    else:
+        offset = (page - 1) * limit_per_page
+        usterki = get_all_usterki(limit=limit_per_page + 1, offset=offset)  # +1 aby wiedzieć czy jest następna strona
+        has_next = len(usterki) > limit_per_page
+        if has_next:
+            usterki = usterki[:limit_per_page]  # Obetnij do limit
     after_usterki = perf_counter()
-    
-    # Sprawdź czy jest następna strona
-    has_next = len(usterki) > limit_per_page
-    if has_next:
-        usterki = usterki[:limit_per_page]  # Obetnij do limit
     
     start_sprzet = perf_counter()
     sprzet_items = get_all_sprzet()
@@ -1248,9 +1254,12 @@ def usterki_list():
             filtered_usterki.append(u)
     after_filter = perf_counter()
 
-    # Agregacje dla dropdownów budowane z pełnych zbiorów danych (niezależnie od paginacji)
-    all_usterki = get_all_usterki()
-    all_sprzet_items = get_all_sprzet()
+    # Agregacje dla dropdownów budowane z pełnych zbiorów danych (niezależnie od paginacji).
+    # Gdy filtry są aktywne, usterki już zawiera pełny zbiór – reuse bez dodatkowego zapytania.
+    # Gdy paginacja aktywna (brak filtrów), potrzebujemy pełnego zbioru dla dropdownów.
+    all_usterki = usterki if any_filter_active else get_all_usterki()
+    # sprzet_items jest zawsze pobierany w całości – reuse zamiast ponownego zapytania.
+    all_sprzet_items = sprzet_items
 
     statuses = sorted(list(set(u.get('status') for u in all_usterki if u.get('status'))))
     magazyny = sorted(list(set(s.get('lokalizacja') for s in all_sprzet_items if s.get('lokalizacja'))))

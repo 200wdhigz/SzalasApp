@@ -43,10 +43,16 @@ def _get_cached_firebase_users(uids):
 
 
 def _cache_firebase_users(fb_users_dict):
-    """Przechowuje Firebase Auth users w cache z timestemp."""
+    """Przechowuje Firebase Auth users w cache z timestamp."""
     now = time()
+    ttl = _firebase_auth_cache['ttl_seconds']
+    users = _firebase_auth_cache['users']
+    # Usuń wygasłe wpisy, aby cache nie rósł bez ograniczeń
+    expired_keys = [uid for uid, (_, ts) in users.items() if (now - ts) >= ttl]
+    for key in expired_keys:
+        del users[key]
     for uid, fb_user in fb_users_dict.items():
-        _firebase_auth_cache['users'][uid] = (fb_user, now)
+        users[uid] = (fb_user, now)
 
 
 def _chunked(items, size):
@@ -65,7 +71,7 @@ def _enrich_users_with_firebase_auth(users):
     cached, to_fetch = _get_cached_firebase_users(uids)
     uid_to_fb_user.update(cached)
     
-    # Jeśli coś do pobrania, hol z Firebase
+    # Jeśli coś do pobrania, pobierz z Firebase
     if to_fetch:
         for uid_chunk in _chunked(to_fetch, 100):
             try:

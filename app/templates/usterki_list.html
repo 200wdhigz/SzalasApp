@@ -222,6 +222,30 @@
                 <div>🎉 Gratulacje! Obecnie nie ma żadnych zgłoszonych usterek.</div>
             </div>
         {% endif %}
+
+        {% if has_prev_page or has_next_page %}
+            <nav aria-label="Paginacja usterek" class="mt-3">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item {% if not has_prev_page %}disabled{% endif %}">
+                        <a class="page-link"
+                           href="{{ url_for('views.usterki_list', page=current_page - 1, **{k: v for k, v in selected_filters.items() if k != 'page'}) }}"
+                           aria-label="Poprzednia">
+                            <span aria-hidden="true">&laquo;</span> Poprzednia
+                        </a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Strona {{ current_page }}</span>
+                    </li>
+                    <li class="page-item {% if not has_next_page %}disabled{% endif %}">
+                        <a class="page-link"
+                           href="{{ url_for('views.usterki_list', page=current_page + 1, **{k: v for k, v in selected_filters.items() if k != 'page'}) }}"
+                           aria-label="Następna">
+                            Następna <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        {% endif %}
     </div>
 {% endblock %}
 
