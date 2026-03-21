@@ -73,8 +73,8 @@ def _iter_enabled_defs() -> Iterable[Dict[str, Any]]:
             if (a or {}).get('enabled', True):
                 yield a
     except Exception:
-        # Jeśli nie udało się pobrać — zwróć pustą listę
-        return []
+        # Jeśli nie udało się pobrać — zakończ iterację (brak osiągnięć)
+        return
 
 
 def _safe_int(val, default: int = 0) -> int:
