@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>Nowa lista</h2>
+  <form method="post" action="{{ url_for('views.lists_new') }}" class="mt-3">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-3">
+      <label class="form-label">Nazwa listy</label>
+      <input type="text" class="form-control" name="name" placeholder="np. Inwentaryzacja obozu" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Utwórz</button>
+    <a class="btn btn-secondary" href="{{ url_for('views.lists_index') }}">Anuluj</a>
+  </form>
+</div>
+{% endblock %}

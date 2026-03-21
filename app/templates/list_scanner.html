@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2>Skaner listy: {{ lst.name or lst.id }}</h2>
+    <a href="{{ url_for('views.list_view', list_id=lst.id) }}" class="btn btn-secondary">Zamknij</a>
+  </div>
+
+  {% if not can_edit %}
+  <div class="alert alert-warning">Masz dostęp tylko do podglądu (rola Reporter). Dodawanie przez skaner jest zablokowane.</div>
+  {% endif %}
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-8">
+      <div class="ratio ratio-16x9 border rounded d-flex align-items-center justify-content-center bg-light" id="videoBox">
+        <div id="readerList" style="width:100%;"></div>
+        <div id="fallback" class="text-center p-3" style="display:none;">
+          <p>Brak dostępu do kamery lub błąd inicjalizacji. Użyj ręcznego dodawania poniżej.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <div class="mb-2"><strong>Licznik:</strong> <span id="count">{{ (lst.get('items', []) ) | length }}</span></div>
+          <div class="mb-2"><strong>Ostatni:</strong> <span id="last">—</span></div>
+          <div class="mb-3">
+            <label class="form-label">Szybkie dodanie po ID</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="manualId" placeholder="np. MAG-0001">
+              <button class="btn btn-primary" id="btnAdd">Dodaj</button>
+            </div>
+          </div>
+          <div id="status" class="small text-muted">Gotowy.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-info mt-3">
+    Wskazówki: Skanuj kolejno kody QR. Duplikaty są ignorowane. Dźwięk potwierdza dodanie.
+  </div>
+
+</div>
+
+<script>
+  const LIST_ID = {{ lst.id|tojson }};
+  const CAN_EDIT = {{ (1 if can_edit else 0) }} === 1;
+  const CSRF = {{ csrf_token()|tojson }};
+  const KNOWN = new Set({{ (lst.get('items', []) )|tojson }});
+
+  const elFallback = document.getElementById('fallback');
+  const elCount = document.getElementById('count');
+  const elLast = document.getElementById('last');
+  const elStatus = document.getElementById('status');
+  const elManual = document.getElementById('manualId');
+  const elBtnAdd = document.getElementById('btnAdd');
+
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 880;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      g.gain.setValueAtTime(0.1, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+      setTimeout(() => { o.stop(); ctx.close(); }, 150);
+    } catch (e) {}
+  }
+
+  async function addId(id) {
+    id = (id || '').trim();
+    if (!id) return;
+    if (KNOWN.has(id)) { elStatus.textContent = 'Zduplikowano – pominięto.'; return; }
+    if (!CAN_EDIT) { elStatus.textContent = 'Brak uprawnień do dodawania.'; return; }
+    try {
+      const fd = new FormData();
+      fd.append('_csrf_token', CSRF);
+      fd.append('item_id', id);
+      const resp = await fetch(`${window.location.origin}/lists/${encodeURIComponent(LIST_ID)}/add?ajax=1`, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin'
+      });
+      const data = await resp.json();
+      if (data && data.ok) {
+        KNOWN.add(id);
+        elCount.textContent = data.count ?? KNOWN.size;
+        elLast.textContent = id;
+        elStatus.textContent = 'Dodano.';
+        beep();
+      } else {
+        elStatus.textContent = 'Nie znaleziono/odrzucono.';
+      }
+    } catch (e) {
+      elStatus.textContent = 'Błąd dodawania.';
+    }
+  }
+
+  elBtnAdd.addEventListener('click', (e) => {
+    e.preventDefault();
+    const id = elManual.value.trim();
+    if (id) { addId(id); elManual.value=''; elManual.focus(); }
+  });
+  elManual.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const id = elManual.value.trim();
+      if (id) { addId(id); elManual.value=''; }
+    }
+  });
+
+  // html5-qrcode skaner – taki sam jak w globalnym skanerze, ale dodaje do listy zamiast przekierowania
+  let html5QrCodeList = null;
+  let lastCode = '';
+  let lastTs = 0;
+
+  function extractItemId(text) {
+    let raw = String(text || '').trim();
+    if (!raw) return '';
+    try {
+      if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        const u = new URL(raw);
+        const parts = u.pathname.split('/').filter(Boolean);
+        const ix = parts.indexOf('sprzet');
+        if (ix !== -1 && parts[ix+1]) return parts[ix+1];
+      }
+    } catch (_) { /* not an URL – continue */ }
+    // Ścieżka względna
+    try {
+      if (raw.includes('/sprzet/')) {
+        const m = raw.match(/(?:^|\/)sprzet\/([^\/?#\s]+)/i);
+        if (m && m[1]) return m[1];
+      }
+    } catch (_) {}
+    return raw;
+  }
+
+  function stopListScanner() {
+    if (html5QrCodeList) {
+      html5QrCodeList.stop().then(() => {
+        try { html5QrCodeList.clear(); } catch (_) {}
+        html5QrCodeList = null;
+      }).catch(() => {
+        try { html5QrCodeList.clear(); } catch (_) {}
+        html5QrCodeList = null;
+      });
+    }
+  }
+
+  async function startListScanner() {
+    elStatus.textContent = 'Uruchamianie kamery...';
+    try { stopListScanner(); } catch (_) {}
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      if (!devices || devices.length === 0) {
+        elStatus.textContent = 'Brak dostępnych kamer.';
+        elFallback.style.display = 'block';
+        return;
+      }
+      const camId = (devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0]).id;
+      html5QrCodeList = new Html5Qrcode('readerList');
+
+      const onSuccess = async (decodedText) => {
+        const now = Date.now();
+        if (decodedText === lastCode && (now - lastTs) < 800) return; // anty‑drgania
+        lastCode = decodedText; lastTs = now;
+        let id = extractItemId(decodedText);
+        if (!id) return;
+        await addId(id);
+      };
+      const onFailure = () => { /* ignore single frame errors */ };
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+      await html5QrCodeList.start(camId, config, onSuccess, onFailure);
+      elStatus.textContent = 'Skaner uruchomiony.';
+    } catch (e) {
+      elStatus.textContent = 'Błąd uruchamiania skanera.';
+      elFallback.style.display = 'block';
+    }
+  }
+
+  if (CAN_EDIT) {
+    startListScanner();
+    window.addEventListener('beforeunload', stopListScanner);
+    window.addEventListener('pagehide', stopListScanner);
+  }
+</script>
+{% endblock %}

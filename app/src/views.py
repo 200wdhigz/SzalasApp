@@ -20,9 +20,11 @@ from .db_firestore import (
     COLLECTION_SPRZET, COLLECTION_USTERKI, COLLECTION_WYPOZYCZENIA, add_item, set_item,
     add_log, get_all_logs, update_item, delete_item, CATEGORIES, MAGAZYNY_NAMES,
     add_loan, get_active_loans, get_loans_for_item, mark_loan_returned, _warsaw_now,
-    get_all_items, get_item, get_items_by_parent, get_list_setting
+    get_all_items, get_item, get_items_by_parent, get_list_setting,
+    get_list, get_lists_for_user, create_list, update_list, delete_list,
+    add_items_to_list, remove_items_from_list, add_members_to_list, remove_members_from_list
 )
-from .exports import export_to_csv, export_to_xlsx, export_to_docx, export_to_pdf
+from .exports import export_to_csv, export_to_xlsx, export_to_docx, export_to_pdf, export_qr_codes_pdf
 from .id_utils import generate_unique_magazyn_id
 
 views_bp = Blueprint('views', __name__, url_prefix='/')
@@ -621,6 +623,12 @@ def sprzet_add():
 
             set_item(COLLECTION_SPRZET, sprzet_id, data)
             add_log(session.get('user_id'), 'add', 'sprzet', sprzet_id, after=data)
+            # Ogólny warunek: liczba logów (log_count)
+            try:
+                from .achievements_service import maybe_award_on_log
+                maybe_award_on_log(session.get('user_id'), 'add', 'sprzet', (data or {}).get('category'))
+            except Exception as _ach_err:
+                current_app.logger.warning(f"Achievements check (log:add sprzet) failed: {_ach_err}")
             # Automatyczne osiągnięcia – dodanie elementu (z opcjonalnym filtrem kategorii)
             try:
                 from .achievements_service import maybe_award_on_item_created
@@ -1680,7 +1688,7 @@ def user_profile(user_id):
     """Wyświetla profil użytkownika."""
     from .db_users import get_user_by_uid
     from .db_firestore import get_logs_by_user
-    from .achievements_service import get_achievements_defs_map, get_user_achievements_progress
+    from .achievements_service import get_achievements_defs_map, get_user_achievements_progress, maybe_award_all_for_user
 
     user = get_user_by_uid(user_id)
     if not user:
@@ -1700,6 +1708,8 @@ def user_profile(user_id):
     achievements_progress = []
     if feats.get('achievements_enabled'):
         try:
+            # Leniwa retro‑ewaluacja: jeśli spełnione progi, przyznaj brakujące odznaki
+            maybe_award_all_for_user(user_id)
             achievements_progress = get_user_achievements_progress(user_id)
         except Exception:
             achievements_progress = []
@@ -1840,6 +1850,20 @@ def sprzet_zestawienie():
                     'diff': diff,
                     'status': 'ok' if diff == 0 else ('excess' if diff > 0 else 'shortage')
                 })
+
+    # Sumy łączne (jeśli mamy wiersze)
+    if summary and isinstance(summary, dict) and summary.get('rows'):
+        try:
+            total_demand = sum(int(r.get('demand', 0)) for r in summary['rows'])
+            total_supply = sum(int(r.get('supply', 0)) for r in summary['rows'])
+            summary['totals'] = {
+                'demand': total_demand,
+                'supply': total_supply,
+                'diff': total_supply - total_demand,
+            }
+        except Exception:
+            # W razie nietypowych danych – pomiń sumy, nie przerywaj widoku
+            pass
 
     # Magazyny - pobierz z już pobranej listy zamiast nowego get_all_sprzet()
     magazyny = [i for i in items if i.get('category') == CATEGORIES['MAGAZYN']]
@@ -2044,47 +2068,58 @@ def export_sprzet(format):
         }
         columns = preset_map.get(preset_id, columns)
 
-    # Odtwarzamy filtry identycznie jak w sprzet_list
-    parent_id = request.args.get('parent_id')
-    search_query = request.args.get('search')
-    category = request.args.get('category')
-    owner = request.args.get('owner')
-    typ = request.args.get('typ')
-    wodoszczelnosc = request.args.get('wodoszczelnosc')
-    lokalizacja = request.args.get('lokalizacja')
-    oficjalna_ewidencja = request.args.get('oficjalna_ewidencja')
-
-    filters = []
-    if category:
-        filters.append(('category', '==', category))
-    if owner:
-        filters.append(('owner', '==', owner))
-    if typ:
-        filters.append(('typ', '==', typ))
-    if wodoszczelnosc:
-        filters.append(('wodoszczelnosc', '==', wodoszczelnosc))
-    if lokalizacja:
-        filters.append(('lokalizacja', '==', lokalizacja))
-    if oficjalna_ewidencja:
-        filters.append(('oficjalna_ewidencja', '==', oficjalna_ewidencja))
-    if parent_id:
-        filters.append(('parent_id', '==', parent_id))
-
-    if filters:
-        items = get_items_by_filters(COLLECTION_SPRZET, filters, order_by='__name__', direction=firestore.Query.ASCENDING)
+    # Obsługa eksportu konkretnego zestawu ID (np. lista użytkownika)
+    ids = request.args.getlist('ids')
+    items = []
+    if ids:
+        # Pobierz wszystko i przefiltruj – małe listy, prostota
+        all_items = get_all_sprzet()
+        ids_set = set(ids)
+        items = [i for i in all_items if i.get('id') in ids_set]
     else:
-        items = get_all_sprzet()
+        # Odtwarzamy filtry identycznie jak w sprzet_list
+        parent_id = request.args.get('parent_id')
+        search_query = request.args.get('search')
+        category = request.args.get('category')
+        owner = request.args.get('owner')
+        typ = request.args.get('typ')
+        wodoszczelnosc = request.args.get('wodoszczelnosc')
+        lokalizacja = request.args.get('lokalizacja')
+        oficjalna_ewidencja = request.args.get('oficjalna_ewidencja')
 
-    if search_query:
-        s = search_query.lower()
-        items = [
-            i for i in items
-            if s in str(i.get('id', '')).lower() or
-               s in str(i.get('nazwa', '')).lower() or
-               s in str(i.get('typ', '')).lower() or
-               s in str(i.get('uwagi', '')).lower() or
-               s in str(i.get('informacje', '')).lower()
-        ]
+        filters = []
+        if category:
+            filters.append(('category', '==', category))
+        if owner:
+            filters.append(('owner', '==', owner))
+        if typ:
+            filters.append(('typ', '==', typ))
+        if wodoszczelnosc:
+            filters.append(('wodoszczelnosc', '==', wodoszczelnosc))
+        if lokalizacja:
+            filters.append(('lokalizacja', '==', lokalizacja))
+        if oficjalna_ewidencja:
+            filters.append(('oficjalna_ewidencja', '==', oficjalna_ewidencja))
+        if parent_id:
+            filters.append(('parent_id', '==', parent_id))
+
+        if filters:
+            items = get_items_by_filters(COLLECTION_SPRZET, filters, order_by='__name__', direction=firestore.Query.ASCENDING)
+        else:
+            items = get_all_sprzet()
+
+    if not ids:
+        # wyszukiwanie tylko w trybie filtrów (dla list specyficznych ID pomijamy search)
+        if search_query:
+            s = search_query.lower()
+            items = [
+                i for i in items
+                if s in str(i.get('id', '')).lower() or
+                   s in str(i.get('nazwa', '')).lower() or
+                   s in str(i.get('typ', '')).lower() or
+                   s in str(i.get('uwagi', '')).lower() or
+                   s in str(i.get('informacje', '')).lower()
+            ]
 
     export_rows = []
     for it in items:
@@ -2216,10 +2251,17 @@ def sprzet_bulk_edit_confirm():
 
     # Zbieramy tylko pola niepuste = do aktualizacji.
     updates: dict[str, str] = {}
-    for field in ['lokalizacja', 'category', 'wodoszczelnosc', 'stan_ogolny', 'oficjalna_ewidencja', 'uwagi']:
+    basic_fields = ['lokalizacja', 'category', 'wodoszczelnosc', 'stan_ogolny', 'oficjalna_ewidencja', 'uwagi',
+                    'sprawny', 'czyWraca', 'typ', 'do_czego']
+    for field in basic_fields:
         val = (request.form.get(field) or '').strip()
         if val:
             updates[field] = val
+
+    # owner – normalizacja do znanych wartości
+    owner_val = (request.form.get('owner') or '').strip()
+    if owner_val:
+        updates['owner'] = _normalize_owner(owner_val)
 
     # parent_id obsługuje specjalne "none" => brak rodzica
     parent_id_val = (request.form.get('parent_id') or '').strip()
@@ -2390,4 +2432,246 @@ def loan_delete(loan_id):
     if request.args.get('history') == '1':
         return redirect(url_for('views.loans_list', history=1))
     return redirect(url_for('views.loans_list', history=1))
+
+
+# =============================
+#          LISTY
+# =============================
+
+def _can_view_list(lst: dict) -> bool:
+    if not lst:
+        return False
+    uid = session.get('user_id')
+    if not uid:
+        return False
+    if uid == lst.get('owner_id'):
+        return True
+    if uid in (lst.get('members') or []):
+        return True
+    # opcjonalnie: publiczne listy
+    if not lst.get('is_private'):
+        return True
+    return False
+
+
+def _can_edit_list(lst: dict) -> bool:
+    if not _can_view_list(lst):
+        return False
+    role = session.get('user_role')
+    return role in ['quartermaster', 'admin']
+
+
+def _resolve_user_ids_from_query(q: str) -> list[str]:
+    from .db_users import get_all_users
+    q = (q or '').strip().casefold()
+    if not q:
+        return []
+    users = get_all_users()
+    out: list[str] = []
+    for u in users:
+        uid = u.get('id')
+        email = (u.get('email') or '').casefold()
+        full_name = f"{(u.get('first_name') or '').strip()} {(u.get('last_name') or '').strip()}".strip().casefold()
+        if q == email or (full_name and q == full_name):
+            out.append(uid)
+    return out
+
+
+@views_bp.route('/api/users/suggest')
+@login_required
+def users_suggest():
+    """Podpowiedzi użytkowników dla udostępniania listy.
+    Zwraca maks. 10 rekordów dopasowanych po fragmencie e‑maila lub Imię Nazwisko (case‑insensitive).
+    """
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({
+            'results': []
+        })
+    ql = q.casefold()
+    from .db_users import get_all_users
+    users = get_all_users() or []
+    out = []
+    for u in users:
+        email = (u.get('email') or '')
+        first = (u.get('first_name') or '').strip()
+        last = (u.get('last_name') or '').strip()
+        full_name = f"{first} {last}".strip()
+        hay_email = email.casefold()
+        hay_full = full_name.casefold()
+        if (ql in hay_email) or (full_name and ql in hay_full):
+            out.append({
+                'id': u.get('id'),
+                'email': email,
+                'full_name': full_name,
+                'role': u.get('role') or 'reporter'
+            })
+        if len(out) >= 10:
+            break
+    return jsonify({'results': out})
+
+
+@views_bp.route('/lists')
+@login_required
+def lists_index():
+    lists = get_lists_for_user(session.get('user_id'))
+    return render_template('lists_index.html', lists=lists)
+
+
+@views_bp.route('/lists/new', methods=['GET', 'POST'])
+@login_required
+def lists_new():
+    if request.method == 'POST':
+        token = request.form.get('_csrf_token')
+        if not token or token != session.get('_csrf_token'):
+            flash('Błąd weryfikacji CSRF.', 'danger')
+            return redirect(url_for('views.lists_index'))
+        name = (request.form.get('name') or '').strip() or 'Nowa lista'
+        list_id = create_list(name, session.get('user_id'), is_private=True)
+        flash('Utworzono listę.', 'success')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    return render_template('lists_new.html')
+
+
+@views_bp.route('/lists/<list_id>')
+@login_required
+def list_view(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_view_list(lst):
+        flash('Brak dostępu do listy.', 'danger')
+        return redirect(url_for('views.lists_index'))
+
+    # Pobierz dane wybranych sprzętów dla podglądu
+    ids = set(lst.get('items') or [])
+    items = []
+    if ids:
+        all_items = get_all_sprzet()
+        items = [i for i in all_items if i.get('id') in ids]
+        # zachowaj kolejność jak w liście
+        order = {sid: idx for idx, sid in enumerate(lst.get('items'))}
+        items.sort(key=lambda it: order.get(it.get('id'), 0))
+
+    return render_template('list_view.html', lst=lst, items=items, can_edit=_can_edit_list(lst))
+
+
+@views_bp.route('/lists/<list_id>/share', methods=['POST'])
+@login_required
+def list_share(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_edit_list(lst):
+        flash('Brak uprawnień do udostępniania listy.', 'danger')
+        return redirect(url_for('views.lists_index'))
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+
+    q = request.form.get('user_query')
+    uids = _resolve_user_ids_from_query(q)
+    if not uids:
+        flash('Nie znaleziono użytkownika o podanym identyfikatorze.', 'warning')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    add_members_to_list(list_id, uids)
+    flash(f'Dodano {len(uids)} użytk. do listy.', 'success')
+    return redirect(url_for('views.list_view', list_id=list_id))
+
+
+@views_bp.route('/lists/<list_id>/add', methods=['POST'])
+@login_required
+def list_add_item(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_edit_list(lst):
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403 if request.args.get('ajax') else redirect(url_for('views.lists_index'))
+
+    item_id = (request.form.get('item_id') or request.args.get('item_id') or '').strip()
+    if not item_id or not get_sprzet_item(item_id):
+        if request.args.get('ajax'):
+            return jsonify({'ok': False, 'error': 'not_found'}), 404
+        flash('Nie znaleziono sprzętu o podanym ID.', 'warning')
+        return redirect(url_for('views.list_view', list_id=list_id))
+
+    updated = add_items_to_list(list_id, [item_id])
+    if request.args.get('ajax'):
+        return jsonify({'ok': True, 'count': len(updated.get('items') or []), 'last': item_id})
+    flash('Dodano element do listy.', 'success')
+    return redirect(url_for('views.list_view', list_id=list_id))
+
+
+@views_bp.route('/lists/<list_id>/remove', methods=['POST'])
+@login_required
+def list_remove_items(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_edit_list(lst):
+        flash('Brak uprawnień.', 'danger')
+        return redirect(url_for('views.lists_index'))
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    sprzet_ids = request.form.getlist('sprzet_ids')
+    if not sprzet_ids:
+        flash('Nie wybrano elementów.', 'warning')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    remove_items_from_list(list_id, sprzet_ids)
+    flash(f'Usunięto {len(sprzet_ids)} elementów z listy.', 'success')
+    return redirect(url_for('views.list_view', list_id=list_id))
+
+
+@views_bp.route('/lists/<list_id>/export/<format>')
+@login_required
+def list_export(list_id, format):
+    lst = get_list(list_id)
+    if not lst or not _can_view_list(lst):
+        flash('Brak dostępu.', 'danger')
+        return redirect(url_for('views.lists_index'))
+    ids = lst.get('items') or []
+    # deleguj do istniejącego eksportu, przekazując ids
+    fmt = (format or '').lower().strip()
+    if fmt not in {'csv', 'xlsx', 'docx', 'pdf'}:
+        flash('Nieobsługiwany format eksportu.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    # Przekazujemy także columns/preset jeśli były w query
+    params = []
+    for i in ids:
+        params.append(('ids', i))
+    for c in request.args.getlist('columns'):
+        params.append(('columns', c))
+    if request.args.get('preset'):
+        params.append(('preset', request.args.get('preset')))
+    # Zbuduj URL z parametrami wielokrotnymi
+    from urllib.parse import urlencode
+    q = urlencode(params)
+    return redirect(url_for('views.export_sprzet', format=fmt) + (('?' + q) if q else ''))
+
+
+@views_bp.route('/lists/<list_id>/qr.pdf')
+@login_required
+def list_qr_pdf(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_view_list(lst):
+        flash('Brak dostępu.', 'danger')
+        return redirect(url_for('views.lists_index'))
+
+    # Baza URL dla QR
+    qr_base = (os.getenv('QR_URL') or '').strip().rstrip('/')
+    if not qr_base:
+        qr_base = request.host_url.rstrip('/')
+
+    data = [{'id': i} for i in (lst.get('items') or [])]
+    filename = f"lista_{list_id}"
+    return export_qr_codes_pdf(data, filename, qr_base)
+
+
+@views_bp.route('/lists/scanner')
+@login_required
+def list_scanner():
+    list_id = request.args.get('list_id')
+    if not list_id:
+        flash('Nie wybrano listy.', 'warning')
+        return redirect(url_for('views.lists_index'))
+    lst = get_list(list_id)
+    if not lst or not _can_view_list(lst):
+        flash('Brak dostępu do listy.', 'danger')
+        return redirect(url_for('views.lists_index'))
+    return render_template('list_scanner.html', lst=lst, can_edit=_can_edit_list(lst))
 

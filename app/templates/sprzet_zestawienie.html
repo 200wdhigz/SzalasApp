@@ -60,8 +60,10 @@
                         <i class="bi bi-download"></i> Raport
                     </button>
                     <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='csv', preset=preset, cat_a=cat_a, cat_b=cat_b, magazyn_id=magazyn_id, mode='zestawienie') }}">CSV</a></li>
                         <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='pdf', preset=preset, cat_a=cat_a, cat_b=cat_b, magazyn_id=magazyn_id, mode='zestawienie') }}">PDF</a></li>
                         <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='xlsx', preset=preset, cat_a=cat_a, cat_b=cat_b, magazyn_id=magazyn_id, mode='zestawienie') }}">Excel</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('views.export_sprzet', format='docx', preset=preset, cat_a=cat_a, cat_b=cat_b, magazyn_id=magazyn_id, mode='zestawienie') }}">Word (DOCX)</a></li>
                     </ul>
                 </div>
             </div>
@@ -100,6 +102,17 @@
                                 </tr>
                             {% endfor %}
                         </tbody>
+                        {% if summary.totals %}
+                        <tfoot>
+                            <tr class="table-secondary">
+                                <th>Suma łączna</th>
+                                <th class="text-center">{{ summary.totals.demand }}</th>
+                                <th class="text-center">{{ summary.totals.supply }}</th>
+                                <th class="text-center">{{ "+%d"|format(summary.totals.diff) if summary.totals.diff >= 0 else "%d"|format(summary.totals.diff) }}</th>
+                                <th></th>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
                     </table>
                 </div>
             </div>

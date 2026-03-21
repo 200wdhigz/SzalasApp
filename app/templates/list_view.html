@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2>Lista: {{ lst.name or lst.id }}</h2>
+    <div class="btn-group">
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('views.list_qr_pdf', list_id=lst.id) }}">QR PDF</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('views.list_export', list_id=lst.id, format='csv') }}">CSV</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('views.list_export', list_id=lst.id, format='xlsx') }}">XLSX</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('views.list_export', list_id=lst.id, format='pdf') }}">PDF</a>
+      {# Konfigurowalny eksport (wybór kolumn) – przekażemy ids jako wielokrotne parametry #}
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{{ url_for('views.sprzet_export_config') }}?{% for it in items %}ids={{ it.id }}&{% endfor %}">Eksport (wybór kolumn)</a>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('views.list_scanner') }}?list_id={{ lst.id }}">Skaner</a>
+    </div>
+  </div>
+
+  <div class="text-muted mb-3">Elementów na liście: {{ (lst.get('items', []) ) | length }}</div>
+
+  {% if can_edit %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <form class="row g-2" method="post" action="{{ url_for('views.list_add_item', list_id=lst.id) }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-6">
+          <input type="text" class="form-control" name="item_id" placeholder="ID sprzętu do dodania">
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-success" type="submit">Dodaj</button>
+        </div>
+        <div class="col-auto">
+          <a class="btn btn-outline-primary" href="{{ url_for('views.list_scanner') }}?list_id={{ lst.id }}">Otwórz skaner</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('views.list_remove_items', list_id=lst.id) }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            {% if can_edit %}<th style="width:32px"><input type="checkbox" id="chk-all"></th>{% endif %}
+            <th>ID</th>
+            <th>Nazwa/Typ</th>
+            <th>Właściciel</th>
+            <th>Lokalizacja</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in items %}
+          <tr>
+            {% if can_edit %}
+            <td><input type="checkbox" name="sprzet_ids" value="{{ it.id }}"></td>
+            {% endif %}
+            <td><a href="{{ url_for('views.sprzet_card', sprzet_id=it.id) }}" class="monospace">{{ it.id }}</a></td>
+            <td>{{ it.nazwa or it.typ or '' }}</td>
+            <td>{{ it.owner or '' }}</td>
+            <td>{{ it.lokalizacja or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if can_edit %}
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-danger" type="submit">Usuń zaznaczone</button>
+
+      <!-- Edycja seryjna całej listy -->
+      <form id="bulk-all" method="post" action="{{ url_for('views.sprzet_bulk_edit') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        {% for it in items %}
+          <input type="hidden" name="sprzet_ids" value="{{ it.id }}">
+        {% endfor %}
+        <button type="submit" class="btn btn-warning">Edycja seryjna (cała lista)</button>
+      </form>
+    </div>
+    {% endif %}
+  </form>
+
+  {% if can_edit %}
+  <hr>
+  <div class="card">
+    <div class="card-header">Udostępnij listę</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('views.list_share', list_id=lst.id) }}" class="row g-2">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-6">
+          <input type="text" class="form-control" name="user_query" id="userQuery" list="user-suggest" autocomplete="off" placeholder="E‑mail lub Imię Nazwisko">
+          <datalist id="user-suggest"></datalist>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary">Dodaj członka</button>
+        </div>
+      </form>
+      <div class="text-muted small mt-2">Członkowie z rolą Kwatermistrz/Administrator mogą edytować listę, Reporter – tylko podgląd.</div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+  const chkAll = document.getElementById('chk-all');
+  if (chkAll) {
+    chkAll.addEventListener('change', () => {
+      document.querySelectorAll('input[name="sprzet_ids"]').forEach(cb => cb.checked = chkAll.checked);
+    });
+  }
+
+  // Autocomplete do udostępniania listy (mail / imię nazwisko)
+  (function(){
+    const input = document.getElementById('userQuery');
+    const datalist = document.getElementById('user-suggest');
+    if (!input || !datalist) return;
+    let t = null; let lastQ = '';
+    input.addEventListener('input', () => {
+      const q = (input.value || '').trim();
+      if (q.length < 2) { datalist.innerHTML = ''; lastQ = q; return; }
+      if (q === lastQ) return; lastQ = q;
+      clearTimeout(t);
+      t = setTimeout(async () => {
+        try {
+          const resp = await fetch(`${window.location.origin}/api/users/suggest?q=` + encodeURIComponent(q), { credentials: 'same-origin' });
+          const data = await resp.json();
+          const res = (data && data.results) || [];
+          datalist.innerHTML = '';
+          // Dodajemy opcje zarówno z emailem, jak i z pełnym imieniem+nazwiskiem,
+          // aby backend mógł zrobić exact match w _resolve_user_ids_from_query.
+          res.forEach(u => {
+            if (u.email) {
+              const opt = document.createElement('option');
+              opt.value = u.email;
+              opt.label = (u.full_name ? `${u.full_name} — ${u.email}` : u.email);
+              datalist.appendChild(opt);
+            }
+            if (u.full_name) {
+              const opt2 = document.createElement('option');
+              opt2.value = u.full_name;
+              opt2.label = (u.email ? `${u.full_name} — ${u.email}` : u.full_name);
+              datalist.appendChild(opt2);
+            }
+          });
+        } catch (_) { /* ignore */ }
+      }, 200);
+    });
+  })();
+</script>
+{% endblock %}

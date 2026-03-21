@@ -330,10 +330,14 @@ def ensure_default_achievements_seeded():
     """
     try:
         db = get_firestore_client()
-        # Szybko sprawdź, czy istnieje cokolwiek
-        any_doc = next(iter(db.collection(COLLECTION_ACHIEVEMENTS).limit(1).stream()), None)
-        if any_doc is not None and any_doc.exists:
-            return  # już są zdefiniowane
+        # Sprawdź istniejące definicje i dodaj tylko brakujące wpisy
+        existing_ids = set()
+        try:
+            for doc in db.collection(COLLECTION_ACHIEVEMENTS).stream():
+                if doc and doc.id:
+                    existing_ids.add(doc.id)
+        except Exception:
+            existing_ids = set()
 
         # Wbudowane wartości domyślne (bez zależności od modułu achievements.py)
         defaults = [
@@ -367,6 +371,37 @@ def ensure_default_achievements_seeded():
                 'description': 'Użytkownik pomógł rozwiązać zgłoszenie innej osoby.',
                 'icon': '🤝',
             },
+            # Nowe, dodatkowe osiągnięcia (eksperymentalne)
+            {
+                'id': 'first_item_add',
+                'name': 'Pierwszy Sprzęt',
+                'description': 'Użytkownik dodał pierwszy element sprzętu do ewidencji.',
+                'icon': '🧰',
+            },
+            {
+                'id': 'item_add_10',
+                'name': 'Magazynier 10/10',
+                'description': 'Użytkownik dodał 10 elementów sprzętu.',
+                'icon': '📦',
+            },
+            {
+                'id': 'item_edit_10',
+                'name': 'Konserwator 10/10',
+                'description': 'Użytkownik wykonał 10 edycji elementów sprzętu.',
+                'icon': '✏️',
+            },
+            {
+                'id': 'logs_50',
+                'name': 'Aktywny Pomocnik',
+                'description': 'Użytkownik wykonał 50 akcji w systemie (logi).',
+                'icon': '📋',
+            },
+            {
+                'id': 'ten_reports',
+                'name': 'Reporter 10/10',
+                'description': 'Użytkownik dodał 10 zgłoszeń usterek.',
+                'icon': '🥈',
+            },
         ]
         order = 0
         for a in defaults:
@@ -383,6 +418,16 @@ def ensure_default_achievements_seeded():
                 cond = {'type': 'speedy_return', 'event': 'loan_return'}
             elif a['id'] == 'helping_hand':
                 cond = {'type': 'help_resolve', 'event': 'help_resolve'}
+            elif a['id'] == 'first_item_add':
+                cond = {'type': 'item_add_count', 'threshold': 1}
+            elif a['id'] == 'item_add_10':
+                cond = {'type': 'item_add_count', 'threshold': 10}
+            elif a['id'] == 'item_edit_10':
+                cond = {'type': 'item_edit_count', 'threshold': 10}
+            elif a['id'] == 'logs_50':
+                cond = {'type': 'log_count', 'threshold': 50}
+            elif a['id'] == 'ten_reports':
+                cond = {'type': 'event_count', 'event': 'report_created', 'threshold': 10}
 
             payload = {
                 'id': a['id'],
@@ -395,7 +440,9 @@ def ensure_default_achievements_seeded():
                 'order': order,
                 'condition': cond,
             }
-            set_item(COLLECTION_ACHIEVEMENTS, a['id'], payload)
+            # Wstaw tylko jeśli nie istnieje
+            if a['id'] not in existing_ids:
+                set_item(COLLECTION_ACHIEVEMENTS, a['id'], payload)
     except Exception:
         # Nie wywalaj aplikacji jeśli seed się nie uda – to tylko ułatwienie startu.
         pass
@@ -482,3 +529,125 @@ def update_list_setting(key: str, values: list[str]):
 # Kompatybilność wsteczna: historycznie część widoków importowała MAGAZYNY_NAMES.
 # Źródłem prawdy jest config/app_settings (klucz: magazyny_names).
 MAGAZYNY_NAMES = get_list_setting('magazyny_names')
+
+# =======================================================================
+#                       LISTY UŻYTKOWNIKA (SPRZĘTU)
+# =======================================================================
+
+COLLECTION_LISTS = 'lists'
+
+def _now_ts():
+    # Alias na lokalny czas Warszawa – spójny ze stosowanym w logach/wypożyczeniach
+    return _warsaw_now()
+
+def get_list(list_id: str) -> dict | None:
+    db = get_firestore_client()
+    doc = db.collection(COLLECTION_LISTS).document(list_id).get()
+    if not doc.exists:
+        return None
+    data = doc.to_dict() or {}
+    data['id'] = doc.id
+    # Normalizacje pól tablicowych
+    data['items'] = list(dict.fromkeys(list(data.get('items') or [])))  # unique, keep order
+    data['members'] = list(dict.fromkeys(list(data.get('members') or [])))
+    return data
+
+def get_lists_for_user(user_id: str) -> list[dict]:
+    """Zwraca listy, których użytkownik jest właścicielem lub członkiem.
+
+    Uwaga: brak OR w Firestore – wykonujemy dwa zapytania i łączymy wyniki.
+    """
+    db = get_firestore_client()
+    out: dict[str, dict] = {}
+    q1 = db.collection(COLLECTION_LISTS).where(filter=firestore.FieldFilter('owner_id', '==', user_id)).order_by('updated_at', direction=firestore.Query.DESCENDING)
+    for doc in q1.stream():
+        d = doc.to_dict() or {}
+        d['id'] = doc.id
+        out[doc.id] = d
+    q2 = db.collection(COLLECTION_LISTS).where(filter=firestore.FieldFilter('members', 'array_contains', user_id)).order_by('updated_at', direction=firestore.Query.DESCENDING)
+    for doc in q2.stream():
+        if doc.id in out:
+            continue
+        d = doc.to_dict() or {}
+        d['id'] = doc.id
+        out[doc.id] = d
+    # Zwróć w kolejności ostatnio aktualizowanych
+    return sorted(out.values(), key=lambda x: x.get('updated_at') or x.get('created_at') or 0, reverse=True)
+
+def create_list(name: str, owner_id: str, is_private: bool = True, items: list[str] | None = None) -> str:
+    db = get_firestore_client()
+    payload = {
+        'name': (name or '').strip() or 'Nowa lista',
+        'owner_id': owner_id,
+        'is_private': bool(is_private),
+        'members': [],
+        'items': list(dict.fromkeys(list(items or []))),
+        'created_at': _now_ts(),
+        'updated_at': _now_ts(),
+    }
+    ref = db.collection(COLLECTION_LISTS).add(payload)[1]  # returns (write_result, ref)
+    return ref.id
+
+def update_list(list_id: str, **kwargs) -> None:
+    if not kwargs:
+        return
+    kwargs['updated_at'] = _now_ts()
+    db = get_firestore_client()
+    db.collection(COLLECTION_LISTS).document(list_id).set(kwargs, merge=True)
+
+def delete_list(list_id: str) -> None:
+    db = get_firestore_client()
+    db.collection(COLLECTION_LISTS).document(list_id).delete()
+
+def add_items_to_list(list_id: str, item_ids: list[str]) -> dict | None:
+    """Dodaje unikalnie elementy do listy. Zwraca zaktualizowaną listę."""
+    if not item_ids:
+        return get_list(list_id)
+    cur = get_list(list_id)
+    if not cur:
+        return None
+    existing = list(cur.get('items') or [])
+    seen = set(existing)
+    for iid in item_ids:
+        s = str(iid).strip()
+        if not s or s in seen:
+            continue
+        existing.append(s)
+        seen.add(s)
+    update_list(list_id, items=existing)
+    return get_list(list_id)
+
+def remove_items_from_list(list_id: str, item_ids: list[str]) -> dict | None:
+    if not item_ids:
+        return get_list(list_id)
+    cur = get_list(list_id)
+    if not cur:
+        return None
+    to_remove = {str(x).strip() for x in item_ids if str(x).strip()}
+    remaining = [x for x in (cur.get('items') or []) if x not in to_remove]
+    update_list(list_id, items=remaining)
+    return get_list(list_id)
+
+def add_members_to_list(list_id: str, user_ids: list[str]) -> dict | None:
+    cur = get_list(list_id)
+    if not cur:
+        return None
+    existing = list(cur.get('members') or [])
+    seen = set(existing)
+    for uid in user_ids or []:
+        s = str(uid).strip()
+        if not s or s in seen:
+            continue
+        existing.append(s)
+        seen.add(s)
+    update_list(list_id, members=existing)
+    return get_list(list_id)
+
+def remove_members_from_list(list_id: str, user_ids: list[str]) -> dict | None:
+    cur = get_list(list_id)
+    if not cur:
+        return None
+    to_remove = {str(x).strip() for x in user_ids or [] if str(x).strip()}
+    remaining = [x for x in (cur.get('members') or []) if x not in to_remove]
+    update_list(list_id, members=remaining)
+    return get_list(list_id)
