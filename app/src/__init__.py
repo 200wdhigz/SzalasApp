@@ -160,6 +160,9 @@ def create_app():
                 from .auth import rotate_pin_if_due
                 rotate_pin_if_due()
             except Exception as pin_err:
+                if strict:
+                    # W trybie strict błąd rotacji może maskować problemy z dostępem do Firestore.
+                    raise
                 app.logger.warning(f"PIN rotation check failed (non-fatal): {pin_err}")
 
             return {

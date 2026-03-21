@@ -285,3 +285,51 @@ def test_usterki_oficjalna_ewidencja_filtering(client):
         assert response.status_code == 200
         assert 'u1'.encode() in response.data
         assert 'u2'.encode() not in response.data
+
+
+def test_usterki_filter_with_page_param_uses_full_dataset(client):
+    """When a filter is active, page param should be ignored and the full dataset used.
+
+    Items that would normally appear on page 2 (offset >= 50) must still appear
+    in the filtered results – the view must NOT paginate before filtering.
+    The page context should reset to 1 (no prev-page navigation shown).
+    """
+    from unittest.mock import patch, call
+
+    # Build 60 usterki: items 0-49 have oficjalna_ewidencja='Nie', items 50-59 have 'Tak'.
+    # Without the fix, requesting page=2 would skip all 60 items (offset=50, limit=51)
+    # and the 10 matching items would only be found when the full dataset is fetched.
+    usterki_data = [
+        {'id': f'u{i}', 'sprzet_id': f's{i}', 'status': 'oczekuje'}
+        for i in range(60)
+    ]
+    sprzet_data = [
+        {'id': f's{i}', 'oficjalna_ewidencja': 'Tak' if i >= 50 else 'Nie', 'lokalizacja': 'Magazyn A'}
+        for i in range(60)
+    ]
+
+    with patch('src.views.get_all_usterki') as mock_usterki, \
+         patch('src.views.get_all_sprzet') as mock_sprzet:
+
+        mock_usterki.return_value = usterki_data
+        mock_sprzet.return_value = sprzet_data
+
+        with client.session_transaction() as sess:
+            sess['user_id'] = 'user123'
+
+        response = client.get('/usterki?page=2&oficjalna_ewidencja=Tak')
+        assert response.status_code == 200
+
+        html = response.data.decode('utf-8')
+
+        # Items 50-59 match the filter and must be present
+        for i in range(50, 60):
+            assert f'u{i}' in html, f'u{i} should appear in filtered results'
+
+        # get_all_usterki must be called once without limit/offset (full fetch)
+        mock_usterki.assert_called_once_with()
+
+        # Page should be reset to 1 – when both has_prev_page and has_next_page are False
+        # the pagination <nav> is not rendered at all.
+        assert 'aria-label="Paginacja usterek"' not in html
+

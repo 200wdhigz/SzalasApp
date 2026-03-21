@@ -1254,9 +1254,12 @@ def usterki_list():
             filtered_usterki.append(u)
     after_filter = perf_counter()
 
-    # Agregacje dla dropdownów budowane z pełnych zbiorów danych (niezależnie od paginacji)
-    all_usterki = get_all_usterki()
-    all_sprzet_items = get_all_sprzet()
+    # Agregacje dla dropdownów budowane z pełnych zbiorów danych (niezależnie od paginacji).
+    # Gdy filtry są aktywne, usterki już zawiera pełny zbiór – reuse bez dodatkowego zapytania.
+    # Gdy paginacja aktywna (brak filtrów), potrzebujemy pełnego zbioru dla dropdownów.
+    all_usterki = usterki if any_filter_active else get_all_usterki()
+    # sprzet_items jest zawsze pobierany w całości – reuse zamiast ponownego zapytania.
+    all_sprzet_items = sprzet_items
 
     statuses = sorted(list(set(u.get('status') for u in all_usterki if u.get('status'))))
     magazyny = sorted(list(set(s.get('lokalizacja') for s in all_sprzet_items if s.get('lokalizacja'))))
