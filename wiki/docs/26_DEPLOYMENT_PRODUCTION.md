@@ -134,7 +134,7 @@ Rollback:
 
 Jeśli maintainersi nie używają komend `git`:
 1. Utwórz Pull Request do `master`.
-2. W PR zmień `app/pyproject.toml` → `version = "X.Y.Z"` (na nowy numer).
+2. W PR zmień `pyproject.toml` → `version = "X.Y.Z"` (na nowy numer).
 3. Zmerguj PR.
 4. GitHub Actions utworzy tag `vX.Y.Z` i wypchnie obraz `filiprar/szalasapp:vX.Y.Z` oraz zaktualizuje `latest`.
 

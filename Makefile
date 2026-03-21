@@ -7,13 +7,13 @@ help:  ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Install dependencies with Poetry
-	cd app && poetry install --with dev,prod
+	poetry install --with dev,prod
 
 update:  ## Update dependencies
-	cd app && poetry update
+	poetry update
 
 lock:  ## Regenerate poetry.lock
-	cd app && poetry lock --no-update
+	poetry lock --no-update
 
 clean:  ## Clean cache and temporary files
 	find . -type d -name "__pycache__" -exec rm -rf {} +

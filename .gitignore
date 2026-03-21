@@ -84,3 +84,4 @@ wiki/export/
 !README.md
 !wiki/docs/*.md
 !wiki/docs/assets/*.md
+/.ai/mcp/mcp.json

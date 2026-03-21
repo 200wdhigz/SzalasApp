@@ -118,7 +118,7 @@ SMTP_PASSWORD=app-password
 
 ```bash
 # Uruchom aplikację
-python app.py
+python app/app.py
 
 # Aplikacja dostępna na:
 # http://localhost:5000
@@ -128,7 +128,7 @@ python app.py
 
 ```bash
 # W osobnym terminalu
-python scripts/set_admin_claim.py
+python app/scripts/set_admin_claim.py
 
 # Podaj UID użytkownika (z Firebase Console)
 ```

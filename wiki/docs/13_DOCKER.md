@@ -26,17 +26,17 @@ Projekt publikuje obraz `filiprar/szalasapp` automatycznie przez GitHub Actions.
 ### Znaczenie tagów
 - `edge` – **bieżący build po każdym merge/push do `master`**. Może zawierać nieprzetestowane poprawki.
 - `sha-<commit>` – ten sam build co `edge`, ale przypięty do konkretnego commita (łatwy rollback).
-- `vX.Y.Z` – **stabilna wersja** publikowana tylko wtedy, gdy w PR podniesiesz wersję w `app/pyproject.toml` i zostanie utworzony tag `vX.Y.Z`.
+- `vX.Y.Z` – **stabilna wersja** publikowana tylko wtedy, gdy w PR podniesiesz wersję w `pyproject.toml` i zostanie utworzony tag `vX.Y.Z`.
 - `latest` – wskazuje na najnowszą opublikowaną wersję `vX.Y.Z`.
 
-> Ważne: Jeśli nie zmienisz numeru `version` w `app/pyproject.toml`, to nie powstanie nowy tag `vX.Y.Z` ani `latest`.
+> Ważne: Jeśli nie zmienisz numeru `version` w `pyproject.toml`, to nie powstanie nowy tag `vX.Y.Z` ani `latest`.
 
 ## Jak wypuścić nową wersję (dla maintainerów)
 
 ### Opcja 1: GitHub UI (bez komend git)
 1. Wejdź w repozytorium na GitHub.
 2. Utwórz Pull Request (PR) z Twoimi zmianami.
-3. W tym samym PR edytuj plik `app/pyproject.toml` i zmień:
+3. W tym samym PR edytuj plik `pyproject.toml` i zmień:
    - `version = "X.Y.Z"` na nową wersję (np. `0.2.0`).
 4. Zmerguj PR do `master`.
 5. GitHub Actions automatycznie:
@@ -46,7 +46,7 @@ Projekt publikuje obraz `filiprar/szalasapp` automatycznie przez GitHub Actions.
 ### Opcja 2: IDE (PyCharm/VS Code) bez ręcznego gita
 - Zrób commit zmian w IDE.
 - Otwórz PR z IDE.
-- Zmień `app/pyproject.toml` (jak wyżej) i zmerguj PR.
+- Zmień `pyproject.toml` (jak wyżej) i zmerguj PR.
 
 ## Jak zaktualizować wdrożenie na serwerze (Docker Compose)
 

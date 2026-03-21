@@ -122,7 +122,7 @@ Przewodnik po typowych problemach i ich rozwiązaniach.
 **Sprawdź:**
 ```bash
 # Sprawdź logi
-python app.py
+python app/app.py
 
 # Najczęstsze błędy:
 # - Brak zależności → pip install -r requirements.txt
