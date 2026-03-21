@@ -237,9 +237,15 @@ def get_all_usterki(limit=None, offset=None):
     """Pobiera usterki z opcjonalną paginacją."""
     db = get_firestore_client()
     query = db.collection(COLLECTION_USTERKI).order_by('data_zgloszenia', direction=firestore.Query.DESCENDING)
-    if offset:
+
+    if offset is not None:
+        if not isinstance(offset, int) or offset < 0:
+            raise ValueError("offset must be a non-negative integer or None")
         query = query.offset(offset)
-    if limit:
+
+    if limit is not None:
+        if not isinstance(limit, int) or limit < 0:
+            raise ValueError("limit must be a non-negative integer or None")
         query = query.limit(limit)
     return [_get_doc_data(doc) for doc in query.stream()]
 

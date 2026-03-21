@@ -518,17 +518,18 @@ def sprzet_list():
 
     end = perf_counter()
     
-    current_app.logger.info(
-        "sprzet_list timings: firestore=%.3fs aggregates=%.3fs(source=%s) total=%.3fs count=%s search=%s parent=%s filters=%s",
-        after_firestore - start_firestore,
-        after_agg - start_agg,
-        agg_source,
-        end - start,
-        len(items),
-        bool(search_query),
-        bool(parent_id),
-        len(filters),
-    )
+    if os.getenv("ENABLE_TIMING_LOGS") == "1":
+        current_app.logger.debug(
+            "sprzet_list timings: firestore=%.3fs aggregates=%.3fs(source=%s) total=%.3fs count=%s search=%s parent=%s filters=%s",
+            after_firestore - start_firestore,
+            after_agg - start_agg,
+            agg_source,
+            end - start,
+            len(items),
+            bool(search_query),
+            bool(parent_id),
+            len(filters),
+        )
 
     return render_template('sprzet_list.html',
                             sprzet_list=items,
@@ -1205,6 +1206,7 @@ def usterki_list():
     
     # Paginacja: 50 usterek na stronę
     page = request.args.get('page', 1, type=int)
+    page = max(page, 1)
     limit_per_page = 50
     offset = (page - 1) * limit_per_page
 
@@ -1246,11 +1248,14 @@ def usterki_list():
             filtered_usterki.append(u)
     after_filter = perf_counter()
 
-    # Agregacje: limit do 50 usterek zamiast ALL dla szybkości
-    statuses = sorted(list(set(u.get('status') for u in usterki if u.get('status'))))
-    magazyny = sorted(list(set(s.get('lokalizacja') for s in sprzet_items if s.get('lokalizacja'))))
-    ids_sprzetu = sorted(list(set(u.get('sprzet_id') for u in usterki if u.get('sprzet_id'))))
-    ewidencje = sorted(list(set(u.get('oficjalna_ewidencja') for u in filtered_usterki if u.get('oficjalna_ewidencja'))))
+    # Agregacje dla dropdownów budowane z pełnych zbiorów danych (niezależnie od paginacji)
+    all_usterki = get_all_usterki()
+    all_sprzet_items = get_all_sprzet()
+
+    statuses = sorted(list(set(u.get('status') for u in all_usterki if u.get('status'))))
+    magazyny = sorted(list(set(s.get('lokalizacja') for s in all_sprzet_items if s.get('lokalizacja'))))
+    ids_sprzetu = sorted(list(set(u.get('sprzet_id') for u in all_usterki if u.get('sprzet_id'))))
+    ewidencje = sorted(list(set(u.get('oficjalna_ewidencja') for u in all_usterki if u.get('oficjalna_ewidencja'))))
     
     after_aggregates = perf_counter()
     
