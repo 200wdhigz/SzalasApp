@@ -154,9 +154,13 @@ def create_app():
                     raise RuntimeError("Firebase Admin not initialized")
                 firestore.client()
 
-            # Sprawdź i wykonaj rotację PIN-u jeśli to wymagane
-            from .auth import rotate_pin_if_due
-            rotate_pin_if_due()
+            # Sprawdź i wykonaj rotację PIN-u jeśli to wymagane.
+            # Błąd rotacji (np. brak Firebase) nie powinien psuć liveness.
+            try:
+                from .auth import rotate_pin_if_due
+                rotate_pin_if_due()
+            except Exception as pin_err:
+                app.logger.warning(f"PIN rotation check failed (non-fatal): {pin_err}")
 
             return {
                 'status': 'healthy',
