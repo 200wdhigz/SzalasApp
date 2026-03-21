@@ -130,7 +130,6 @@ def get_user_achievements_progress(uid: str) -> list[Dict[str, Any]]:
 
         # Domyślnie binary 0/1
         progress = 1 if earned else 0
-        target = 1
 
         if ctype == 'event_count':
             event = cond.get('event')
