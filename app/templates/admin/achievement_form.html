@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8 col-lg-7">
+    <div class="card shadow-lg mt-4">
+      <div class="card-header text-bg-danger">
+        <h4 class="mb-0"><i class="bi bi-trophy"></i> Nowe Osiągnięcie</h4>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="name" class="form-label">Nazwa</label>
+              <input type="text" id="name" name="name" class="form-control" required value="{{ (achievement and achievement.name) or '' }}">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="id" class="form-label">ID (slug)</label>
+              <input type="text" id="id" name="id" class="form-control" placeholder="np. reporter-5" value="{{ (achievement and achievement.id) or '' }}" {% if edit %}readonly{% endif %}>
+              <div class="form-text">{% if edit %}ID nie może być zmienione.{% else %}Pozostaw puste, aby wygenerować z nazwy.{% endif %}</div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="description" class="form-label">Opis</label>
+            <textarea id="description" name="description" class="form-control" rows="3">{{ (achievement and achievement.description) or '' }}</textarea>
+          </div>
+
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label for="icon" class="form-label">Ikona (emoji lub nazwa)</label>
+              <input type="text" id="icon" name="icon" class="form-control" placeholder="🏅" value="{{ (achievement and achievement.icon) or '' }}">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label for="order" class="form-label">Kolejność</label>
+              <input type="number" id="order" name="order" class="form-control" placeholder="9999" value="{{ (achievement and achievement.order) or '' }}">
+            </div>
+            <div class="col-md-2 mb-3 form-check mt-4 pt-2">
+              <input type="checkbox" class="form-check-input" id="enabled" name="enabled" {% if (achievement and achievement.enabled) or (not achievement) %}checked{% endif %}>
+              <label class="form-check-label" for="enabled">Włączone</label>
+            </div>
+            <div class="col-md-2 mb-3 form-check mt-4 pt-2">
+              <input type="checkbox" class="form-check-input" id="secret" name="secret" {% if achievement and achievement.secret %}checked{% endif %}>
+              <label class="form-check-label" for="secret">Ukryte do zdobycia</label>
+            </div>
+          </div>
+
+          <hr>
+          <h6>Warunek przyznania</h6>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="condition_type" class="form-label">Typ warunku</label>
+              {% set c = achievement and achievement.condition or {} %}
+              <select id="condition_type" name="condition_type" class="form-select" required>
+                <option value="event_count" {% if c.type == 'event_count' %}selected{% endif %}>Liczba zdarzeń (próg)</option>
+                <option value="speedy_return" {% if c.type == 'speedy_return' %}selected{% endif %}>Szybki zwrot (tego samego dnia)</option>
+                <option value="help_resolve" {% if c.type == 'help_resolve' %}selected{% endif %}>Pomocna dłoń (naprawa cudzej usterki)</option>
+              </select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="event" class="form-label">Zdarzenie</label>
+              <select id="event" name="event" class="form-select">
+                <option value="" {% if not c or not c.event %}selected{% endif %}>—</option>
+                <option value="report_created" {% if c.event == 'report_created' %}selected{% endif %}>Zgłoszenie usterki</option>
+                <option value="loan_created" {% if c.event == 'loan_created' %}selected{% endif %}>Dodanie wypożyczenia</option>
+              </select>
+              <div class="form-text">Dla „Liczby zdarzeń”.</div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="threshold" class="form-label">Próg</label>
+              <input type="number" id="threshold" name="threshold" class="form-control" placeholder="np. 5" value="{{ c.threshold if c and c.type == 'event_count' else '' }}">
+              <div class="form-text">Wymagany dla „Liczby zdarzeń”.</div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between">
+            <a href="{{ url_for('admin.achievements_defs_list') }}" class="btn btn-secondary">
+              <i class="bi bi-arrow-left"></i> Anuluj
+            </a>
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-check-circle"></i> Zapisz
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
