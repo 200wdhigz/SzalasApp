@@ -829,8 +829,9 @@ def safe_redirect_back(fallback_endpoint: str):
                 if ref_url.query:
                     target = f"{target}?{ref_url.query}"
                 return redirect(target)
-    except Exception:
-        pass
+    except Exception as e:
+        # W razie jakiegokolwiek błędu logujemy go i przechodzimy do bezpiecznego fallbacku.
+        current_app.logger.exception("safe_redirect_back failed while processing referrer")
     return redirect(url_for(fallback_endpoint))
 
 

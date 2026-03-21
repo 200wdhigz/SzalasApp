@@ -73,8 +73,8 @@ def _iter_enabled_defs() -> Iterable[Dict[str, Any]]:
             if (a or {}).get('enabled', True):
                 yield a
     except Exception:
-        # Jeśli nie udało się pobrać — zwróć pustą listę
-        return []
+        # Jeśli nie udało się pobrać — zakończ iterację (brak osiągnięć)
+        return
 
 
 def _safe_int(val, default: int = 0) -> int:
@@ -130,7 +130,6 @@ def get_user_achievements_progress(uid: str) -> list[Dict[str, Any]]:
 
         # Domyślnie binary 0/1
         progress = 1 if earned else 0
-        target = 1
 
         if ctype == 'event_count':
             event = cond.get('event')
@@ -142,7 +141,9 @@ def get_user_achievements_progress(uid: str) -> list[Dict[str, Any]]:
             elif event == 'loan_created':
                 current = loans_count
             # Wyświetlany progres jest „docięty” do progu, aby po zdobyciu widniało np. 5/5 i 100%
-            progress = _clamp(current, 0, target)
+            # Dla prostych osiągnięć progowych (target == 1) pozostawiamy domyślną wartość binary 0/1.
+            if target != 1:
+                progress = _clamp(current, 0, target)
         elif ctype in ('item_add_count', 'item_edit_count'):
             threshold = _safe_int(cond.get('threshold'), 1)
             target = max(1, threshold)
@@ -151,7 +152,9 @@ def get_user_achievements_progress(uid: str) -> list[Dict[str, Any]]:
                 current = _count_user_item_adds(uid, category)
             else:
                 current = _count_user_item_edits(uid, category)
-            progress = _clamp(int(current or 0), 0, target)
+            # Dla prostych osiągnięć progowych (target == 1) pozostawiamy domyślną wartość binary 0/1.
+            if target != 1:
+                progress = _clamp(int(current or 0), 0, target)
         elif ctype == 'log_count':
             threshold = _safe_int(cond.get('threshold'), 1)
             target = max(1, threshold)
