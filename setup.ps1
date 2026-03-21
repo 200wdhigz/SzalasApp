@@ -27,9 +27,7 @@ Write-Host "Found: $pythonVersion" -ForegroundColor Green
 # Install dependencies
 Write-Host ""
 Write-Host "Installing dependencies with Poetry..." -ForegroundColor Yellow
-Set-Location app
 poetry install
-Set-Location ..
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Dependencies installed successfully!" -ForegroundColor Green
 } else {
@@ -67,8 +65,8 @@ Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "1. Edit .env file with your configuration" -ForegroundColor White
 Write-Host "2. Place service-account.json in credentials/ directory" -ForegroundColor White
 Write-Host "3. Run the application:" -ForegroundColor White
-Write-Host "   Development: cd app && poetry run python app.py" -ForegroundColor Cyan
-Write-Host "   Production:  cd app && poetry run gunicorn --bind 0.0.0.0:8080 app:app" -ForegroundColor Cyan
+Write-Host "   Development: poetry run python app/app.py" -ForegroundColor Cyan
+Write-Host "   Production:  poetry run gunicorn --chdir app --bind 0.0.0.0:8080 app:app" -ForegroundColor Cyan
 Write-Host "   Docker:      docker-compose up --build" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Documentation:" -ForegroundColor Yellow

@@ -1,9 +1,10 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
 from firebase_admin import auth as firebase_auth
 import secrets
 import string
 import os
 from datetime import datetime, timedelta
+from time import perf_counter, time
 
 from .auth import admin_required, quartermaster_required, rotate_pin_if_due
 from .db_firestore import (
@@ -17,6 +18,87 @@ from .db_users import (
 )
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+# Prosty cache Firebase Auth users z TTL 60s
+_firebase_auth_cache = {
+    'users': {},  # uid -> (fb_user, timestamp)
+    'ttl_seconds': 60
+}
+
+
+def _get_cached_firebase_users(uids):
+    """Zwraca cached Firebase Auth users i listę UIDów do pobrania ze świeżością."""
+    now = time()
+    cached = {}
+    to_fetch = []
+    
+    for uid in uids:
+        entry = _firebase_auth_cache['users'].get(uid)
+        if entry and (now - entry[1]) < _firebase_auth_cache['ttl_seconds']:
+            cached[uid] = entry[0]
+        else:
+            to_fetch.append(uid)
+    
+    return cached, to_fetch
+
+
+def _cache_firebase_users(fb_users_dict):
+    """Przechowuje Firebase Auth users w cache z timestamp."""
+    now = time()
+    ttl = _firebase_auth_cache['ttl_seconds']
+    users = _firebase_auth_cache['users']
+    # Usuń wygasłe wpisy, aby cache nie rósł bez ograniczeń
+    expired_keys = [uid for uid, (_, ts) in users.items() if (now - ts) >= ttl]
+    for key in expired_keys:
+        del users[key]
+    for uid, fb_user in fb_users_dict.items():
+        users[uid] = (fb_user, now)
+
+
+def _chunked(items, size):
+    """Zwraca kolejne porcje listy o maksymalnym rozmiarze `size`."""
+    for idx in range(0, len(items), size):
+        yield items[idx:idx + size]
+
+
+def _enrich_users_with_firebase_auth(users):
+    """Uzupełnia listę użytkowników danymi z Firebase Auth (batch zamiast N+1, z cache)."""
+    uid_to_fb_user = {}
+    lookup_failed = False
+    uids = [user.get('id') for user in users if user.get('id')]
+    
+    # Sprawdź cache
+    cached, to_fetch = _get_cached_firebase_users(uids)
+    uid_to_fb_user.update(cached)
+    
+    # Jeśli coś do pobrania, pobierz z Firebase
+    if to_fetch:
+        for uid_chunk in _chunked(to_fetch, 100):
+            try:
+                identifiers = [firebase_auth.UidIdentifier(uid) for uid in uid_chunk]
+                result = firebase_auth.get_users(identifiers)
+                for fb_user in result.users:
+                    uid_to_fb_user[fb_user.uid] = fb_user
+                # Zaktualizuj cache
+                _cache_firebase_users({u.uid: u for u in result.users})
+            except Exception as exc:
+                lookup_failed = True
+                current_app.logger.warning(f"Firebase batch user lookup failed: {exc}")
+                break
+
+    for user in users:
+        fb_user = uid_to_fb_user.get(user.get('id'))
+        if fb_user:
+            user['firebase_email'] = fb_user.email
+            user['firebase_display_name'] = fb_user.display_name
+            user['firebase_disabled'] = fb_user.disabled
+            continue
+
+        user['firebase_email'] = user.get('email', 'N/A')
+        user['firebase_display_name'] = None
+        user['firebase_disabled'] = False
+
+    return lookup_failed
 
 
 def validate_csrf_token():
@@ -36,20 +118,24 @@ def validate_csrf_token():
 @admin_required
 def users_list():
     """Wyświetla listę wszystkich użytkowników."""
+    start = perf_counter()
     users = get_all_users()
+    after_firestore = perf_counter()
+    lookup_failed = _enrich_users_with_firebase_auth(users)
+    after_auth = perf_counter()
+
+    cached_count = sum(1 for u in users if u.get('id') and u.get('id') in _firebase_auth_cache['users'])
     
-    # Pobierz dodatkowe dane z Firebase Auth dla każdego użytkownika
-    for user in users:
-        try:
-            fb_user = firebase_auth.get_user(user['id'])
-            user['firebase_email'] = fb_user.email
-            user['firebase_display_name'] = fb_user.display_name
-            user['firebase_disabled'] = fb_user.disabled
-        except Exception:
-            user['firebase_email'] = user.get('email', 'N/A')
-            user['firebase_display_name'] = None
-            user['firebase_disabled'] = False
-    
+    current_app.logger.info(
+        "users_list timings: firestore=%.3fs auth=%.3fs total=%.3fs count=%s cached=%s auth_lookup_failed=%s",
+        after_firestore - start,
+        after_auth - after_firestore,
+        after_auth - start,
+        len(users),
+        cached_count,
+        lookup_failed,
+    )
+
     return render_template('admin/users_list.html', users=users)
 
 

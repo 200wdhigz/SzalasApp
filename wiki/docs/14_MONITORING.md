@@ -2,7 +2,7 @@
 ## 📊 Logi Aplikacji
 ```bash
 # Uruchom z logami
-python app.py
+python app/app.py
 # Logi pokażą:
 # - Requesty HTTP
 # - Błędy Firebase
@@ -16,7 +16,7 @@ python app.py
 ## Logi Produkcyjne
 ```bash
 # Gunicorn z logami
-gunicorn --access-logfile access.log --error-logfile error.log app:app
+gunicorn --chdir app --access-logfile access.log --error-logfile error.log app:app
 ```
 ---
 **Ostatnia aktualizacja:** 2026-01-01

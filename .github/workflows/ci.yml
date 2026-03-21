@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 2) Create a stable GitHub release when app/pyproject.toml version is bumped to a new value
+  # 2) Create a stable GitHub release when pyproject.toml version is bumped to a new value
   release_on_version_bump:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
@@ -33,7 +33,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute version/tag from app/pyproject.toml
+      - name: Compute version/tag from pyproject.toml
         id: compute
         shell: bash
         run: |
@@ -42,10 +42,10 @@ jobs:
           import re
           from pathlib import Path
 
-          data = Path('app/pyproject.toml').read_text(encoding='utf-8')
+          data = Path('pyproject.toml').read_text(encoding='utf-8')
           m = re.search(r'^version\s*=\s*"([^"]+)"', data, re.M)
           if not m:
-              raise SystemExit('Could not find version in app/pyproject.toml')
+              raise SystemExit('Could not find version in pyproject.toml')
           version = m.group(1).strip()
           tag = f"v{version}"
 

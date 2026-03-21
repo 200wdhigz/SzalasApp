@@ -209,7 +209,7 @@ def get_current_pin():
 
 def rotate_pin_if_due():
     """Jeśli auto_rotate włączone i minął termin – generuje nowy PIN i zapisuje w configu.
-    Wywoływane przy GET /health, nigdy przy logowaniu PIN."""
+    Może być wywoływana okresowo (np. z endpointu healthcheck lub panelu admina), nigdy przy logowaniu PIN."""
     config = get_config()
     if not config.get('pin_auto_rotate'):
         return
