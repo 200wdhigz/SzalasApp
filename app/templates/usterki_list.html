@@ -228,7 +228,7 @@
                 <ul class="pagination justify-content-center">
                     <li class="page-item {% if not has_prev_page %}disabled{% endif %}">
                         <a class="page-link"
-                           href="{{ url_for('views.usterki_list', page=current_page - 1, **{k: v for k, v in selected_filters.items() if k != 'page'}) }}"
+                           href="{{ url_for('views.usterki_list', page=current_page - 1) }}{% set prefix = '?' %}{% for k, v in selected_filters.items() %}{% if k != 'page' %}{{ prefix }}{{ k }}={{ v|urlencode }}{% set prefix = '&' %}{% endif %}{% endfor %}"
                            aria-label="Poprzednia">
                             <span aria-hidden="true">&laquo;</span> Poprzednia
                         </a>
@@ -238,7 +238,7 @@
                     </li>
                     <li class="page-item {% if not has_next_page %}disabled{% endif %}">
                         <a class="page-link"
-                           href="{{ url_for('views.usterki_list', page=current_page + 1, **{k: v for k, v in selected_filters.items() if k != 'page'}) }}"
+                           href="{{ url_for('views.usterki_list', page=current_page + 1) }}{% set prefix = '?' %}{% for k, v in selected_filters.items() %}{% if k != 'page' %}{{ prefix }}{{ k }}={{ v|urlencode }}{% set prefix = '&' %}{% endif %}{% endfor %}"
                            aria-label="Następna">
                             Następna <span aria-hidden="true">&raquo;</span>
                         </a>

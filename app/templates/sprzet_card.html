@@ -330,6 +330,16 @@
                                         <i class="bi bi-pencil-square"></i>
                                     </a>
 
+                                    <a href="{{ url_for('views.sprzet_add', copy_from=sprzet.id, return=return_query) }}"
+                                       class="btn btn-outline-light" title="Dodaj nowy wg wzoru">
+                                        <i class="bi bi-plus-square"></i>
+                                    </a>
+
+                                    <button type="button" class="btn btn-outline-light" title="Przypisz kod z naklejki (zmień ID)"
+                                            data-bs-toggle="modal" data-bs-target="#renameIdModal">
+                                        <i class="bi bi-upc-scan"></i>
+                                    </button>
+
                                     <form method="POST"
                                           action="{{ url_for('views.sprzet_delete', sprzet_id=sprzet.id) }}"
                                           style="display:inline;"
@@ -715,11 +725,185 @@
         </div>
     </div>
 
+    {# Modal: Zmiana ID / przypisanie kodu z naklejki #}
+    {% if IS_QUARTERMASTER %}
+    <div class="modal fade" id="renameIdModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Przypisz kod z naklejki (zmień ID)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+                </div>
+                <form method="POST" action="{{ url_for('views.sprzet_rename_id', old_id=sprzet.id) }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="return_query" value="{{ return_query or '' }}">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="newIdInput" class="form-label">Nowe ID (z kodu QR/kreskowego)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="newIdInput" name="new_id" placeholder="Zeskanuj lub wklej kod" required autocomplete="off">
+                                <button class="btn btn-outline-primary" type="button" id="startScanBtn" title="Skanuj aparatem">
+                                    <i class="bi bi-upc-scan"></i> Skanuj
+                                </button>
+                                <button class="btn btn-outline-secondary d-none" type="button" id="stopScanBtn" title="Zatrzymaj skanowanie">
+                                    <i class="bi bi-stop-circle"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Najpierw kliknij „Skanuj”, skieruj aparat na kod. ID zostanie wpisane automatycznie i zablokowane. Aktualne: <code>{{ sprzet.id }}</code></div>
+                            <div class="mt-2 d-none" id="scanUnsupportedAlert">
+                                <div class="alert alert-info p-2 mb-0">Skaner aparatu nieobsługiwany w tej przeglądarce. Użyj wbudowanego skanera w telefonie i wklej kod tutaj.</div>
+                            </div>
+                            <div class="mt-2 d-none" id="cameraWrap">
+                                <video id="cameraPreview" playsinline class="w-100 rounded border" style="max-height: 240px; background:#000"></video>
+                            </div>
+                        </div>
+                        <div class="alert alert-warning small" role="alert">
+                            Operacja zmieni identyfikator elementu i zaktualizuje powiązania (dzieci, usterki, wypożyczenia). Nieodwracalne bez ręcznej interwencji.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                        <button type="submit" class="btn btn-primary">Zmień ID</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
 {% endblock %}
 {% block scripts %}
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // ----------------------------------------------------
+            // Skaner QR/Kreskowy dla zmiany ID (rename)
+            // ----------------------------------------------------
+            (function setupRenameScanner() {
+                const startBtn = document.getElementById('startScanBtn');
+                const stopBtn = document.getElementById('stopScanBtn');
+                const input = document.getElementById('newIdInput');
+                const video = document.getElementById('cameraPreview');
+                const cameraWrap = document.getElementById('cameraWrap');
+                const unsupported = document.getElementById('scanUnsupportedAlert');
+                const modalEl = document.getElementById('renameIdModal');
+
+                if (!startBtn || !modalEl) return;
+
+                let stream = null;
+                let rafId = null;
+                let detector = null; // BarcodeDetector
+                let zxingReader = null; // ZXing BrowserMultiFormatReader
+                let zxingControls = null; // Controls from decodeFromVideoDevice
+
+                // Dynamiczne ładowanie ZXing jako fallback dla przeglądarek bez BarcodeDetector
+                let zxingLoading = null;
+                function loadZXing() {
+                    if (window.ZXing && window.ZXing.BrowserMultiFormatReader) return Promise.resolve();
+                    if (zxingLoading) return zxingLoading;
+                    zxingLoading = new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = 'https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js';
+                        s.async = true;
+                        s.onload = () => resolve();
+                        s.onerror = () => reject(new Error('Nie udało się załadować skanera ZXing'));
+                        document.head.appendChild(s);
+                    });
+                    return zxingLoading;
+                }
+
+                function stopScan() {
+                    if (rafId) cancelAnimationFrame(rafId);
+                    rafId = null;
+                    if (stream) {
+                        stream.getTracks().forEach(t => t.stop());
+                        stream = null;
+                    }
+                    if (zxingControls && typeof zxingControls.stop === 'function') {
+                        try { zxingControls.stop(); } catch (_) {}
+                        zxingControls = null;
+                    }
+                    if (zxingReader && typeof zxingReader.reset === 'function') {
+                        try { zxingReader.reset(); } catch (_) {}
+                    }
+                    if (video) {
+                        video.srcObject = null;
+                    }
+                    cameraWrap?.classList.add('d-none');
+                    stopBtn?.classList.add('d-none');
+                    startBtn?.classList.remove('d-none');
+                }
+
+                async function startScan() {
+                    unsupported?.classList.add('d-none');
+                    try {
+                        // Przygotowanie podglądu kamery
+                        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+                        video.srcObject = stream;
+                        cameraWrap?.classList.remove('d-none');
+                        stopBtn?.classList.remove('d-none');
+                        startBtn?.classList.add('d-none');
+                        await video.play();
+
+                        if ('BarcodeDetector' in window) {
+                            const formats = ['qr_code', 'ean_13', 'code_128', 'code_39', 'ean_8', 'upc_e'];
+                            detector = new window.BarcodeDetector({ formats });
+
+                            const scan = async () => {
+                                if (!detector || !video || video.readyState !== 4) {
+                                    rafId = requestAnimationFrame(scan);
+                                    return;
+                                }
+                                try {
+                                    const codes = await detector.detect(video);
+                                    if (codes && codes.length) {
+                                        const text = (codes[0].rawValue ?? '').toString();
+                                        if (text) {
+                                            input.value = text.trim();
+                                            input.setAttribute('readonly', 'readonly');
+                                            stopScan();
+                                            return;
+                                        }
+                                    }
+                                } catch (e) {
+                                    // ignoruj pojedyncze błędy detekcji
+                                }
+                                rafId = requestAnimationFrame(scan);
+                            };
+                            rafId = requestAnimationFrame(scan);
+                        } else {
+                            // Fallback: ZXing (działa w Chrome/Firefox/Safari desktop i mobile)
+                            await loadZXing();
+                            zxingReader = new window.ZXing.BrowserMultiFormatReader();
+                            // null = domyślna kamera; preferuje tylną na mobile, na desktop wybierze jedyną/domyślną
+                            zxingControls = await zxingReader.decodeFromVideoDevice(null, video, (result, err, controls) => {
+                                if (result && result.getText) {
+                                    const text = result.getText();
+                                    if (text) {
+                                        input.value = text.trim();
+                                        input.setAttribute('readonly', 'readonly');
+                                        stopScan();
+                                    }
+                                }
+                                // błędy dekodowania są normalne klatka-po-klatce, ignorujemy
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Scan error', err);
+                        unsupported?.classList.remove('d-none');
+                        stopScan();
+                    }
+                }
+
+                startBtn?.addEventListener('click', startScan);
+                stopBtn?.addEventListener('click', stopScan);
+
+                // Reset stanu po zamknięciu modala
+                modalEl.addEventListener('hidden.bs.modal', () => {
+                    stopScan();
+                    input?.removeAttribute('readonly');
+                });
+            })();
             // ----------------------------------------------------
             // FORMULARZ ZGLOSZENIA USTERKI - DESKTOP I MOBILE
             // ----------------------------------------------------

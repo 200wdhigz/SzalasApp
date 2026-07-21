@@ -10,6 +10,7 @@ from google.cloud import firestore
 import qrcode
 from io import BytesIO
 import html
+from PIL import Image
 
 from . import get_firestore_client
 from .auth import login_required, admin_required, quartermaster_required, full_login_required, pin_restricted_required
@@ -22,7 +23,8 @@ from .db_firestore import (
     add_loan, get_active_loans, get_loans_for_item, mark_loan_returned, _warsaw_now,
     get_all_items, get_item, get_items_by_parent, get_list_setting,
     get_list, get_lists_for_user, create_list, update_list, delete_list,
-    add_items_to_list, remove_items_from_list, add_members_to_list, remove_members_from_list
+    add_items_to_list, remove_items_from_list, add_members_to_list, remove_members_from_list,
+    get_config
 )
 from .exports import export_to_csv, export_to_xlsx, export_to_docx, export_to_pdf, export_qr_codes_pdf
 from .id_utils import generate_unique_magazyn_id
@@ -104,7 +106,10 @@ def _resolve_owner_default(parent_id: str | None) -> str | None:
 def process_uploads(files, folder, id_prefix=None):
     """Waliduje i wgrywa pliki do GCS."""
     ALLOWED_MIMES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
-    MAX_SIZE = 5 * 1024 * 1024
+    config = get_config()
+    max_size_mb = config.get('max_photo_size_mb', 5)
+    max_width = config.get('max_photo_width', 1920)
+    MAX_SIZE = max_size_mb * 1024 * 1024
     
     valid_files = [f for f in files if f and f.filename]
     if not valid_files:
@@ -115,11 +120,29 @@ def process_uploads(files, folder, id_prefix=None):
         if f.mimetype not in ALLOWED_MIMES:
             return [], f'Nieobsługiwany typ pliku: {f.filename}'
         
+        # Resize if needed
+        if max_width:
+            try:
+                img = Image.open(f.stream)
+                if img.width > max_width:
+                    w_percent = (max_width / float(img.width))
+                    h_size = int((float(img.height) * float(w_percent)))
+                    img = img.resize((max_width, h_size), Image.Resampling.LANCZOS)
+                    
+                    # Save resized image back to a stream
+                    output_stream = BytesIO()
+                    img.save(output_stream, format='PNG')
+                    output_stream.seek(0)
+                    f.stream = output_stream
+                    f.mimetype = 'image/png'
+            except Exception as e:
+                return [], f'Błąd przetwarzania zdjęcia {f.filename}: {e}'
+
         f.stream.seek(0, os.SEEK_END)
         size = f.stream.tell()
         f.stream.seek(0)
         if size > MAX_SIZE:
-            return [], f'Plik za duży (>5MB): {f.filename}'
+            return [], f'Plik za duży (>{max_size_mb}MB): {f.filename}'
 
         if id_prefix:
             import time
@@ -647,8 +670,28 @@ def sprzet_add():
     # Prefill parent_id z querystring (ułatwia dodawanie elementów w konkretnym magazynie/półce)
     prefill_parent_id = (request.args.get('parent_id') or '').strip().upper() or None
 
+    # Opcjonalny prefill na podstawie istniejącego elementu (wzoru)
+    prefill = {}
+    copy_from = (request.args.get('copy_from') or '').strip().upper() or None
+    if copy_from:
+        src = get_sprzet_item(copy_from)
+        if not src:
+            flash(f'Nie znaleziono elementu źródłowego: {html.escape(copy_from)}', 'warning')
+        else:
+            # Zbiór dozwolonych pól do skopiowania (bez identyfikatorów i pól systemowych)
+            allowed_keys = {
+                'category', 'parent_id', 'nazwa', 'typ', 'informacje', 'uwagi', 'historia', 'przeznaczenie',
+                'wodoszczelnosc', 'stan_ogolny', 'zapalki', 'kolor_dachu', 'kolor_bokow', 'znak_szczegolny',
+                'gps_lat', 'gps_lng', 'lokalizacja', 'oficjalna_ewidencja', 'sprawny', 'czyWraca', 'owner',
+                'ilosc', 'jednostka', 'do_czego', 'typ_zelastwa', 'material', 'typ_materaca', 'zakup', 'przejecie'
+            }
+            prefill = {k: v for k, v in src.items() if k in allowed_keys}
+            # Jeśli w URL podano parent_id, nadpisz z URL (ważniejsze dla kontekstu magazynu)
+            if prefill_parent_id:
+                prefill['parent_id'] = prefill_parent_id
+
     # Podpowiedź owner domyślnie z parent (dla UI)
-    default_owner = _resolve_owner_default(prefill_parent_id)
+    default_owner = _resolve_owner_default(prefill.get('parent_id') or prefill_parent_id)
 
     return render_template('sprzet_edit.html',
                            sprzet=None,
@@ -661,7 +704,8 @@ def sprzet_add():
                            do_czego_suggestions=_build_do_czego_suggestions(),
                            owner_suggestions=_build_owner_suggestions(),
                            default_owner=default_owner,
-                           prefill_parent_id=prefill_parent_id,
+                           prefill_parent_id=prefill.get('parent_id') or prefill_parent_id,
+                           prefill=prefill,
                            return_query=return_query)
 
 @views_bp.route('/sprzet/import', methods=['GET', 'POST'])
@@ -968,6 +1012,112 @@ def sprzet_delete(sprzet_id):
     if return_query:
         return redirect(url_for('views.sprzet_list') + f'?{return_query}')
     return redirect(url_for('views.sprzet_list'))
+
+@views_bp.route('/sprzet/rename_id/<old_id>', methods=['POST'])
+@quartermaster_required
+def sprzet_rename_id(old_id: str):
+    """Zmienia ID istniejącego sprzętu – przypisanie kodu z naklejki przez zmianę identyfikatora.
+
+    Zasady:
+    - walidacja i normalizacja nowego ID jak przy dodawaniu
+    - unikalność nowego ID
+    - skopiowanie dokumentu pod nowy klucz (zaktualizowane pole 'id')
+    - aktualizacja referencji: dzieci.parent_id, usterki.sprzet_id, wypozyczenia.item_id
+    - usunięcie starego dokumentu po sukcesie
+    - log akcji 'rename_id'
+    """
+    # Kontekst powrotu do listy
+    return_query = (request.form.get('return_query') or '').strip()
+
+    # Pobierz i znormalizuj nowe ID
+    raw_new_id = (request.form.get('new_id') or '').strip()
+    # Reguły normalizacji takie jak w sprzet_add
+    dozwolone_znaki = {
+        'ą': 'A', 'ć': 'C', 'ę': 'E', 'ł': 'L', 'ń': 'N', 'ó': 'O', 'ś': 'S', 'ź': 'Z', 'ż': 'Z',
+        'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z',
+        ' ': '_', '-': '_'
+    }
+    new_id = raw_new_id.upper().translate(str.maketrans(dozwolone_znaki))
+    new_id = re.sub(r'[^0-9A-Z_]', '', new_id)
+
+    if not new_id:
+        flash('Nowe ID nie może być puste.', 'danger')
+        return redirect(url_for('views.sprzet_card', sprzet_id=old_id) + (f'?return={return_query}' if return_query else ''))
+
+    if new_id == old_id:
+        flash('Nowe ID jest identyczne ze starym – brak zmian.', 'info')
+        return redirect(url_for('views.sprzet_card', sprzet_id=old_id) + (f'?return={return_query}' if return_query else ''))
+
+    # Walidacja unikalności
+    if get_sprzet_item(new_id):
+        flash(f'Sprzęt o ID {new_id} już istnieje. Wybierz inne.', 'danger')
+        return redirect(url_for('views.sprzet_card', sprzet_id=old_id) + (f'?return={return_query}' if return_query else ''))
+
+    # Pobierz stary dokument
+    old_doc = get_sprzet_item(old_id)
+    if not old_doc:
+        flash(f'Nie znaleziono sprzętu {old_id}.', 'danger')
+        return redirect(url_for('views.sprzet_list'))
+
+    # Przygotuj dane nowego dokumentu – zachowaj wszystkie pola poza technicznymi
+    new_doc = dict(old_doc or {})
+    new_doc['id'] = new_id
+    # Usuń ewentualne cache/aftermath pola
+    new_doc.pop('zdjecia_lista_url', None)
+
+    # Jeśli brak jawnej listy zdjęć, spróbuj zapisać aktualny fallback, aby nie zniknęły po zmianie prefiksu
+    try:
+        from .gcs_utils import list_equipment_photos
+        if new_doc.get('zdjecia') is None:
+            new_doc['zdjecia'] = list_equipment_photos(old_id)
+    except Exception:
+        pass
+
+    # Zapisz nowy dokument pod nowym ID
+    set_item(COLLECTION_SPRZET, new_id, {k: v for k, v in new_doc.items() if k != 'id'})
+
+    # Aktualizacje referencji
+    updated_children = 0
+    for child in get_items_by_parent(old_id) or []:
+        try:
+            update_sprzet(child['id'], parent_id=new_id)
+            updated_children += 1
+        except Exception:
+            pass
+
+    updated_usterki = 0
+    for u in get_usterki_for_sprzet(old_id) or []:
+        try:
+            update_usterka(u['id'], sprzet_id=new_id)
+            updated_usterki += 1
+        except Exception:
+            pass
+
+    updated_loans = 0
+    try:
+        from .db_firestore import get_loans_for_item
+        for ln in get_loans_for_item(old_id) or []:
+            try:
+                update_item(COLLECTION_WYPOZYCZENIA, ln['id'], item_id=new_id)
+                updated_loans += 1
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Usuń stary dokument dopiero po wszystkich aktualizacjach
+    delete_item(COLLECTION_SPRZET, old_id)
+
+    # Zaloguj operację
+    add_log(session.get('user_id'), 'rename_id', 'sprzet', new_id,
+            details={'from': old_id, 'to': new_id, 'children_updated': updated_children, 'usterki_updated': updated_usterki, 'loans_updated': updated_loans},
+            before={k: v for k, v in old_doc.items() if k not in ['zdjecia_lista_url']}, after={k: v for k, v in new_doc.items() if k not in ['zdjecia_lista_url']})
+
+    flash(f'Zmieniono ID sprzętu: {old_id} → {new_id}.', 'success')
+    # Przekierowanie na nową kartę; zachowaj powrót do listy
+    if return_query:
+        return redirect(url_for('views.sprzet_card', sprzet_id=new_id) + f'?return={return_query}')
+    return redirect(url_for('views.sprzet_card', sprzet_id=new_id))
 
 @views_bp.route('/sprzet/<sprzet_id>', methods=['GET', 'POST'])
 @login_required
@@ -2551,7 +2701,25 @@ def list_view(list_id):
         order = {sid: idx for idx, sid in enumerate(lst.get('items'))}
         items.sort(key=lambda it: order.get(it.get('id'), 0))
 
-    return render_template('list_view.html', lst=lst, items=items, can_edit=_can_edit_list(lst))
+    # Przygotuj mapę członków (id -> obiekt użytkownika) do wyświetlenia
+    members_info = []
+    try:
+        from .db_users import get_all_users
+        users = get_all_users() or []
+        users_map = {u.get('id'): u for u in users}
+        for mid in (lst.get('members') or []):
+            u = users_map.get(mid) or {'id': mid}
+            members_info.append({
+                'id': mid,
+                'email': u.get('email') or '',
+                'full_name': f"{(u.get('first_name') or '').strip()} {(u.get('last_name') or '').strip()}".strip()
+            })
+    except Exception:
+        # ciche pominięcie – w UI pokażemy tylko ID
+        for mid in (lst.get('members') or []):
+            members_info.append({'id': mid, 'email': '', 'full_name': ''})
+
+    return render_template('list_view.html', lst=lst, items=items, can_edit=_can_edit_list(lst), members_info=members_info)
 
 
 @views_bp.route('/lists/<list_id>/share', methods=['POST'])
@@ -2573,6 +2741,26 @@ def list_share(list_id):
         return redirect(url_for('views.list_view', list_id=list_id))
     add_members_to_list(list_id, uids)
     flash(f'Dodano {len(uids)} użytk. do listy.', 'success')
+    return redirect(url_for('views.list_view', list_id=list_id))
+
+
+@views_bp.route('/lists/<list_id>/unshare', methods=['POST'])
+@login_required
+def list_unshare(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_edit_list(lst):
+        flash('Brak uprawnień do modyfikacji udostępniania.', 'danger')
+        return redirect(url_for('views.lists_index'))
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    member_id = (request.form.get('member_id') or '').strip()
+    if not member_id:
+        flash('Nie wskazano użytkownika do usunięcia.', 'warning')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    remove_members_from_list(list_id, [member_id])
+    flash('Usunięto udostępnienie dla wskazanego użytkownika.', 'success')
     return redirect(url_for('views.list_view', list_id=list_id))
 
 
@@ -2615,6 +2803,64 @@ def list_remove_items(list_id):
     remove_items_from_list(list_id, sprzet_ids)
     flash(f'Usunięto {len(sprzet_ids)} elementów z listy.', 'success')
     return redirect(url_for('views.list_view', list_id=list_id))
+
+
+@views_bp.route('/lists/<list_id>/make_public', methods=['POST'])
+@login_required
+def list_make_public(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_edit_list(lst):
+        flash('Brak uprawnień.', 'danger')
+        return redirect(url_for('views.lists_index'))
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    update_list(list_id, is_private=False)
+    flash('Lista została udostępniona wszystkim zalogowanym użytkownikom (publiczna).', 'success')
+    return redirect(url_for('views.list_view', list_id=list_id))
+
+
+@views_bp.route('/lists/<list_id>/make_private', methods=['POST'])
+@login_required
+def list_make_private(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_edit_list(lst):
+        flash('Brak uprawnień.', 'danger')
+        return redirect(url_for('views.lists_index'))
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    update_list(list_id, is_private=True)
+    flash('Lista została ustawiona jako prywatna.', 'success')
+    return redirect(url_for('views.list_view', list_id=list_id))
+
+
+@views_bp.route('/lists/<list_id>/delete', methods=['POST'])
+@login_required
+def list_delete(list_id):
+    lst = get_list(list_id)
+    if not lst or not _can_edit_list(lst):
+        flash('Brak uprawnień.', 'danger')
+        return redirect(url_for('views.lists_index'))
+    # Dodatkowe zabezpieczenie: tylko właściciel lub KM/Admin
+    uid = session.get('user_id')
+    role = session.get('user_role')
+    if not (uid == lst.get('owner_id') or role in ['quartermaster', 'admin']):
+        flash('Tylko właściciel lub Kwatermistrz/Administrator może usuwać listy.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    token = request.form.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        flash('Błąd weryfikacji CSRF.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    try:
+        delete_list(list_id)
+        flash('Lista została usunięta.', 'success')
+    except Exception as e:
+        flash(f'Błąd usuwania listy: {e}', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
+    return redirect(url_for('views.lists_index'))
 
 
 @views_bp.route('/lists/<list_id>/export/<format>')
