@@ -844,6 +844,10 @@ def settings():
         owners_raw = (request.form.get('owners') or '').strip()
         magazyny_raw = (request.form.get('magazyny_names') or '').strip()
 
+        # === ustawienia zdjęć ===
+        max_photo_size_mb = request.form.get('max_photo_size_mb', '').strip()
+        max_photo_width = request.form.get('max_photo_width', '').strip()
+
         pin = request.form.get('view_pin')
         auto_rotate = request.form.get('pin_auto_rotate') == 'on'
         rotate_hours = request.form.get('pin_rotate_hours', '').strip()
@@ -854,6 +858,29 @@ def settings():
              return redirect(url_for('admin.settings'))
 
         update_data = {'pin_auto_rotate': auto_rotate}
+
+        # Validate photo settings
+        try:
+            if max_photo_size_mb:
+                size_mb = int(max_photo_size_mb)
+                if size_mb < 1 or size_mb > 20:
+                    flash('Maksymalny rozmiar zdjęcia musi być między 1 a 20 MB.', 'danger')
+                    return redirect(url_for('admin.settings'))
+                update_data['max_photo_size_mb'] = size_mb
+            else:
+                update_data['max_photo_size_mb'] = 5
+
+            if max_photo_width:
+                width = int(max_photo_width)
+                if width < 100 or width > 4000:
+                    flash('Maksymalna szerokość zdjęcia musi być między 100 a 4000 px.', 'danger')
+                    return redirect(url_for('admin.settings'))
+                update_data['max_photo_width'] = width
+            else:
+                update_data['max_photo_width'] = 1920
+        except ValueError:
+            flash('Ustawienia zdjęć muszą być liczbami całkowitymi.', 'danger')
+            return redirect(url_for('admin.settings'))
 
         # Validate and set rotation hours - always set it even if empty (use default)
         if not rotate_hours:

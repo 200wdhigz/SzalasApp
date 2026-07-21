@@ -91,6 +91,19 @@
                         {% endif %}
                     </div>
 
+                    <h5 class="card-title border-bottom pb-2 mb-3 mt-4">Ustawienia zdjęć</h5>
+                    <div class="mb-3">
+                        <label for="max_photo_size_mb" class="form-label fw-bold">Maksymalny rozmiar pliku (MB):</label>
+                        <input type="number" id="max_photo_size_mb" name="max_photo_size_mb" class="form-control" 
+                               value="{{ config.get('max_photo_size_mb', 5) }}" min="1" max="20" step="1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="max_photo_width" class="form-label fw-bold">Maksymalna szerokość zdjęcia (px):</label>
+                        <input type="number" id="max_photo_width" name="max_photo_width" class="form-control" 
+                               value="{{ config.get('max_photo_width', 1920) }}" min="100" max="4000" step="100">
+                        <div class="form-text">Zdjęcia większe niż ta szerokość zostaną przeskalowane (zachowując proporcje).</div>
+                    </div>
+
                     {% if config.get('pin_last_rotate') %}
                     <div class="mb-4">
                         <p class="text-muted small">

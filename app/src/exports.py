@@ -253,7 +253,7 @@ def export_qr_codes_pdf(data, filename, base_url):
                 img_buffer.seek(0)
 
                 # Tworzenie komórki etykiety
-                img = Image(img_buffer, width=40 * mm, height=40 * mm)
+                img = Image(img_buffer, width=26 * mm, height=26 * mm)
 
                 # Zawartość etykiety: najpierw QR, pod spodem ID
                 label_content = [
@@ -279,9 +279,7 @@ def export_qr_codes_pdf(data, filename, base_url):
                 # Szerokość treści ~190 mm => 190/3 ≈ 63.3 mm, wysokość treści ~277 mm => 277/8 ≈ 34.6 mm
                 col_w = (190 / 3.0) * mm
                 row_h = (277 / 8.0) * mm
-                # Zmniejsz trochę rozmiar kodu QR, żeby zostawić miejsce na podpis i padding
-                # (powyżej ustawiliśmy 40×40 mm, to mieści się w komórce ~63×34 mm – zmniejszymy, by się nie ściskało)
-                # Uwaga: faktyczny obraz ustawiony wyżej na 40×40 mm – to rozmiar końcowy w komórce.
+                # Rozmiar QR jest ustawiony na 26×26 mm, aby zmieścił się z podpisem w komórce ~63×34 mm.
 
                 # Tabela z subtelnymi ramkami (grid) – „ramka” dla każdej etykiety
                 t = Table(table_data, colWidths=[col_w] * cols, rowHeights=[row_h] * len(table_data))

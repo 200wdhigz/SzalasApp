@@ -23,18 +23,37 @@
                     <div class="row g-3">
                         <div class="col-md-4" id="id_field_container">
                             <label for="id" class="form-label">ID (np. MA01, PO01, SP01)</label>
-                            <input type="text" name="id" id="id" class="form-control"
-                                   pattern="[0-9a-zA-Z_]+"
-                                   value="{{ sprzet.id if sprzet else '' }}" {% if sprzet %}readonly{% endif %}
-                                   placeholder="Zostaw puste dla auto-ID (żelastwo/kanadyjki/przedmiot/magazyn)"
-                                   title="ID musi składać się z dwóch wielkich liter i co najmniej dwóch cyfr (np. NA01)">
+                            {% if sprzet %}
+                                <input type="text" name="id" id="id" class="form-control" value="{{ sprzet.id }}" readonly>
+                            {% else %}
+                                <div class="input-group">
+                                    <input type="text" name="id" id="id" class="form-control"
+                                           pattern="[0-9a-zA-Z_]+"
+                                           value=""
+                                           placeholder="Zeskanuj lub zostaw puste dla auto-ID"
+                                           autocomplete="off"
+                                           title="ID musi składać się z wielkich liter/cyfr/_.">
+                                    <button class="btn btn-outline-primary" type="button" id="idScanBtn" title="Skanuj kod">
+                                        <i class="bi bi-upc-scan"></i> Skanuj
+                                    </button>
+                                    <button class="btn btn-outline-secondary d-none" type="button" id="idStopScanBtn" title="Zatrzymaj">
+                                        <i class="bi bi-stop-circle"></i>
+                                    </button>
+                                </div>
+                                <div class="mt-2 d-none" id="idScanUnsupported">
+                                    <div class="alert alert-info p-2 mb-0">Skaner aparatu nieobsługiwany. Możesz użyć skanera w telefonie i wkleić kod tutaj, lub zostawić puste dla auto‑ID.</div>
+                                </div>
+                                <div class="mt-2 d-none" id="idCameraWrap">
+                                    <video id="idCamera" playsinline class="w-100 rounded border" style="max-height: 220px; background:#000"></video>
+                                </div>
+                            {% endif %}
                         </div>
                         <div class="col-md-4">
                             <label for="category" class="form-label">Kategoria</label>
                             <select name="category" id="category" class="form-select" onchange="toggleFields()">
                                 {% for key, value in categories.items() %}
                                     <option value="{{ value }}"
-                                            {% if sprzet and sprzet.category == value %}selected{% endif %}>{{ key }}</option>
+                                            {% if sprzet and sprzet.category == value %}selected{% elif not sprzet and (prefill and prefill.get('category') == value) %}selected{% endif %}>{{ key }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -91,7 +110,8 @@
                                 {% for o in owner_suggestions or [] %}
                                     <option value="{{ o }}"
                                             {% if sprzet and sprzet.owner == o %}selected{% endif %}
-                                            {% if (not sprzet or not sprzet.owner) and default_owner and default_owner == o %}selected{% endif %}>
+                                            {% if (not sprzet) and (prefill and prefill.get('owner') == o) %}selected{% endif %}
+                                            {% if (not sprzet or not sprzet.owner) and (not (prefill and prefill.get('owner'))) and default_owner and default_owner == o %}selected{% endif %}>
                                         {{ o }}
                                     </option>
                                 {% endfor %}
@@ -103,7 +123,7 @@
                         <div class="col-md-4 category-field field-magazyn">
                             <label for="nazwa_magazyn" class="form-label">Nazwa Magazynu</label>
                             <input type="text" name="nazwa" id="nazwa_magazyn" class="form-control"
-                                   value="{{ sprzet.nazwa if sprzet else '' }}" list="magazyny_suggestions">
+                                   value="{{ sprzet.nazwa if sprzet else (prefill.get('nazwa') if prefill else '') }}" list="magazyny_suggestions">
                             <datalist id="magazyny_suggestions">
                                 {% for name in magazyny_names %}
                                     <option value="{{ name }}">
@@ -113,89 +133,89 @@
                         <div class="col-md-4 category-field field-magazyn">
                             <label for="gps_lat" class="form-label">GPS Latitude</label>
                             <input type="text" name="gps_lat" id="gps_lat" class="form-control"
-                                   value="{{ sprzet.gps_lat if sprzet else '' }}">
+                                   value="{{ sprzet.gps_lat if sprzet else (prefill.get('gps_lat') if prefill else '') }}">
                         </div>
                         <div class="col-md-4 category-field field-magazyn">
                             <label for="gps_lng" class="form-label">GPS Longitude</label>
                             <input type="text" name="gps_lng" id="gps_lng" class="form-control"
-                                   value="{{ sprzet.gps_lng if sprzet else '' }}">
+                                   value="{{ sprzet.gps_lng if sprzet else (prefill.get('gps_lng') if prefill else '') }}">
                         </div>
 
                         <!-- Pola dla POLKA/SKRZYNIA -->
                         <div class="col-md-4 category-field field-polka_skrzynia">
                             <label for="nazwa_polka" class="form-label">Nazwa Półki/Skrzyni</label>
                             <input type="text" name="nazwa" id="nazwa_polka" class="form-control"
-                                   value="{{ sprzet.nazwa if sprzet else '' }}">
+                                   value="{{ sprzet.nazwa if sprzet else (prefill.get('nazwa') if prefill else '') }}">
                         </div>
                         <div class="col-md-8 category-field field-polka_skrzynia">
                             <label for="informacje" class="form-label">Dodatkowe informacje</label>
                             <input type="text" name="informacje" id="informacje" class="form-control"
-                                   value="{{ sprzet.informacje if sprzet else '' }}">
+                                   value="{{ sprzet.informacje if sprzet else (prefill.get('informacje') if prefill else '') }}">
                         </div>
 
                         <!-- Pola dla NAMIOT (stare pola) -->
                         <div class="col-md-4 category-field field-namiot">
                             <label for="typ" class="form-label">Typ</label>
                             <input type="text" name="typ" id="typ" class="form-control"
-                                   value="{{ sprzet.typ if sprzet else '' }}">
+                                   value="{{ sprzet.typ if sprzet else (prefill.get('typ') if prefill else '') }}">
                         </div>
                         <div class="col-md-4 category-field field-namiot">
                             <label for="wodoszczelnosc" class="form-label">Wodoszczelność</label>
                             <select name="wodoszczelnosc" id="wodoszczelnosc" class="form-select">
                                 <option value="Nie cieknie"
-                                        {% if sprzet and sprzet.wodoszczelnosc == 'Nie cieknie' %}selected{% endif %}>
+                                        {% if sprzet and sprzet.wodoszczelnosc == 'Nie cieknie' %}selected{% elif not sprzet and (prefill and prefill.get('wodoszczelnosc') == 'Nie cieknie') %}selected{% endif %}>
                                     Nie cieknie
                                 </option>
                                 <option value="Cieknie"
-                                        {% if sprzet and sprzet.wodoszczelnosc == 'Cieknie' %}selected{% endif %}>
+                                        {% if sprzet and sprzet.wodoszczelnosc == 'Cieknie' %}selected{% elif not sprzet and (prefill and prefill.get('wodoszczelnosc') == 'Cieknie') %}selected{% endif %}>
                                     Cieknie
                                 </option>
                                 <option value="N/A"
-                                        {% if sprzet and sprzet.wodoszczelnosc == 'N/A' %}selected{% endif %}>N/A
+                                        {% if sprzet and sprzet.wodoszczelnosc == 'N/A' %}selected{% elif not sprzet and (prefill and prefill.get('wodoszczelnosc') == 'N/A') %}selected{% endif %}>N/A
                                 </option>
                             </select>
                         </div>
                         <div class="col-md-4 category-field field-namiot">
                             <label for="stan_ogolny" class="form-label">Stan Ogólny</label>
                             <input type="text" name="stan_ogolny" id="stan_ogolny" class="form-control"
-                                   value="{{ sprzet.stan_ogolny if sprzet else '' }}">
+                                   value="{{ sprzet.stan_ogolny if sprzet else (prefill.get('stan_ogolny') if prefill else '') }}">
                         </div>
                         <div class="col-md-4 category-field field-namiot">
                             <label for="przeznaczenie" class="form-label">Przeznaczenie</label>
                             <input type="text" name="przeznaczenie" id="przeznaczenie" class="form-control"
-                                   value="{{ sprzet.przeznaczenie if sprzet else '' }}">
+                                   value="{{ sprzet.przeznaczenie if sprzet else (prefill.get('przeznaczenie') if prefill else '') }}">
                         </div>
                         <div class="col-md-3 category-field field-namiot">
                             <label for="zakup" class="form-label">Data Zakupu</label>
                             <input type="date" name="zakup" id="zakup" class="form-control"
-                                   value="{{ sprzet.zakup if sprzet else '' }}">
+                                   value="{{ sprzet.zakup if sprzet else (prefill.get('zakup') if prefill else '') }}">
                         </div>
                         <div class="col-md-3 category-field field-namiot">
                             <label for="przejecie" class="form-label">Data Przejęcia</label>
                             <input type="date" name="przejecie" id="przejecie" class="form-control"
-                                   value="{{ sprzet.przejecie if sprzet else '' }}">
+                                   value="{{ sprzet.przejecie if sprzet else (prefill.get('przejecie') if prefill else '') }}">
                         </div>
                         <div class="col-md-3 category-field field-namiot">
                             <label for="kolor_dachu" class="form-label">Kolor dachu</label>
                             <input type="text" name="kolor_dachu" id="kolor_dachu" class="form-control"
-                                   value="{{ sprzet.kolor_dachu if sprzet else '' }}">
+                                   value="{{ sprzet.kolor_dachu if sprzet else (prefill.get('kolor_dachu') if prefill else '') }}">
                         </div>
                         <div class="col-md-3 category-field field-namiot">
                             <label for="kolor_bokow" class="form-label">Kolor boków</label>
                             <input type="text" name="kolor_bokow" id="kolor_bokow" class="form-control"
-                                   value="{{ sprzet.kolor_bokow if sprzet else '' }}">
+                                   value="{{ sprzet.kolor_bokow if sprzet else (prefill.get('kolor_bokow') if prefill else '') }}">
                         </div>
                         <div class="col-md-6 category-field field-namiot">
                             <label for="znak_szczegolny" class="form-label">Znak szczególny</label>
                             <input type="text" name="znak_szczegolny" id="znak_szczegolny" class="form-control"
-                                   value="{{ sprzet.znak_szczegolny if sprzet else '' }}">
+                                   value="{{ sprzet.znak_szczegolny if sprzet else (prefill.get('znak_szczegolny') if prefill else '') }}">
                         </div>
                         <div class="col-md-6 category-field field-namiot">
                             <label for="zapalki" class="form-label">Zapałki</label>
                             <select name="zapalki" id="zapalki" class="form-select">
-                                <option value="5" {% if sprzet and sprzet.zapalki == '5' %}selected{% endif %}>5
+                                <option value="5" {% if sprzet and sprzet.zapalki == '5' %}selected{% elif not sprzet and (prefill and prefill.get('zapalki') == '5') %}selected{% endif %}>5
                                 </option>
-                                <option value="6" {% if sprzet and sprzet.zapalki == '6' %}selected{% endif %}>6
+                                <option value="6" {% if sprzet and sprzet.zapalki == '6' %}selected{% elif not sprzet and (prefill and prefill.get('zapalki') == '6') %}selected{% endif %}>6
                                 </option>
                             </select>
                         </div>
@@ -204,23 +224,23 @@
                         <div class="col-md-4 category-field field-przedmiot">
                             <label for="nazwa_przedmiot" class="form-label">Nazwa Przedmiotu</label>
                             <input type="text" name="nazwa" id="nazwa_przedmiot" class="form-control"
-                                   value="{{ sprzet.nazwa if sprzet else '' }}">
+                                   value="{{ sprzet.nazwa if sprzet else (prefill.get('nazwa') if prefill else '') }}">
                         </div>
                         <div class="col-md-4 category-field field-przedmiot">
                             <label class="form-label">Ilość</label>
                             <div class="input-group">
                                 <input type="text" name="ilosc" id="ilosc" class="form-control"
-                                       value="{{ sprzet.ilosc if sprzet else '' }}" placeholder="np. 10">
+                                       value="{{ sprzet.ilosc if sprzet else (prefill.get('ilosc') if prefill else '') }}" placeholder="np. 10">
                                 <select name="jednostka" id="jednostka" class="form-select" style="max-width: 120px;">
                                     <option value=".szt"
-                                            {% if sprzet and sprzet.jednostka == '.szt' %}selected{% endif %}>
+                                            {% if sprzet and sprzet.jednostka == '.szt' %}selected{% elif not sprzet and (prefill and prefill.get('jednostka') == '.szt') %}selected{% endif %}>
                                         .szt
                                     </option>
-                                    <option value=".m" {% if sprzet and sprzet.jednostka == '.m' %}selected{% endif %}>
+                                    <option value=".m" {% if sprzet and sprzet.jednostka == '.m' %}selected{% elif not sprzet and (prefill and prefill.get('jednostka') == '.m') %}selected{% endif %}>
                                         .m
                                     </option>
                                     <option value=".m×.m"
-                                            {% if sprzet and sprzet.jednostka == '.m×.m' %}selected{% endif %}>.m×.m
+                                            {% if sprzet and sprzet.jednostka == '.m×.m' %}selected{% elif not sprzet and (prefill and prefill.get('jednostka') == '.m×.m') %}selected{% endif %}>.m×.m
                                     </option>
                                 </select>
                             </div>
@@ -231,7 +251,7 @@
                             <label for="do_czego" class="form-label">Do czego</label>
                             <input type="text" name="do_czego" id="do_czego" class="form-control"
                                    list="do_czego_suggestions"
-                                   value="{{ sprzet.do_czego if sprzet else '' }}">
+                                   value="{{ sprzet.do_czego if sprzet else (prefill.get('do_czego') if prefill else '') }}">
                             <datalist id="do_czego_suggestions">
                                 {% for s in do_czego_suggestions or [] %}
                                     <option value="{{ s }}">
@@ -242,20 +262,20 @@
                             <label for="typ_zelastwa" class="form-label">Typ żelastwa</label>
                             <select name="typ_zelastwa" id="typ_zelastwa" class="form-select">
                                 <option value="maszt"
-                                        {% if sprzet and sprzet.typ_zelastwa == 'maszt' %}selected{% endif %}>maszt
+                                        {% if sprzet and sprzet.typ_zelastwa == 'maszt' %}selected{% elif not sprzet and (prefill and prefill.get('typ_zelastwa') == 'maszt') %}selected{% endif %}>maszt
                                 </option>
                                 <option value="noga"
-                                        {% if sprzet and sprzet.typ_zelastwa == 'noga' %}selected{% endif %}>noga
+                                        {% if sprzet and sprzet.typ_zelastwa == 'noga' %}selected{% elif not sprzet and (prefill and prefill.get('typ_zelastwa') == 'noga') %}selected{% endif %}>noga
                                 </option>
                                 <option value="zapałka"
-                                        {% if sprzet and sprzet.typ_zelastwa == 'zapałka' %}selected{% endif %}>zapałka
+                                        {% if sprzet and sprzet.typ_zelastwa == 'zapałka' %}selected{% elif not sprzet and (prefill and prefill.get('typ_zelastwa') == 'zapałka') %}selected{% endif %}>zapałka
                                 </option>
                                 <option value="rozpórka"
-                                        {% if sprzet and sprzet.typ_zelastwa == 'rozpórka' %}selected{% endif %}>
+                                        {% if sprzet and sprzet.typ_zelastwa == 'rozpórka' %}selected{% elif not sprzet and (prefill and prefill.get('typ_zelastwa') == 'rozpórka') %}selected{% endif %}>
                                     rozpórka
                                 </option>
                                 <option value="poprzeczka"
-                                        {% if sprzet and sprzet.typ_zelastwa == 'poprzeczka' %}selected{% endif %}>
+                                        {% if sprzet and sprzet.typ_zelastwa == 'poprzeczka' %}selected{% elif not sprzet and (prefill and prefill.get('typ_zelastwa') == 'poprzeczka') %}selected{% endif %}>
                                     poprzeczka
                                 </option>
                             </select>
@@ -266,7 +286,7 @@
                                 <input type="number" min="0" step="1" name="ilosc" id="ilosc_zelastwo"
                                        class="form-control"
                                        list="qty_suggestions_zelastwo"
-                                       value="{{ sprzet.ilosc if sprzet else '' }}"
+                                       value="{{ sprzet.ilosc if sprzet else (prefill.get('ilosc') if prefill else '') }}"
                                        placeholder="np. 1">
                                 <datalist id="qty_suggestions_zelastwo">
                                     {% for v in qty_suggestions_zelastwo or [] %}
@@ -276,11 +296,11 @@
                                 <select name="jednostka" id="jednostka_zelastwo" class="form-select"
                                         style="max-width: 110px;">
                                     <option value="zest."
-                                            {% if not sprzet or not sprzet.jednostka or sprzet.jednostka == 'zest.' %}selected{% endif %}>
+                                            {% if (sprzet and (not sprzet.jednostka or sprzet.jednostka == 'zest.')) or (not sprzet and (not (prefill and prefill.get('jednostka')) or (prefill and prefill.get('jednostka') == 'zest.'))) %}selected{% endif %}>
                                         zest.
                                     </option>
                                     <option value="szt."
-                                            {% if sprzet and sprzet.jednostka == 'szt.' %}selected{% endif %}>szt.
+                                            {% if sprzet and sprzet.jednostka == 'szt.' %}selected{% elif not sprzet and (prefill and prefill.get('jednostka') == 'szt.') %}selected{% endif %}>szt.
                                     </option>
                                 </select>
                             </div>
@@ -292,11 +312,11 @@
                             <label for="material" class="form-label">Materiał</label>
                             <select name="material" id="material" class="form-select">
                                 <option value="materiałowe"
-                                        {% if sprzet and sprzet.material == 'materiałowe' %}selected{% endif %}>
+                                        {% if sprzet and sprzet.material == 'materiałowe' %}selected{% elif not sprzet and (prefill and prefill.get('material') == 'materiałowe') %}selected{% endif %}>
                                     materiałowe
                                 </option>
                                 <option value="gumowe"
-                                        {% if sprzet and sprzet.material == 'gumowe' %}selected{% endif %}>gumowe
+                                        {% if sprzet and sprzet.material == 'gumowe' %}selected{% elif not sprzet and (prefill and prefill.get('material') == 'gumowe') %}selected{% endif %}>gumowe
                                 </option>
                             </select>
                         </div>
@@ -306,7 +326,7 @@
                                 <input type="number" min="0" step="1" name="ilosc" id="ilosc_kanadyjki"
                                        class="form-control"
                                        list="qty_suggestions_kanadyjki"
-                                       value="{{ sprzet.ilosc if sprzet else '' }}"
+                                       value="{{ sprzet.ilosc if sprzet else (prefill.get('ilosc') if prefill else '') }}"
                                        placeholder="np. 4">
                                 <datalist id="qty_suggestions_kanadyjki">
                                     {% for v in qty_suggestions_kanadyjki or [] %}
@@ -328,7 +348,7 @@
                         <div class="col-md-4 category-field field-materace">
                             <label for="typ_materaca" class="form-label">Typ materaca</label>
                             <input type="text" name="typ_materaca" id="typ_materaca" class="form-control"
-                                   value="{{ sprzet.typ_materaca if sprzet else '' }}"
+                                   value="{{ sprzet.typ_materaca if sprzet else (prefill.get('typ_materaca') if prefill else '') }}"
                                    placeholder="Np. dmuchany / piankowy"/>
                         </div>
                         <div class="col-md-4 category-field field-materace">
@@ -336,7 +356,7 @@
                             <div class="input-group">
                                 <input type="number" min="0" step="1" name="ilosc" id="ilosc_materace"
                                        class="form-control"
-                                       value="{{ sprzet.ilosc if sprzet and sprzet.ilosc is not none else '' }}"
+                                       value="{{ sprzet.ilosc if sprzet and sprzet.ilosc is not none else (prefill.get('ilosc') if prefill else '') }}"
                                        list="qty_suggestions_materace">
                                 <span class="input-group-text">szt.</span>
                             </div>
@@ -351,19 +371,19 @@
                         <div class="col-md-3 common-fields">
                             <label for="sprawny" class="form-label">Sprawny?</label>
                             <select name="sprawny" id="sprawny" class="form-select">
-                                <option value="Tak" {% if sprzet and sprzet.sprawny == 'Tak' %}selected{% endif %}>Tak
+                                <option value="Tak" {% if sprzet and sprzet.sprawny == 'Tak' %}selected{% elif not sprzet and (prefill and prefill.get('sprawny') == 'Tak') %}selected{% endif %}>Tak
                                 </option>
-                                <option value="Nie" {% if sprzet and sprzet.sprawny == 'Nie' %}selected{% endif %}>Nie
+                                <option value="Nie" {% if sprzet and sprzet.sprawny == 'Nie' %}selected{% elif not sprzet and (prefill and prefill.get('sprawny') == 'Nie') %}selected{% endif %}>Nie
                                 </option>
                             </select>
                         </div>
                         <div class="col-md-3 common-fields">
                             <label for="czyWraca" class="form-label">Czy wraca do Wawy?</label>
                             <select name="czyWraca" id="czyWraca" class="form-select">
-                                <option value="Tak" {% if sprzet and sprzet.czyWraca == 'Tak' %}selected{% endif %}>
+                                <option value="Tak" {% if sprzet and sprzet.czyWraca == 'Tak' %}selected{% elif not sprzet and (prefill and prefill.get('czyWraca') == 'Tak') %}selected{% endif %}>
                                     Tak
                                 </option>
-                                <option value="Nie" {% if sprzet and sprzet.czyWraca == 'Nie' %}selected{% endif %}>
+                                <option value="Nie" {% if sprzet and sprzet.czyWraca == 'Nie' %}selected{% elif not sprzet and (prefill and prefill.get('czyWraca') == 'Nie') %}selected{% endif %}>
                                     Nie
                                 </option>
                             </select>
@@ -372,10 +392,10 @@
                             <label for="oficjalna_ewidencja" class="form-label">Oficjalna ewidencja?</label>
                             <select name="oficjalna_ewidencja" id="oficjalna_ewidencja" class="form-select">
                                 <option value="Tak"
-                                        {% if sprzet and sprzet.oficjalna_ewidencja == 'Tak' %}selected{% endif %}>Tak
+                                        {% if sprzet and sprzet.oficjalna_ewidencja == 'Tak' %}selected{% elif not sprzet and (prefill and prefill.get('oficjalna_ewidencja') == 'Tak') %}selected{% endif %}>Tak
                                 </option>
                                 <option value="Nie"
-                                        {% if not sprzet or sprzet.oficjalna_ewidencja == 'Nie' or not sprzet.oficjalna_ewidencja %}selected{% endif %}>
+                                        {% if (sprzet and (sprzet.oficjalna_ewidencja == 'Nie' or not sprzet.oficjalna_ewidencja)) or (not sprzet and (not (prefill and prefill.get('oficjalna_ewidencja')) or (prefill and prefill.get('oficjalna_ewidencja') == 'Nie'))) %}selected{% endif %}>
                                     Nie
                                 </option>
                             </select>
@@ -384,12 +404,12 @@
                         <div class="col-12">
                             <label for="uwagi" class="form-label">Uwagi konserwacyjne</label>
                             <textarea name="uwagi" id="uwagi" class="form-control"
-                                      rows="2">{{ sprzet.uwagi if sprzet else '' }}</textarea>
+                                      rows="2">{{ sprzet.uwagi if sprzet else (prefill.get('uwagi') if prefill else '') }}</textarea>
                         </div>
                         <div class="col-12">
                             <label for="historia" class="form-label">Historia</label>
                             <textarea name="historia" id="historia" class="form-control"
-                                      rows="2">{{ sprzet.historia if sprzet else '' }}</textarea>
+                                      rows="2">{{ sprzet.historia if sprzet else (prefill.get('historia') if prefill else '') }}</textarea>
                         </div>
 
                         <div class="col-12 mt-4">
@@ -511,5 +531,89 @@
 
         // Uruchom przy załadowaniu
         document.addEventListener('DOMContentLoaded', toggleFields);
+
+        // ---------------------------------------------
+        // Skaner QR/Kreskowy dla pola ID przy dodawaniu
+        // ---------------------------------------------
+        document.addEventListener('DOMContentLoaded', function () {
+            const isEdit = {{ 'true' if sprzet else 'false' }};
+            if (isEdit) return;
+            const startBtn = document.getElementById('idScanBtn');
+            const stopBtn = document.getElementById('idStopScanBtn');
+            const video = document.getElementById('idCamera');
+            const wrap = document.getElementById('idCameraWrap');
+            const unsupported = document.getElementById('idScanUnsupported');
+            const input = document.getElementById('id');
+
+            if (!startBtn || !input) return;
+
+            let detector = null; // BarcodeDetector
+            let stream = null;
+            let rafId = null;
+
+            function stopScan() {
+                if (rafId) cancelAnimationFrame(rafId);
+                rafId = null;
+                if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+                if (video) video.srcObject = null;
+                wrap?.classList.add('d-none');
+                stopBtn?.classList.add('d-none');
+                startBtn?.classList.remove('d-none');
+            }
+
+            async function startScan() {
+                unsupported?.classList.add('d-none');
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+                    video.srcObject = stream;
+                    wrap?.classList.remove('d-none');
+                    stopBtn?.classList.remove('d-none');
+                    startBtn?.classList.add('d-none');
+                    await video.play();
+
+                    if ('BarcodeDetector' in window) {
+                        detector = new window.BarcodeDetector({ formats: ['qr_code', 'ean_13', 'code_128', 'code_39', 'ean_8', 'upc_e'] });
+                        const scan = async () => {
+                            if (!detector || !video || video.readyState !== 4) {
+                                rafId = requestAnimationFrame(scan);
+                                return;
+                            }
+                            try {
+                                const codes = await detector.detect(video);
+                                if (codes && codes.length) {
+                                    const text = (codes[0].rawValue ?? '').toString();
+                                    if (text) {
+                                        input.value = text.trim();
+                                        input.setAttribute('readonly', 'readonly');
+                                        stopScan();
+                                        return;
+                                    }
+                                }
+                            } catch (e) {
+                                // ignoruj pojedyncze błędy detekcji
+                            }
+                            rafId = requestAnimationFrame(scan);
+                        };
+                        rafId = requestAnimationFrame(scan);
+                    } else {
+                        unsupported?.classList.remove('d-none');
+                        stopScan();
+                    }
+                } catch (err) {
+                    console.error('Scan error', err);
+                    unsupported?.classList.remove('d-none');
+                    stopScan();
+                }
+            }
+
+            startBtn?.addEventListener('click', startScan);
+            stopBtn?.addEventListener('click', stopScan);
+
+            // Gdy użytkownik edytuje ręcznie, odblokuj input
+            input?.addEventListener('input', () => input.removeAttribute('readonly'));
+
+            // Sprzątanie przy przeładowaniu sekcji
+            window.addEventListener('beforeunload', stopScan);
+        });
     </script>
 {% endblock %}
