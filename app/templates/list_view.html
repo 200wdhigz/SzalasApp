@@ -69,18 +69,19 @@
     {% if can_edit %}
     <div class="d-flex gap-2">
       <button class="btn btn-outline-danger" type="submit">Usuń zaznaczone</button>
-
-      <!-- Edycja seryjna całej listy -->
-      <form id="bulk-all" method="post" action="{{ url_for('views.sprzet_bulk_edit') }}">
-        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        {% for it in items %}
-          <input type="hidden" name="sprzet_ids" value="{{ it.id }}">
-        {% endfor %}
-        <button type="submit" class="btn btn-warning">Edycja seryjna (cała lista)</button>
-      </form>
+      <button type="submit" form="bulk-all" class="btn btn-warning">Edycja seryjna (cała lista)</button>
     </div>
     {% endif %}
   </form>
+
+  {% if can_edit %}
+  <form id="bulk-all" method="post" action="{{ url_for('views.sprzet_bulk_edit') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    {% for it in items %}
+      <input type="hidden" name="sprzet_ids" value="{{ it.id }}">
+    {% endfor %}
+  </form>
+  {% endif %}
 
   {% if can_edit %}
   <hr>

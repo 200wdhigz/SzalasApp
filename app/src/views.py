@@ -119,7 +119,13 @@ def process_uploads(files, folder, id_prefix=None):
     for i, f in enumerate(valid_files):
         if f.mimetype not in ALLOWED_MIMES:
             return [], f'Nieobsługiwany typ pliku: {f.filename}'
-        
+
+        f.stream.seek(0, os.SEEK_END)
+        size = f.stream.tell()
+        f.stream.seek(0)
+        if size > MAX_SIZE:
+            return [], f'Plik za duży (>{max_size_mb}MB): {f.filename}'
+
         # Resize if needed
         if max_width:
             try:
@@ -128,21 +134,17 @@ def process_uploads(files, folder, id_prefix=None):
                     w_percent = (max_width / float(img.width))
                     h_size = int((float(img.height) * float(w_percent)))
                     img = img.resize((max_width, h_size), Image.Resampling.LANCZOS)
-                    
+
                     # Save resized image back to a stream
                     output_stream = BytesIO()
                     img.save(output_stream, format='PNG')
                     output_stream.seek(0)
                     f.stream = output_stream
                     f.mimetype = 'image/png'
+                else:
+                    f.stream.seek(0)
             except Exception as e:
                 return [], f'Błąd przetwarzania zdjęcia {f.filename}: {e}'
-
-        f.stream.seek(0, os.SEEK_END)
-        size = f.stream.tell()
-        f.stream.seek(0)
-        if size > MAX_SIZE:
-            return [], f'Plik za duży (>{max_size_mb}MB): {f.filename}'
 
         if id_prefix:
             import time
@@ -1077,13 +1079,14 @@ def sprzet_rename_id(old_id: str):
     set_item(COLLECTION_SPRZET, new_id, {k: v for k, v in new_doc.items() if k != 'id'})
 
     # Aktualizacje referencji
+    update_errors = []
     updated_children = 0
     for child in get_items_by_parent(old_id) or []:
         try:
             update_sprzet(child['id'], parent_id=new_id)
             updated_children += 1
         except Exception:
-            pass
+            update_errors.append(f"child:{child.get('id')}")
 
     updated_usterki = 0
     for u in get_usterki_for_sprzet(old_id) or []:
@@ -1091,7 +1094,7 @@ def sprzet_rename_id(old_id: str):
             update_usterka(u['id'], sprzet_id=new_id)
             updated_usterki += 1
         except Exception:
-            pass
+            update_errors.append(f"usterka:{u.get('id')}")
 
     updated_loans = 0
     try:
@@ -1101,9 +1104,17 @@ def sprzet_rename_id(old_id: str):
                 update_item(COLLECTION_WYPOZYCZENIA, ln['id'], item_id=new_id)
                 updated_loans += 1
             except Exception:
-                pass
+                update_errors.append(f"loan:{ln.get('id')}")
     except Exception:
-        pass
+        update_errors.append('loans_fetch')
+
+    if update_errors:
+        flash(
+            f'Nie udało się zaktualizować wszystkich powiązań ({len(update_errors)} błędów). '
+            f'Stary rekord {old_id} nie został usunięty.',
+            'warning'
+        )
+        return redirect(url_for('views.sprzet_card', sprzet_id=old_id) + (f'?return={return_query}' if return_query else ''))
 
     # Usuń stary dokument dopiero po wszystkich aktualizacjach
     delete_item(COLLECTION_SPRZET, old_id)
@@ -2769,7 +2780,17 @@ def list_unshare(list_id):
 def list_add_item(list_id):
     lst = get_list(list_id)
     if not lst or not _can_edit_list(lst):
-        return jsonify({'ok': False, 'error': 'forbidden'}), 403 if request.args.get('ajax') else redirect(url_for('views.lists_index'))
+        if request.args.get('ajax'):
+            return jsonify({'ok': False, 'error': 'forbidden'}), 403
+        flash('Brak uprawnień.', 'danger')
+        return redirect(url_for('views.lists_index'))
+
+    token = request.form.get('_csrf_token') or request.args.get('_csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        if request.args.get('ajax'):
+            return jsonify({'ok': False, 'error': 'csrf'}), 400
+        flash('Błąd weryfikacji CSRF.', 'danger')
+        return redirect(url_for('views.list_view', list_id=list_id))
 
     item_id = (request.form.get('item_id') or request.args.get('item_id') or '').strip()
     if not item_id or not get_sprzet_item(item_id):
@@ -2920,4 +2941,3 @@ def list_scanner():
         flash('Brak dostępu do listy.', 'danger')
         return redirect(url_for('views.lists_index'))
     return render_template('list_scanner.html', lst=lst, can_edit=_can_edit_list(lst))
-

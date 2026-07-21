@@ -793,24 +793,6 @@
                 let stream = null;
                 let rafId = null;
                 let detector = null; // BarcodeDetector
-                let zxingReader = null; // ZXing BrowserMultiFormatReader
-                let zxingControls = null; // Controls from decodeFromVideoDevice
-
-                // Dynamiczne ładowanie ZXing jako fallback dla przeglądarek bez BarcodeDetector
-                let zxingLoading = null;
-                function loadZXing() {
-                    if (window.ZXing && window.ZXing.BrowserMultiFormatReader) return Promise.resolve();
-                    if (zxingLoading) return zxingLoading;
-                    zxingLoading = new Promise((resolve, reject) => {
-                        const s = document.createElement('script');
-                        s.src = 'https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js';
-                        s.async = true;
-                        s.onload = () => resolve();
-                        s.onerror = () => reject(new Error('Nie udało się załadować skanera ZXing'));
-                        document.head.appendChild(s);
-                    });
-                    return zxingLoading;
-                }
 
                 function stopScan() {
                     if (rafId) cancelAnimationFrame(rafId);
@@ -818,13 +800,6 @@
                     if (stream) {
                         stream.getTracks().forEach(t => t.stop());
                         stream = null;
-                    }
-                    if (zxingControls && typeof zxingControls.stop === 'function') {
-                        try { zxingControls.stop(); } catch (_) {}
-                        zxingControls = null;
-                    }
-                    if (zxingReader && typeof zxingReader.reset === 'function') {
-                        try { zxingReader.reset(); } catch (_) {}
                     }
                     if (video) {
                         video.srcObject = null;
@@ -872,21 +847,8 @@
                             };
                             rafId = requestAnimationFrame(scan);
                         } else {
-                            // Fallback: ZXing (działa w Chrome/Firefox/Safari desktop i mobile)
-                            await loadZXing();
-                            zxingReader = new window.ZXing.BrowserMultiFormatReader();
-                            // null = domyślna kamera; preferuje tylną na mobile, na desktop wybierze jedyną/domyślną
-                            zxingControls = await zxingReader.decodeFromVideoDevice(null, video, (result, err, controls) => {
-                                if (result && result.getText) {
-                                    const text = result.getText();
-                                    if (text) {
-                                        input.value = text.trim();
-                                        input.setAttribute('readonly', 'readonly');
-                                        stopScan();
-                                    }
-                                }
-                                // błędy dekodowania są normalne klatka-po-klatce, ignorujemy
-                            });
+                            unsupported?.classList.remove('d-none');
+                            stopScan();
                         }
                     } catch (err) {
                         console.error('Scan error', err);
